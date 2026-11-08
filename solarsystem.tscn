@@ -19,3 +19,5 @@ mesh = SubResource("SphereMesh_dpdpu")
 [node name="OmniLight3D" type="OmniLight3D" parent="Sun" unique_id=1803048829]
 light_energy = 3.0
 omni_range = 100.0
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=1373675370]
