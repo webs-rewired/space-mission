@@ -92,4 +92,4 @@ func _on_continue():
 
 func go_to_results():
 	GameState.finish_mission()
-	get_tree().change_scene_to_file(RESULTS_SCENE)
+	get_tree().change_scene_to_file("res://scenes/results.tscn")

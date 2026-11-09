@@ -136,7 +136,7 @@ func colored(text, color):
 	return "[color=%s]%s[/color]" % [color, text]
 
 func _on_launch_pressed():
-	get_tree().change_scene_to_file(LAUNCH_SCENE)
+	get_tree().change_scene_to_file("res://scenes/launch.tscn")
 
 func _on_back_pressed():
-	get_tree().change_scene_to_file(SOLAR_SYSTEM_SCENE)
+	get_tree().change_scene_to_file("res://scenes/solar_system.tscn")
