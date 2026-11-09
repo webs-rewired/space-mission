@@ -10,10 +10,10 @@ extends Control
 
 func _ready():
 	outcome_label.text = GameState.outcome
-	score_label.text = "Score: %d / 100" % GameState.score
+	score_label.text = "Score: %d / 100\n%s" % [GameState.score, GameState.ending]
 
 	var lines = []
-	for e in GameState.events:
+	for e in GameState.mission_log:
 		var color = "green" if e["ok"] else "red"
 		lines.append("[color=%s][b]%s[/b][/color]: %s" % [color, e["title"], e["text"]])
 	if not GameState.lost and GameState.data_share < 1.0:

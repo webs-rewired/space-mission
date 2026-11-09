@@ -5,6 +5,7 @@ extends Node3D
 @onready var event_panel = $CanvasLayer/EventPanel
 @onready var event_title = $CanvasLayer/EventPanel/VBox/EventTitle
 @onready var event_text = $CanvasLayer/EventPanel/VBox/EventText
+@onready var choice_box = $CanvasLayer/EventPanel/VBox/ChoiceButtons
 @onready var continue_button = $CanvasLayer/EventPanel/VBox/ContinueButton
 
 const COLORS = {
@@ -22,7 +23,7 @@ func _ready():
 	var mat = StandardMaterial3D.new()
 	mat.albedo_color = COLORS[GameState.destination]
 	target.material_override = mat
-	GameState.run_mission()
+	GameState.build_mission()
 	fly_to(checkpoint(0))
 
 func checkpoint(i):
@@ -40,19 +41,45 @@ func fly_to(p):
 	tween.tween_method(set_progress, progress, p, 2.0)
 	tween.finished.connect(_show_event)
 
+func clear_choices():
+	for b in choice_box.get_children():
+		b.queue_free()
+
 func _show_event():
 	var e = GameState.events[event_index]
-	event_title.text = ("Good: " if e["ok"] else "Problem: ") + e["title"]
-	event_text.text = e["text"]
+	clear_choices()
 	event_panel.visible = true
+	if e["choices"].is_empty():
+		GameState.apply_event(e)
+		event_title.text = ("Good: " if e["ok"] else "Problem: ") + e["title"]
+		event_text.text = e["text"]
+		continue_button.visible = true
+	else:
+		event_title.text = "Decision: " + e["title"]
+		event_text.text = e["text"]
+		continue_button.visible = false
+		for i in e["choices"].size():
+			var b = Button.new()
+			b.text = e["choices"][i]
+			b.pressed.connect(_on_choice.bind(i))
+			choice_box.add_child(b)
+
+func _on_choice(index):
+	var e = GameState.events[event_index]
+	var result = GameState.resolve_choice(e, index)
+	clear_choices()
+	event_title.text = ("Good: " if result["ok"] else "Problem: ") + e["title"]
+	event_text.text = result["text"]
+	continue_button.visible = true
 
 func _on_continue():
 	event_panel.visible = false
 	event_index += 1
-	if event_index < GameState.events.size():
-		fly_to(checkpoint(event_index))
-	else:
+	if GameState.lost or event_index >= GameState.events.size():
 		go_to_results()
+	else:
+		fly_to(checkpoint(event_index))
 
 func go_to_results():
-	get_tree().change_scene_to_file("res://scenes/results.tscn")
+	GameState.finish_mission()
+	get_tree().change_scene_to_file("res://scenes/results.tscn")  # <- use your path

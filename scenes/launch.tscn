@@ -74,6 +74,9 @@ theme_override_font_sizes/font_size = 24
 layout_mode = 2
 autowrap_mode = 3
 
+[node name="ChoiceButtons" type="VBoxContainer" parent="CanvasLayer/EventPanel/VBox" unique_id=2071313369]
+layout_mode = 2
+
 [node name="ContinueButton" type="Button" parent="CanvasLayer/EventPanel/VBox" unique_id=188907407]
 layout_mode = 2
 text = "Continue"
