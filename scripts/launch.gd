@@ -55,4 +55,4 @@ func _on_continue():
 		go_to_results()
 
 func go_to_results():
-	print("Done! ", GameState.outcome, " - score ", GameState.score)
+	get_tree().change_scene_to_file("res://scenes/results.tscn")

@@ -1,0 +1,67 @@
+[gd_scene format=3 uid="uid://bdfmkv313vgpn"]
+
+[ext_resource type="Script" uid="uid://bfon5dt3im7oo" path="res://scripts/results.gd" id="1_qh7lt"]
+
+[node name="Results" type="Control" unique_id=1590452666]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_qh7lt")
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=2005121368]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 1)
+
+[node name="CenterContainer" type="CenterContainer" parent="." unique_id=933016739]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PanelContainer" type="PanelContainer" parent="CenterContainer" unique_id=1587938545]
+custom_minimum_size = Vector2(520, 0)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="CenterContainer/PanelContainer" unique_id=256449889]
+layout_mode = 2
+
+[node name="OutcomeLabel" type="Label" parent="CenterContainer/PanelContainer/VBox" unique_id=1709843989]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+horizontal_alignment = 1
+
+[node name="ScoreLabel" type="Label" parent="CenterContainer/PanelContainer/VBox" unique_id=887121710]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 1
+
+[node name="EventsLabel" type="RichTextLabel" parent="CenterContainer/PanelContainer/VBox" unique_id=1972951000]
+layout_mode = 2
+bbcode_enabled = true
+fit_content = true
+
+[node name="RealMissionLabel" type="Label" parent="CenterContainer/PanelContainer/VBox" unique_id=513164485]
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="Buttons" type="HBoxContainer" parent="CenterContainer/PanelContainer/VBox" unique_id=1675420819]
+layout_mode = 2
+alignment = 1
+
+[node name="TryAgainButton" type="Button" parent="CenterContainer/PanelContainer/VBox/Buttons" unique_id=1795504851]
+layout_mode = 2
+text = "Try again!"
+
+[node name="NewDestinationButton" type="Button" parent="CenterContainer/PanelContainer/VBox/Buttons" unique_id=1045068697]
+layout_mode = 2
+text = "New destination"
