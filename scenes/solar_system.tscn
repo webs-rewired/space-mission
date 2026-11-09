@@ -1,7 +1,9 @@
 [gd_scene format=3 uid="uid://b0tp8lqah2c5i"]
 
-[ext_resource type="Script" uid="uid://cts0k3m8mgdo1" path="res://scenes/camera_pivot.gd" id="1_33hn6"]
-[ext_resource type="Script" uid="uid://bonyun2fojdgy" path="res://scripts/earth_orbit.gd" id="1_ob1ey"]
+[ext_resource type="Script" uid="uid://q105w8e86fjl" path="res://scripts/solar_system.gd" id="1_teypr"]
+[ext_resource type="Script" uid="uid://cts0k3m8mgdo1" path="res://scripts/camera_pivot.gd" id="2_sjaf3"]
+[ext_resource type="Script" uid="uid://bonyun2fojdgy" path="res://scripts/earth_orbit.gd" id="3_2yas3"]
+[ext_resource type="Script" uid="uid://bikqod53vsev6" path="res://scripts/planet_click.gd" id="4_86ma8"]
 
 [sub_resource type="Environment" id="Environment_dpdpu"]
 background_mode = 1
@@ -26,6 +28,9 @@ albedo_color = Color(0.14374304, 0.32793126, 1, 1)
 [sub_resource type="SphereMesh" id="SphereMesh_7vojx"]
 material = SubResource("StandardMaterial3D_axp1g")
 
+[sub_resource type="SphereShape3D" id="SphereShape3D_33hn6"]
+radius = 0.8
+
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ob1ey"]
 albedo_color = Color(0.13464907, 0.1346491, 0.1346491, 1)
 
@@ -33,6 +38,9 @@ albedo_color = Color(0.13464907, 0.1346491, 0.1346491, 1)
 material = SubResource("StandardMaterial3D_ob1ey")
 radius = 0.15
 height = 0.3
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_0jhi2"]
+radius = 0.4
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ov8th"]
 albedo_color = Color(0.80191296, 0.21643314, 0, 1)
@@ -42,6 +50,9 @@ material = SubResource("StandardMaterial3D_ov8th")
 radius = 0.3
 height = 0.6
 
+[sub_resource type="SphereShape3D" id="SphereShape3D_x2tr4"]
+radius = 0.6
+
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_vu3tu"]
 albedo_color = Color(0.44121212, 0.28725332, 0.1458402, 1)
 
@@ -50,11 +61,45 @@ material = SubResource("StandardMaterial3D_vu3tu")
 radius = 1.5
 height = 3.0
 
-[node name="Solar System" type="Node3D" unique_id=1242573095]
+[sub_resource type="SphereShape3D" id="SphereShape3D_yd0pm"]
+radius = 1.6
+
+[node name="SolarSystem" type="Node3D" unique_id=1242573095]
+script = ExtResource("1_teypr")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1818795518]
+
+[node name="InfoPanel" type="PanelContainer" parent="CanvasLayer" unique_id=734880173]
+visible = false
+custom_minimum_size = Vector2(280, 0)
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -40.0
+offset_bottom = 40.0
+grow_horizontal = 0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/InfoPanel" unique_id=73041753]
+layout_mode = 2
+
+[node name="NameLabel" type="Label" parent="CanvasLayer/InfoPanel/VBoxContainer" unique_id=1156026589]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Planet"
+
+[node name="StatsLabel" type="Label" parent="CanvasLayer/InfoPanel/VBoxContainer" unique_id=1376491105]
+layout_mode = 2
+text = "Stats"
+autowrap_mode = 3
+
+[node name="MissionButton" type="Button" parent="CanvasLayer/InfoPanel/VBoxContainer" unique_id=1911064999]
+layout_mode = 2
+text = "Send a Mission
+"
 
 [node name="CameraPivot" type="Node3D" parent="." unique_id=794188619]
 transform = Transform3D(1, 0, 0, 0, 0.81915206, 0.57357645, 0, -0.57357645, 0.81915206, 0, 0, 0)
-script = ExtResource("1_33hn6")
+script = ExtResource("2_sjaf3")
 
 [node name="Camera3D" type="Camera3D" parent="CameraPivot" unique_id=42470021]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 75)
@@ -72,21 +117,34 @@ omni_range = 100.0
 omni_attenuation = 0.3
 
 [node name="EarthOrbit" type="Node3D" parent="." unique_id=641591348]
-script = ExtResource("1_ob1ey")
+script = ExtResource("3_2yas3")
 
 [node name="Earth" type="MeshInstance3D" parent="EarthOrbit" unique_id=1760280800]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 0)
 mesh = SubResource("SphereMesh_7vojx")
 
+[node name="ClickArea" type="StaticBody3D" parent="EarthOrbit/Earth" unique_id=700677383]
+script = ExtResource("4_86ma8")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="EarthOrbit/Earth/ClickArea" unique_id=1838151431]
+shape = SubResource("SphereShape3D_33hn6")
+
 [node name="MoonOrbit" type="Node3D" parent="EarthOrbit/Earth" unique_id=1041672953]
-script = ExtResource("1_ob1ey")
+script = ExtResource("3_2yas3")
 
 [node name="Moon" type="MeshInstance3D" parent="EarthOrbit/Earth/MoonOrbit" unique_id=2008762810]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0, 0)
 mesh = SubResource("SphereMesh_ov8th")
 
+[node name="ClickArea" type="StaticBody3D" parent="EarthOrbit/Earth/MoonOrbit/Moon" unique_id=33006165]
+script = ExtResource("4_86ma8")
+planet_name = "Moon"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="EarthOrbit/Earth/MoonOrbit/Moon/ClickArea" unique_id=2074061343]
+shape = SubResource("SphereShape3D_0jhi2")
+
 [node name="MarsOrbit" type="Node3D" parent="." unique_id=1840421344]
-script = ExtResource("1_ob1ey")
+script = ExtResource("3_2yas3")
 orbit_speed = 0.27
 
 [node name="Mars" type="MeshInstance3D" parent="MarsOrbit" unique_id=1967510265]
@@ -94,10 +152,24 @@ unique_name_in_owner = true
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, 0)
 mesh = SubResource("SphereMesh_vu3tu")
 
+[node name="ClickArea" type="StaticBody3D" parent="MarsOrbit/Mars" unique_id=673132341]
+script = ExtResource("4_86ma8")
+planet_name = "Mars"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="MarsOrbit/Mars/ClickArea" unique_id=654518668]
+shape = SubResource("SphereShape3D_x2tr4")
+
 [node name="JupiterOrbit" type="Node3D" parent="." unique_id=408076989]
-script = ExtResource("1_ob1ey")
+script = ExtResource("3_2yas3")
 orbit_speed = 0.05
 
 [node name="Jupiter" type="MeshInstance3D" parent="JupiterOrbit" unique_id=870064345]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 28, 0, 0)
 mesh = SubResource("SphereMesh_xuy4a")
+
+[node name="ClickArea" type="StaticBody3D" parent="JupiterOrbit/Jupiter" unique_id=635110963]
+script = ExtResource("4_86ma8")
+planet_name = "Jupiter"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="JupiterOrbit/Jupiter/ClickArea" unique_id=583178381]
+shape = SubResource("SphereShape3D_yd0pm")

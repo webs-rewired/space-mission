@@ -11,8 +11,13 @@ config_version=5
 [application]
 
 config/name="Space Mission"
+run/main_scene="uid://b0tp8lqah2c5i"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
+
+[autoload]
+
+GameState="*uid://b7yyraqc64t7q"
 
 [display]
 
