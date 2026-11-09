@@ -8,7 +8,7 @@ script = ExtResource("1_5sdd5")
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1198978219]
 
 [node name="BuilderPanel" type="PanelContainer" parent="CanvasLayer" unique_id=1264915974]
-custom_minimum_size = Vector2(320, 0)
+custom_minimum_size = Vector2(420, 0)
 anchors_preset = 9
 anchor_bottom = 1.0
 offset_right = 320.0
@@ -20,33 +20,13 @@ layout_mode = 2
 [node name="TitleLabel" type="Label" parent="CanvasLayer/BuilderPanel/VBox" unique_id=993226531]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="CanvasLayer/BuilderPanel/VBox" unique_id=634196426]
-layout_mode = 2
-text = "Power"
-
-[node name="PowerOption" type="OptionButton" parent="CanvasLayer/BuilderPanel/VBox" unique_id=462516470]
+[node name="Scroll" type="ScrollContainer" parent="CanvasLayer/BuilderPanel/VBox" unique_id=1941238566]
+custom_minimum_size = Vector2(0, 400)
 layout_mode = 2
 
-[node name="Label2" type="Label" parent="CanvasLayer/BuilderPanel/VBox" unique_id=1801446657]
+[node name="Slots" type="VBoxContainer" parent="CanvasLayer/BuilderPanel/VBox/Scroll" unique_id=169652378]
 layout_mode = 2
-text = "Battery"
-
-[node name="BatteryOption" type="OptionButton" parent="CanvasLayer/BuilderPanel/VBox" unique_id=348010512]
-layout_mode = 2
-
-[node name="Label3" type="Label" parent="CanvasLayer/BuilderPanel/VBox" unique_id=874796839]
-layout_mode = 2
-text = "Antenna"
-
-[node name="AntennaOption" type="OptionButton" parent="CanvasLayer/BuilderPanel/VBox" unique_id=1474545634]
-layout_mode = 2
-
-[node name="Label4" type="Label" parent="CanvasLayer/BuilderPanel/VBox" unique_id=572222978]
-layout_mode = 2
-text = "Shield"
-
-[node name="ShieldOption" type="OptionButton" parent="CanvasLayer/BuilderPanel/VBox" unique_id=1070935136]
-layout_mode = 2
+size_flags_horizontal = 3
 
 [node name="Label5" type="Label" parent="CanvasLayer/BuilderPanel/VBox" unique_id=537203254]
 layout_mode = 2

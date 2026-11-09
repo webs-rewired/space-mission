@@ -1,5 +1,8 @@
 extends Node3D
 
+# Change this if your results scene lives somewhere else (right-click the file > Copy Path)
+const RESULTS_SCENE = "res://results.tscn"
+
 @onready var probe = $Probe
 @onready var target = $Target
 @onready var event_panel = $CanvasLayer/EventPanel
@@ -11,7 +14,9 @@ extends Node3D
 const COLORS = {
 	"Moon": Color(0.8, 0.8, 0.8),
 	"Mars": Color(0.85, 0.35, 0.15),
+	"Venus": Color(0.95, 0.85, 0.55),
 	"Jupiter": Color(0.85, 0.65, 0.45),
+	"Saturn": Color(0.9, 0.8, 0.55),
 }
 
 var progress = 0.0
@@ -38,7 +43,7 @@ func set_progress(p):
 
 func fly_to(p):
 	var tween = create_tween()
-	tween.tween_method(set_progress, progress, p, 2.0)
+	tween.tween_method(set_progress, progress, p, 1.5)
 	tween.finished.connect(_show_event)
 
 func clear_choices():
@@ -49,27 +54,32 @@ func _show_event():
 	var e = GameState.events[event_index]
 	clear_choices()
 	event_panel.visible = true
-	if e["choices"].is_empty():
-		GameState.apply_event(e)
-		event_title.text = ("Good: " if e["ok"] else "Problem: ") + e["title"]
-		event_text.text = e["text"]
-		continue_button.visible = true
-	else:
+	if e.has("choices"):
 		event_title.text = "Decision: " + e["title"]
 		event_text.text = e["text"]
 		continue_button.visible = false
 		for i in e["choices"].size():
+			var c = e["choices"][i]
 			var b = Button.new()
-			b.text = e["choices"][i]
+			b.text = c["label"]
+			b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			if c.has("needs") and not GameState.req_met(c["needs"]):
+				b.disabled = true
+				b.text += "  (needs " + GameState.req_names(c["needs"]) + ")"
 			b.pressed.connect(_on_choice.bind(i))
 			choice_box.add_child(b)
+	else:
+		var r = GameState.apply_event(e)
+		event_title.text = ("Good: " if r["ok"] else "Problem: ") + e["title"]
+		event_text.text = r["text"]
+		continue_button.visible = true
 
 func _on_choice(index):
 	var e = GameState.events[event_index]
-	var result = GameState.resolve_choice(e, index)
+	var r = GameState.resolve_choice(e, index)
 	clear_choices()
-	event_title.text = ("Good: " if result["ok"] else "Problem: ") + e["title"]
-	event_text.text = result["text"]
+	event_title.text = ("Good: " if r["ok"] else "Problem: ") + e["title"]
+	event_text.text = r["text"]
 	continue_button.visible = true
 
 func _on_continue():
@@ -82,4 +92,4 @@ func _on_continue():
 
 func go_to_results():
 	GameState.finish_mission()
-	get_tree().change_scene_to_file("res://scenes/results.tscn")  # <- use your path
+	get_tree().change_scene_to_file(RESULTS_SCENE)

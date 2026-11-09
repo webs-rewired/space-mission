@@ -6,6 +6,8 @@ var planets = {
 	"Moon": {"au": 1.00, "diameter": 3475, "gravity": 1.62, "sunlight": 100, "goal": "Map the surface for future landing sites."},
 	"Mars": {"au": 1.52, "diameter": 6792, "gravity": 3.71, "sunlight": 43, "goal": "Land and study the soil."},
 	"Jupiter": {"au": 5.20, "diameter": 142984, "gravity": 24.8, "sunlight": 4, "goal": "Orbit Jupiter and study its atmosphere."},
+		"Venus": {"au": 0.72, "diameter": 12104, "gravity": 8.87, "sunlight": 191, "goal": "See through the clouds, or survive on the surface."},
+	"Saturn": {"au": 9.54, "diameter": 120536, "gravity": 10.4, "sunlight": 1, "goal": "Study the rings and moons, and maybe land on Titan."},
 }
 
 var selected_planet = ""

@@ -22,6 +22,36 @@ material = SubResource("StandardMaterial3D_ouqot")
 radius = 2.0
 height = 4.0
 
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_sjaf3"]
+albedo_color = Color(0.5599248, 0.49802792, 0.29487652, 1)
+
+[sub_resource type="SphereMesh" id="SphereMesh_2yas3"]
+material = SubResource("StandardMaterial3D_sjaf3")
+radius = 0.48
+height = 0.96
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_sjaf3"]
+radius = 0.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_teypr"]
+albedo_color = Color(0.7411765, 0.5529412, 0.3019608, 1)
+
+[sub_resource type="SphereMesh" id="SphereMesh_axp1g"]
+material = SubResource("StandardMaterial3D_teypr")
+radius = 1.3
+height = 2.6
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_teypr"]
+radius = 2.6
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2yas3"]
+albedo_color = Color(0.21712062, 0.12193116, 3.6098065e-08, 1)
+
+[sub_resource type="TorusMesh" id="TorusMesh_teypr"]
+material = SubResource("StandardMaterial3D_2yas3")
+inner_radius = 1.7
+outer_radius = 2.6
+
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_axp1g"]
 albedo_color = Color(0.14374304, 0.32793126, 1, 1)
 
@@ -100,6 +130,7 @@ text = "Send a Mission
 [node name="CameraPivot" type="Node3D" parent="." unique_id=794188619]
 transform = Transform3D(1, 0, 0, 0, 0.81915206, 0.57357645, 0, -0.57357645, 0.81915206, 0, 0, 0)
 script = ExtResource("2_sjaf3")
+max_distance = 160.0
 
 [node name="Camera3D" type="Camera3D" parent="CameraPivot" unique_id=42470021]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 75)
@@ -115,6 +146,41 @@ mesh = SubResource("SphereMesh_dpdpu")
 light_energy = 8.0
 omni_range = 100.0
 omni_attenuation = 0.3
+
+[node name="VenusOrbit" type="Node3D" parent="." unique_id=251071667]
+script = ExtResource("3_2yas3")
+orbit_speed = 0.81
+
+[node name="Venus" type="MeshInstance3D" parent="VenusOrbit" unique_id=1812965957]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 0, 0)
+mesh = SubResource("SphereMesh_2yas3")
+
+[node name="ClickArea" type="StaticBody3D" parent="VenusOrbit/Venus" unique_id=1324629534]
+script = ExtResource("4_86ma8")
+planet_name = "Venus"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="VenusOrbit/Venus/ClickArea" unique_id=508076459]
+shape = SubResource("SphereShape3D_sjaf3")
+
+[node name="Saturn" type="Node3D" parent="." unique_id=1254034116]
+script = ExtResource("3_2yas3")
+orbit_speed = 0.02
+
+[node name="Saturn" type="MeshInstance3D" parent="Saturn" unique_id=1842256003]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 38, 0, 0)
+mesh = SubResource("SphereMesh_axp1g")
+
+[node name="ClickArea" type="StaticBody3D" parent="Saturn/Saturn" unique_id=268323807]
+script = ExtResource("4_86ma8")
+planet_name = "Saturn"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Saturn/Saturn/ClickArea" unique_id=2080602773]
+shape = SubResource("SphereShape3D_teypr")
+
+[node name="Rings" type="MeshInstance3D" parent="Saturn/Saturn" unique_id=58909453]
+transform = Transform3D(1, 0, 0, 0, 0.5, 0, 0, 0, 1, 0, 0, 0)
+mesh = SubResource("TorusMesh_teypr")
 
 [node name="EarthOrbit" type="Node3D" parent="." unique_id=641591348]
 script = ExtResource("3_2yas3")
