@@ -1,142 +1,123 @@
 extends Node3D
 
+# Probe Builder: pick the parts for your spacecraft.
+
 # Change these if your scenes live somewhere else (right-click the file > Copy Path)
-const SOLAR_SYSTEM_SCENE = "res://solar_system.tscn"
-const LAUNCH_SCENE = "res://launch.tscn"
+const SOLAR_SYSTEM_SCENE = "res://scenes/solar_system.tscn"
+const ROCKET_SCENE = "res://scenes/rocket_builder.tscn"
 
 # If you fixed this path before, keep your working version of this line.
-@onready var vbox = $CanvasLayer/BuilderPanel/VBox
-@onready var title_label = vbox.get_node("TitleLabel")
-@onready var slots_box = vbox.get_node("Scroll/Slots")
-@onready var rocket_option = vbox.get_node("RocketOption")
-@onready var stats_label = vbox.get_node("StatsLabel")
-@onready var launch_button = vbox.get_node("LaunchButton")
-@onready var back_button = vbox.get_node("BackButton")
+@onready var builder_column = $CanvasLayer/BuilderPanel/VBox
+@onready var title_label = builder_column.get_node("TitleLabel")
+@onready var parts_list = builder_column.get_node("Scroll/Slots")
+@onready var stats_label = builder_column.get_node("StatsLabel")
+@onready var next_button = builder_column.get_node("LaunchButton")
+@onready var back_button = builder_column.get_node("BackButton")
 
-var slot_ids = {}
-var rocket_ids = []
+# For each slot (power, battery...), the part ids in the same order as its dropdown
+var part_ids_by_slot = {}
 
 func _ready():
 	title_label.text = "Build a probe for " + GameState.destination
+	next_button.text = "Next: build your rocket"
 	back_button.pressed.connect(_on_back_pressed)
-	launch_button.pressed.connect(_on_launch_pressed)
-	build_slot_ui()
-	fill_rockets()
+	next_button.pressed.connect(_on_next_pressed)
+	# The rocket is now built on its own screen, so hide the old rocket dropdown if it's still here
+	var old_rocket_dropdown = builder_column.get_node_or_null("RocketOption")
+	if old_rocket_dropdown:
+		old_rocket_dropdown.visible = false
+	build_parts_list()
 	update_stats()
 
-func part_label(id):
-	var p = GameState.PARTS[id]
-	var text = "%s  (%d kg, $%dM" % [p["name"], p["mass"], p["cost"]]
-	if p.has("power_use"):
-		text += ", uses %d W" % p["power_use"]
-	if p.has("power_at_earth"):
-		text += ", %d W at Earth" % p["power_at_earth"]
-	if p.has("power_fixed"):
-		text += ", %d W anywhere" % p["power_fixed"]
+func part_description(part_id):
+	var part = GameState.PARTS[part_id]
+	var text = "%s  (%d kg, $%dM" % [part["name"], part["mass"], part["cost"]]
+	if part.has("power_used"):
+		text += ", uses %d W" % part["power_used"]
+	if part.has("power_at_earth"):
+		text += ", %d W at Earth" % part["power_at_earth"]
+	if part.has("power_anywhere"):
+		text += ", %d W anywhere" % part["power_anywhere"]
 	return text + ")"
 
-func build_slot_ui():
-	for child in slots_box.get_children():
-		child.queue_free()
+func build_parts_list():
+	for old_item in parts_list.get_children():
+		old_item.queue_free()
 
 	for slot in GameState.SLOT_ORDER:
-		var label = Label.new()
-		label.text = GameState.SLOT_NAMES[slot]
-		slots_box.add_child(label)
+		var slot_label = Label.new()
+		slot_label.text = GameState.SLOT_NAMES[slot]
+		parts_list.add_child(slot_label)
 
-		var option = OptionButton.new()
-		slot_ids[slot] = []
-		for id in GameState.PARTS:
-			if GameState.PARTS[id]["slot"] == slot:
-				option.add_item(part_label(id))
-				slot_ids[slot].append(id)
-		option.select(slot_ids[slot].find(GameState.choices[slot]))
-		option.item_selected.connect(_on_part_selected.bind(slot))
-		slots_box.add_child(option)
+		var dropdown = OptionButton.new()
+		part_ids_by_slot[slot] = []
+		for part_id in GameState.PARTS:
+			if GameState.PARTS[part_id]["slot"] == slot:
+				dropdown.add_item(part_description(part_id))
+				part_ids_by_slot[slot].append(part_id)
+		dropdown.select(part_ids_by_slot[slot].find(GameState.choices[slot]))
+		dropdown.item_selected.connect(_on_part_selected.bind(slot))
+		parts_list.add_child(dropdown)
 
-	var inst_label = Label.new()
-	inst_label.text = "Science instruments (pick any)"
-	slots_box.add_child(inst_label)
-	for id in GameState.PARTS:
-		if GameState.PARTS[id]["slot"] == "instrument":
-			var box = CheckBox.new()
-			box.text = part_label(id)
-			box.button_pressed = id in GameState.instruments
-			box.toggled.connect(_on_instrument_toggled.bind(id))
-			slots_box.add_child(box)
+	var instruments_label = Label.new()
+	instruments_label.text = "Science instruments (pick any)"
+	parts_list.add_child(instruments_label)
+	for part_id in GameState.PARTS:
+		if GameState.PARTS[part_id]["slot"] == "instrument":
+			var checkbox = CheckBox.new()
+			checkbox.text = part_description(part_id)
+			checkbox.button_pressed = part_id in GameState.instruments
+			checkbox.toggled.connect(_on_instrument_toggled.bind(part_id))
+			parts_list.add_child(checkbox)
 
-func _on_part_selected(index, slot):
-	GameState.choices[slot] = slot_ids[slot][index]
+func _on_part_selected(dropdown_index, slot):
+	GameState.choices[slot] = part_ids_by_slot[slot][dropdown_index]
 	update_stats()
 
-func _on_instrument_toggled(pressed, id):
-	if pressed and not id in GameState.instruments:
-		GameState.instruments.append(id)
-	elif not pressed:
-		GameState.instruments.erase(id)
-	update_stats()
-
-func fill_rockets():
-	rocket_option.clear()
-	rocket_ids = []
-	for id in GameState.ROCKETS:
-		rocket_option.add_item("%s rocket  ($%dM)" % [GameState.ROCKETS[id]["name"], GameState.ROCKETS[id]["cost"]])
-		rocket_ids.append(id)
-	rocket_option.select(rocket_ids.find(GameState.rocket))
-	rocket_option.item_selected.connect(_on_rocket_selected)
-
-func _on_rocket_selected(index):
-	GameState.rocket = rocket_ids[index]
+func _on_instrument_toggled(is_checked, part_id):
+	if is_checked and not part_id in GameState.instruments:
+		GameState.instruments.append(part_id)
+	elif not is_checked:
+		GameState.instruments.erase(part_id)
 	update_stats()
 
 func update_stats():
 	var mass = GameState.total_mass()
-	var capacity = GameState.rocket_capacity()
-	var made = GameState.power_made()
-	var needed = GameState.power_needed()
-	var cost = GameState.total_cost()
+	var power_made = GameState.power_made()
+	var power_needed = GameState.power_needed()
+	var cost = GameState.probe_cost()
 	var budget = GameState.budget()
 
-	var mass_ok = mass <= capacity
-	var power_ok = made >= needed
-	var cost_ok = cost <= budget
+	var enough_power = power_made >= power_needed
+	var within_budget = cost <= budget
 
 	var lines = []
-	lines.append(colored("Mass: %d / %d kg" % [mass, capacity], "green" if mass_ok else "red"))
-	lines.append(colored("Power at %s: %d W made / %d W needed" % [GameState.destination, made, needed], "green" if power_ok else "yellow"))
-	lines.append(colored("Cost: $%dM / $%dM" % [cost, budget], "green" if cost_ok else "red"))
-	lines.append("Instruments: %d" % GameState.instruments.size())
+	lines.append("Probe mass: %d kg (a heavier probe needs a bigger rocket)" % mass)
+	lines.append(colored("Power at %s: %d W made / %d W needed" % [GameState.destination, power_made, power_needed], "green" if enough_power else "yellow"))
+	lines.append(colored("Probe cost: $%dM of your $%dM budget (the rocket comes next)" % [cost, budget], "green" if within_budget else "red"))
 	lines.append("")
-	if not mass_ok:
-		lines.append(colored("Too heavy for this rocket. Pick a bigger rocket or lighter parts.", "red"))
-	if not cost_ok:
-		lines.append(colored("Over budget. Pick cheaper parts or a cheaper rocket.", "red"))
-	if not power_ok:
-		lines.append(colored("Warning: not enough power at " + GameState.destination + ". You can launch, but...", "yellow"))
+	if not within_budget:
+		lines.append(colored("The probe alone is over budget. Pick cheaper parts.", "red"))
+	if not enough_power:
+		lines.append(colored("Not enough power at %s. You can still launch, but..." % GameState.destination, "yellow"))
 	if GameState.instruments.is_empty():
 		lines.append(colored("No instruments means very little science.", "yellow"))
-	var landing = GameState.choices["landing"] != "landing_none"
-	if not landing and (GameState.is_chosen("inst_drill") or GameState.is_chosen("inst_seismometer")):
+	var has_lander = GameState.choices["landing"] != "landing_none"
+	if not has_lander and (GameState.is_chosen("instrument_drill") or GameState.is_chosen("instrument_seismometer")):
 		lines.append(colored("The drill and seismometer only work on a lander.", "yellow"))
-	if landing and GameState.destination == "Jupiter":
+	if has_lander and GameState.destination == "Jupiter":
 		lines.append(colored("Jupiter has no solid surface to land on.", "yellow"))
-	if landing and GameState.destination == "Saturn":
+	if has_lander and GameState.destination == "Saturn":
 		lines.append("Your lander will go to Saturn's moon Titan.")
 	stats_label.text = "\n".join(lines)
 
-	# Gray out rockets that can't lift this probe
-	for i in rocket_ids.size():
-		var cap = GameState.ROCKETS[rocket_ids[i]]["capacity"][GameState.destination]
-		rocket_option.set_item_disabled(i, cap < mass)
-
-	# Only Mass and Cost block launch; Power is just a warning
-	launch_button.disabled = not (mass_ok and cost_ok)
+	next_button.disabled = not within_budget
 
 func colored(text, color):
 	return "[color=%s]%s[/color]" % [color, text]
 
-func _on_launch_pressed():
-	get_tree().change_scene_to_file("res://scenes/launch.tscn")
+func _on_next_pressed():
+	get_tree().change_scene_to_file(ROCKET_SCENE)
 
 func _on_back_pressed():
-	get_tree().change_scene_to_file("res://scenes/solar_system.tscn")
+	get_tree().change_scene_to_file(SOLAR_SYSTEM_SCENE)

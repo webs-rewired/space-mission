@@ -4,6 +4,8 @@
 [ext_resource type="Script" uid="uid://cts0k3m8mgdo1" path="res://scripts/camera_pivot.gd" id="2_sjaf3"]
 [ext_resource type="Script" uid="uid://bonyun2fojdgy" path="res://scripts/earth_orbit.gd" id="3_2yas3"]
 [ext_resource type="Script" uid="uid://bikqod53vsev6" path="res://scripts/planet_click.gd" id="4_86ma8"]
+[ext_resource type="Script" uid="uid://gvcper8t3jus" path="res://scripts/apply_textures.gd" id="5_sjaf3"]
+[ext_resource type="Script" uid="uid://c6yn8ybu1fses" path="res://scripts/space_controls.gd" id="6_2yas3"]
 
 [sub_resource type="Environment" id="Environment_dpdpu"]
 background_mode = 1
@@ -163,22 +165,22 @@ planet_name = "Venus"
 [node name="CollisionShape3D" type="CollisionShape3D" parent="VenusOrbit/Venus/ClickArea" unique_id=508076459]
 shape = SubResource("SphereShape3D_sjaf3")
 
-[node name="Saturn" type="Node3D" parent="." unique_id=1254034116]
+[node name="SaturnOrbit" type="Node3D" parent="." unique_id=1254034116]
 script = ExtResource("3_2yas3")
 orbit_speed = 0.02
 
-[node name="Saturn" type="MeshInstance3D" parent="Saturn" unique_id=1842256003]
+[node name="Saturn" type="MeshInstance3D" parent="SaturnOrbit" unique_id=1842256003]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 38, 0, 0)
 mesh = SubResource("SphereMesh_axp1g")
 
-[node name="ClickArea" type="StaticBody3D" parent="Saturn/Saturn" unique_id=268323807]
+[node name="ClickArea" type="StaticBody3D" parent="SaturnOrbit/Saturn" unique_id=268323807]
 script = ExtResource("4_86ma8")
 planet_name = "Saturn"
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Saturn/Saturn/ClickArea" unique_id=2080602773]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="SaturnOrbit/Saturn/ClickArea" unique_id=2080602773]
 shape = SubResource("SphereShape3D_teypr")
 
-[node name="Rings" type="MeshInstance3D" parent="Saturn/Saturn" unique_id=58909453]
+[node name="Rings" type="MeshInstance3D" parent="SaturnOrbit/Saturn" unique_id=58909453]
 transform = Transform3D(1, 0, 0, 0, 0.5, 0, 0, 0, 1, 0, 0, 0)
 mesh = SubResource("TorusMesh_teypr")
 
@@ -239,3 +241,13 @@ planet_name = "Jupiter"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="JupiterOrbit/Jupiter/ClickArea" unique_id=583178381]
 shape = SubResource("SphereShape3D_yd0pm")
+
+[node name="Textures" type="Node" parent="." unique_id=586797549]
+script = ExtResource("5_sjaf3")
+
+[node name="Controls" type="Control" parent="." unique_id=2079245171]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("6_2yas3")
