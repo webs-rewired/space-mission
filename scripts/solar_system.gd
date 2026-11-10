@@ -124,7 +124,7 @@ var selected_planet = ""
 
 func _ready():
 	info_panel.visible = false
-	mission_button.focus_mode = Control.FOCUS_NONE   # so Space pauses time instead of pressing it
+	mission_button.focus_mode = Control.FOCUS_NONE   # so Space moves the camera instead of pressing it
 	mission_button.pressed.connect(_on_mission_pressed)
 	# Keep the stats panel in the top right corner, growing to the left and down so it never runs off screen
 	stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

@@ -1,7 +1,7 @@
 extends Node3D
 
 # Camera controls for the solar system, like Godot's 3D viewport but without holding the mouse:
-#   WASD or arrow keys: move      Q / E: down / up      Shift: move faster
+#   WASD or arrow keys: move      Space (or E): up      Ctrl (or Q): down      Shift: move faster
 #   Right-drag: look around (the mouse hides while you drag, so it can't leave the screen)
 #   Scroll: zoom in and out
 #   F: follow the planet you clicked      R: go back to the starting view
@@ -64,9 +64,9 @@ func _process(delta):
 		left_right -= 1.0
 	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
 		left_right += 1.0
-	if Input.is_key_pressed(KEY_E):
+	if Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_E):
 		up_down += 1.0
-	if Input.is_key_pressed(KEY_Q):
+	if Input.is_key_pressed(KEY_CTRL) or Input.is_key_pressed(KEY_Q):
 		up_down -= 1.0
 
 	if forward_back != 0.0 or left_right != 0.0 or up_down != 0.0:
@@ -117,4 +117,4 @@ func reset_view():
 	followed_planet = ""
 	position = start_position
 	rotation = start_rotation
-	camera.position.z = start_distance
+	camera.position.z = start_distance	

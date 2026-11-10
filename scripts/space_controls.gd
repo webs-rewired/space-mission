@@ -6,7 +6,7 @@ extends Node
 #   - switches for orbit paths, gravity fields, planet names, the asteroid belt and TRUE SCALE
 #   - a "Go to" menu that flies the camera to any planet
 #   - a help box listing the keys
-# Keys: Space = pause, + = faster, - = slower, H = hide or show all the on-screen panels
+# Keys: P = pause, + = faster, - = slower, H = hide or show all the on-screen panels
 
 const SPEED_STEPS = [0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 25.0, 50.0, 100.0]
 const NORMAL_SPEED_STEP = 3
@@ -133,7 +133,7 @@ func _unhandled_input(event):
 		match event.keycode:
 			KEY_F11:
 				toggle_fullscreen()
-			KEY_SPACE:
+			KEY_P:
 				toggle_pause()
 			KEY_EQUAL, KEY_KP_ADD:
 				go_faster()
@@ -331,7 +331,7 @@ func build_controls():
 	var help_panel = PanelContainer.new()
 	layer.add_child(help_panel)
 	var help = Label.new()
-	help.text = "WASD / arrows: move    Q / E: down / up    Shift: faster\nRight-drag: look around    Scroll: zoom    R: reset view\nClick a planet: stats    Click a name: fly there    F: follow    Space: pause    + / -: speed\nH: hide controls    F11: fullscreen"
+	help.text = "WASD / arrows: move    Space: up    Ctrl: down    Shift: faster\nRight-drag: look around    Scroll: zoom    R: reset view\nClick a planet: stats    Click a name: fly there    F: follow    P: pause    + / -: speed\nH: hide controls    F11: fullscreen"
 	help.add_theme_font_size_override("font_size", 12)
 	help.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
 	help_panel.add_child(help)
