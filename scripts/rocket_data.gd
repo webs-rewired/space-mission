@@ -30,6 +30,14 @@ const SPEED_NEEDED = {
 	"Titania": 17500,
 	"Triton": 17800,
 	"Charon": 17900,
+	"Mercury": 15000,
+	"Uranus": 17500,
+	"Neptune": 17800,
+	"Ceres": 14000,
+	"Pluto": 17900,
+	"Haumea": 18000,
+	"Makemake": 18000,
+	"Eris": 18200,
 }
 
 const SPEED_NOTE = {
@@ -49,6 +57,14 @@ const SPEED_NOTE = {
 	"Titania": "About 9,400 m/s to reach Earth orbit, plus about 8,100 m/s to head for Uranus. Your probe does the last steps to Titania.",
 	"Triton": "About 9,400 m/s to reach Earth orbit, plus about 8,400 m/s to head for Neptune. Your probe does the last steps to Triton.",
 	"Charon": "About 9,400 m/s to reach Earth orbit, plus about 8,500 m/s to head for Pluto. Your probe does the last steps to Charon.",
+	"Mercury": "About 9,400 m/s to reach Earth orbit, plus about 5,600 m/s to head for Mercury. Falling toward the Sun is hard: you have to cancel much of Earth's speed around it.",
+	"Uranus": "About 9,400 m/s to reach Earth orbit, plus about 8,100 m/s to head for Uranus.",
+	"Neptune": "About 9,400 m/s to reach Earth orbit, plus about 8,400 m/s to head for Neptune.",
+	"Ceres": "About 9,400 m/s to reach Earth orbit, plus about 4,600 m/s to head for Ceres in the asteroid belt.",
+	"Pluto": "About 9,400 m/s to reach Earth orbit, plus about 8,500 m/s to head for Pluto.",
+	"Haumea": "About 9,400 m/s to reach Earth orbit, plus about 8,600 m/s to head for Haumea in the Kuiper belt.",
+	"Makemake": "About 9,400 m/s to reach Earth orbit, plus about 8,600 m/s to head for Makemake in the Kuiper belt.",
+	"Eris": "About 9,400 m/s to reach Earth orbit, plus about 8,800 m/s to head for Eris, the most distant of all these worlds.",
 }
 
 const FUEL_NAMES = {
