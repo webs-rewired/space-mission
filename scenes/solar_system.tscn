@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://cts0k3m8mgdo1" path="res://scripts/camera_pivot.gd" id="2_sjaf3"]
 [ext_resource type="Script" uid="uid://bonyun2fojdgy" path="res://scripts/earth_orbit.gd" id="3_2yas3"]
 [ext_resource type="Script" uid="uid://bikqod53vsev6" path="res://scripts/planet_click.gd" id="4_86ma8"]
-[ext_resource type="Script" uid="uid://gvcper8t3jus" path="res://scripts/apply_textures.gd" id="5_sjaf3"]
+[ext_resource type="Script" uid="uid://784vys7otlql" path="res://scripts/solar_system_bodies.gd" id="5_2yas3"]
 [ext_resource type="Script" uid="uid://c6yn8ybu1fses" path="res://scripts/space_controls.gd" id="6_2yas3"]
 
 [sub_resource type="Environment" id="Environment_dpdpu"]
@@ -242,8 +242,8 @@ planet_name = "Jupiter"
 [node name="CollisionShape3D" type="CollisionShape3D" parent="JupiterOrbit/Jupiter/ClickArea" unique_id=583178381]
 shape = SubResource("SphereShape3D_yd0pm")
 
-[node name="Textures" type="Node" parent="." unique_id=586797549]
-script = ExtResource("5_sjaf3")
+[node name="Bodies" type="Node" parent="." unique_id=586797549]
+script = ExtResource("5_2yas3")
 
 [node name="Controls" type="Control" parent="." unique_id=2079245171]
 layout_mode = 3

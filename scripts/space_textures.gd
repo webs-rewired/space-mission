@@ -1,64 +1,59 @@
 extends RefCounted
 
-# Puts real planet images on the planets, adds Saturn's rings and the starry sky.
+# Images for planets, rings and the starry sky.
 # Textures by Solar System Scope (solarsystemscope.com/textures), based on NASA data, CC BY 4.0.
 #
-# Put the downloaded images in this folder. The file names can start with 2k_, 4k_ or 8k_.
-# If an image is missing, the planet keeps a plain color so the game still runs.
+# Put the downloaded images in this folder. File names can start with 2k_, 4k_ or 8k_.
+# If an image is missing, the body gets a generated rocky or cloudy surface in its real colors instead.
 
 const TEXTURE_FOLDER = "res://assets/textures/"
 
-const PLANET_IMAGE_NAMES = {
-	"Sun": "sun",
-	"Earth": "earth_daymap",
-	"Moon": "moon",
-	"Mars": "mars",
-	"Venus": "venus_atmosphere",
-	"Jupiter": "jupiter",
-	"Saturn": "saturn",
-}
-
-const BACKUP_COLORS = {
-	"Sun": Color(1.0, 0.85, 0.3),
-	"Earth": Color(0.2, 0.4, 0.9),
-	"Moon": Color(0.8, 0.8, 0.8),
-	"Mars": Color(0.85, 0.35, 0.15),
-	"Venus": Color(0.95, 0.85, 0.55),
-	"Jupiter": Color(0.85, 0.65, 0.45),
-	"Saturn": Color(0.9, 0.8, 0.55),
-}
-
-# Finds an image like "2k_mars.jpg". Returns null if it isn't there.
-static func find_texture(image_name):
-	for size in ["2k_", "4k_", "8k_", ""]:
-		for extension in [".jpg", ".png"]:
-			var path = TEXTURE_FOLDER + size + image_name + extension
-			if ResourceLoader.exists(path):
-				return load(path)
+# Finds the first image that exists from a list of names like ["ceres", "ceres_fictional"]. Returns null if none.
+static func find_texture(image_names):
+	if image_names is String:
+		image_names = [image_names]
+	for image_name in image_names:
+		for size in ["2k_", "4k_", "8k_", ""]:
+			for extension in [".jpg", ".png"]:
+				var path = TEXTURE_FOLDER + size + image_name + extension
+				if ResourceLoader.exists(path):
+					return load(path)
 	return null
 
-# Gives a planet sphere its real surface. planet_name is "Mars", "Saturn" and so on.
-static func texture_planet(planet_mesh: MeshInstance3D, planet_name: String):
-	var planet_material = StandardMaterial3D.new()
-	var texture = find_texture(PLANET_IMAGE_NAMES.get(planet_name, ""))
-	if texture:
-		planet_material.albedo_texture = texture
-	else:
-		planet_material.albedo_color = BACKUP_COLORS.get(planet_name, Color.WHITE)
-		print("No texture found for %s in %s, using a plain color." % [planet_name, TEXTURE_FOLDER])
-	if planet_name == "Sun":
-		# The Sun makes its own light, so it ignores shadows and glows
-		planet_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	else:
-		planet_material.roughness = 0.9
-	planet_mesh.material_override = planet_material
+# A generated surface: blotchy for rocky and icy bodies, banded for giant planets
+static func generated_surface(base_color: Color, banded: bool, seed_number: int):
+	var noise = FastNoiseLite.new()
+	noise.seed = seed_number
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.fractal_octaves = 5
+	noise.frequency = 0.02
+	var texture = NoiseTexture2D.new()
+	texture.width = 1024
+	texture.height = 512
+	texture.seamless = true
+	texture.noise = noise
+	var ramp = Gradient.new()
+	ramp.set_color(0, base_color.darkened(0.45))
+	ramp.set_color(1, base_color.lightened(0.25))
+	ramp.add_point(0.5, base_color)
+	if banded:
+		# A narrow, tall image wrapped around the planet: the pattern changes quickly from north to south
+		# and slowly around it, which makes cloud bands that circle the planet like on Jupiter
+		noise.frequency = 0.011
+		noise.domain_warp_enabled = true
+		noise.domain_warp_amplitude = 12.0
+		texture.width = 256
+		texture.height = 1024
+		ramp.set_color(0, base_color.darkened(0.3))
+		ramp.set_color(1, base_color.lightened(0.2))
+	texture.color_ramp = ramp
+	return texture
 
-# A flat ring with the hole in the middle, like Saturn's rings.
-# The ring image runs from the inner edge (left) to the outer edge (right).
+# A flat ring with a hole in the middle. The ring image runs from the inner edge (left) to the outer edge (right).
 static func make_ring_mesh(inner_radius, outer_radius):
 	var surface = SurfaceTool.new()
 	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var segments = 128
+	var segments = 192
 	for segment in segments:
 		var angle_start = TAU * segment / segments
 		var angle_end = TAU * (segment + 1) / segments
@@ -72,25 +67,61 @@ static func make_ring_mesh(inner_radius, outer_radius):
 			surface.add_vertex(corner[0])
 	return surface.commit()
 
-# Adds Saturn's rings to "parent". planet_radius is how big Saturn's sphere is.
-# Saturn's main rings run from about 1.24 to 2.27 times Saturn's radius.
-static func make_saturn_rings(planet_radius):
+# Thin rings drawn as bright bands: each band is [position from 0 (inner) to 1 (outer), width, brightness]
+static func banded_ring_texture(bands, color: Color):
+	var gradient = Gradient.new()
+	gradient.offsets = PackedFloat32Array([0.0])
+	gradient.colors = PackedColorArray([Color(color, 0.0)])
+	for band in bands:
+		var center = band[0]
+		var half_width = band[1] / 2.0
+		gradient.add_point(max(0.001, center - half_width), Color(color, 0.0))
+		gradient.add_point(center, Color(color, band[2]))
+		gradient.add_point(min(0.999, center + half_width), Color(color, 0.0))
+	var texture = GradientTexture1D.new()
+	texture.gradient = gradient
+	texture.width = 1024
+	return texture
+
+# Ring sizes compared with the planet's radius, from spacecraft measurements
+const RING_SIZES = {
+	"saturn": [1.24, 2.27],    # the main rings, from the C ring to the edge of the A ring
+	"uranus": [1.60, 2.03],    # 13 narrow dark rings; the brightest, Epsilon, is the outermost
+	"neptune": [1.65, 2.60],   # faint rings named after the astronomers who found Neptune
+	"jupiter": [1.40, 1.81],   # a faint dusty halo and the thin main ring
+	"haumea": [2.9, 3.02],     # a narrow ring found in 2017, about 2,287 km from Haumea's center
+}
+
+# Makes the rings for a planet whose sphere has the given radius
+static func make_rings(ring_type, planet_radius):
+	var size = RING_SIZES[ring_type]
 	var rings = MeshInstance3D.new()
-	rings.name = "SaturnRings"
-	rings.mesh = make_ring_mesh(planet_radius * 1.24, planet_radius * 2.27)
+	rings.name = "Rings"
+	rings.mesh = make_ring_mesh(planet_radius * size[0], planet_radius * size[1])
 	var ring_material = StandardMaterial3D.new()
-	var ring_texture = find_texture("saturn_ring_alpha")
-	if ring_texture:
-		ring_material.albedo_texture = ring_texture
-		ring_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	else:
-		ring_material.albedo_color = Color(0.85, 0.78, 0.6, 0.8)
-		ring_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ring_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	ring_material.cull_mode = BaseMaterial3D.CULL_DISABLED   # visible from above and below
+	ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	match ring_type:
+		"saturn":
+			ring_material.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+			var ring_image = find_texture("saturn_ring_alpha")
+			if ring_image:
+				ring_material.albedo_texture = ring_image
+			else:
+				ring_material.albedo_texture = banded_ring_texture([[0.15, 0.2, 0.25], [0.45, 0.3, 0.85], [0.6, 0.06, 0.05], [0.82, 0.3, 0.6]], Color(0.9, 0.82, 0.65))
+		"uranus":
+			ring_material.albedo_texture = banded_ring_texture([[0.05, 0.02, 0.35], [0.2, 0.02, 0.3], [0.35, 0.02, 0.3], [0.55, 0.03, 0.35], [0.7, 0.03, 0.35], [0.97, 0.05, 0.8]], Color(0.65, 0.68, 0.7))
+		"neptune":
+			ring_material.albedo_texture = banded_ring_texture([[0.04, 0.04, 0.25], [0.52, 0.03, 0.3], [0.96, 0.05, 0.4]], Color(0.6, 0.6, 0.65))
+		"jupiter":
+			ring_material.albedo_texture = banded_ring_texture([[0.4, 0.6, 0.08], [0.93, 0.1, 0.2]], Color(0.75, 0.65, 0.55))
+		"haumea":
+			ring_material.albedo_texture = banded_ring_texture([[0.5, 0.5, 0.5]], Color(0.85, 0.85, 0.9))
 	rings.material_override = ring_material
 	return rings
 
-# Puts the Milky Way behind everything. Keeps the existing ambient light so planets stay bright.
+# Puts the Milky Way behind everything. Keeps the existing ambient light so planets stay lit.
 static func add_star_sky(world_environment: WorldEnvironment):
 	if world_environment == null:
 		return
@@ -109,3 +140,32 @@ static func add_star_sky(world_environment: WorldEnvironment):
 	sky.sky_material = sky_material
 	environment.sky = sky
 	environment.background_mode = Environment.BG_SKY
+
+# --- Kept so the launch scene keeps working ---
+const PLANET_IMAGE_NAMES = {
+	"Sun": "sun", "Earth": "earth_daymap", "Moon": "moon", "Mars": "mars",
+	"Venus": "venus_atmosphere", "Jupiter": "jupiter", "Saturn": "saturn",
+}
+const BACKUP_COLORS = {
+	"Sun": Color(1.0, 0.85, 0.3), "Earth": Color(0.2, 0.4, 0.9), "Moon": Color(0.8, 0.8, 0.8),
+	"Mars": Color(0.85, 0.35, 0.15), "Venus": Color(0.95, 0.85, 0.55), "Jupiter": Color(0.85, 0.65, 0.45),
+	"Saturn": Color(0.9, 0.8, 0.55),
+}
+
+static func texture_planet(planet_mesh: MeshInstance3D, planet_name: String):
+	var planet_material = StandardMaterial3D.new()
+	var texture = find_texture(PLANET_IMAGE_NAMES.get(planet_name, ""))
+	if texture:
+		planet_material.albedo_texture = texture
+	else:
+		planet_material.albedo_color = BACKUP_COLORS.get(planet_name, Color.WHITE)
+	if planet_name == "Sun":
+		planet_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	else:
+		planet_material.roughness = 0.9
+	planet_mesh.material_override = planet_material
+
+static func make_saturn_rings(planet_radius):
+	var rings = make_rings("saturn", planet_radius)
+	rings.name = "SaturnRings"
+	return rings
