@@ -1,7 +1,10 @@
 [gd_scene format=3 uid="uid://bbgbqh2xxi4en"]
 
 [ext_resource type="Script" uid="uid://bqlxdmthsajpb" path="res://scripts/launch.gd" id="1_qys52"]
+[ext_resource type="ArrayMesh" uid="uid://bwh6cb7rgih3m" path="res://assets/rocket_baseA.obj" id="2_aj0ia"]
 [ext_resource type="ArrayMesh" uid="uid://b6eucwg0gswxd" path="res://assets/rocket_finsA.obj" id="2_dklkq"]
+[ext_resource type="ArrayMesh" uid="uid://s2scoj60op5w" path="res://assets/rocket_sidesA.obj" id="3_6wscj"]
+[ext_resource type="ArrayMesh" uid="uid://eebhfwfckdj8" path="res://assets/rocket_fuelA.obj" id="4_713xm"]
 
 [sub_resource type="Environment" id="Environment_0utxl"]
 background_mode = 1
@@ -16,10 +19,6 @@ albedo_color = Color(0.14509805, 0.32941177, 1, 1)
 material = SubResource("StandardMaterial3D_0utxl")
 radius = 1.0
 height = 2.0
-
-[sub_resource type="SphereMesh" id="SphereMesh_qys52"]
-radius = 1.5
-height = 3.0
 
 [node name="Launch" type="Node3D" unique_id=914564956]
 script = ExtResource("1_qys52")
@@ -39,11 +38,26 @@ mesh = SubResource("SphereMesh_0utxl")
 
 [node name="Target" type="MeshInstance3D" parent="." unique_id=1830989294]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 0)
-mesh = SubResource("SphereMesh_qys52")
+mesh = ExtResource("2_aj0ia")
 
-[node name="Probe" type="MeshInstance3D" parent="." unique_id=1021952272]
+[node name="Probe" type="Node3D" parent="." unique_id=1213541069]
 transform = Transform3D(0.90630776, 0.42261827, 0, -0.42261827, 0.90630776, 0, 0, 0, 1, -10, 0, 0)
+
+[node name="RocketSidesA" type="MeshInstance3D" parent="Probe" unique_id=2145234433]
+transform = Transform3D(0.9063079, -0.42261833, 0, 0.42261833, 0.9063079, 0, 0, 0, 1, 16.469164, 7.679698, 1.3553963)
+mesh = ExtResource("3_6wscj")
+
+[node name="RocketFuelA" type="MeshInstance3D" parent="Probe" unique_id=744547843]
+transform = Transform3D(0.9063079, -0.42261833, 0, 0.42261833, 0.9063079, 0, 0, 0, 1, 15.184074, 7.0804505, -1.2062407)
+mesh = ExtResource("4_713xm")
+
+[node name="RocketFinsA" type="MeshInstance3D" parent="Probe" unique_id=1931917221]
+transform = Transform3D(0.9063079, -0.42261833, 0, 0.42261833, 0.9063079, 0, 0, 0, 1, 20.766037, 9.683363, -0.95103407)
 mesh = ExtResource("2_dklkq")
+
+[node name="RocketBaseA" type="MeshInstance3D" parent="Probe" unique_id=1645553097]
+transform = Transform3D(0.9063079, -0.42261833, 0, 0.42261833, 0.9063079, 0, 0, 0, 1, 23.867476, 11.129587, 2.001565)
+mesh = ExtResource("2_aj0ia")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1498369641]
 
@@ -75,6 +89,6 @@ autowrap_mode = 3
 [node name="ChoiceButtons" type="VBoxContainer" parent="CanvasLayer/EventPanel/VBox" unique_id=2071313369]
 layout_mode = 2
 
-[node name="ContinueButton" type="Button" parent="CanvasLayer/EventPanel/VBox" unique_id=188907407]
+[node name="ContinueButton" type="Button" parent="CanvasLayer/EventPanel/VBox/ChoiceButtons" unique_id=188907407]
 layout_mode = 2
 text = "Continue"
