@@ -26,6 +26,14 @@ const MISSION_GOALS = {
 	"Titania": "See the half of Titania that no one has ever seen.",
 	"Triton": "Study the backwards moon and its nitrogen geysers.",
 	"Charon": "Map Charon's red pole and its giant canyons.",
+	"Mercury": "Survive the heat and find the ice hiding at the poles.",
+	"Uranus": "Find out why Uranus is tipped on its side.",
+	"Neptune": "Study the fastest winds in the solar system.",
+	"Ceres": "Find out where the bright salt spots come from.",
+	"Pluto": "Explore the giant heart and its nitrogen glaciers.",
+	"Haumea": "Be the first to see the egg-shaped world up close.",
+	"Makemake": "Be the first to visit the red, icy world and its moon.",
+	"Eris": "Reach the most distant dwarf planet we know of.",
 }
 
 var selected_planet = ""
