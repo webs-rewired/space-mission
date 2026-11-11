@@ -31,6 +31,10 @@ const MISSION_GOALS = {
 var selected_planet = ""
 var bodies_node: Node = null
 var seconds_until_refresh = 0.0
+var stats_scroll: ScrollContainer = null
+
+# Space kept clear at the bottom of the screen for the time bar
+const SPACE_FOR_TIME_BAR = 72
 
 # If you renamed any of these nodes, change the names here too
 @onready var info_panel = $CanvasLayer/InfoPanel
@@ -47,7 +51,16 @@ func _ready():
 	stats_label.custom_minimum_size.x = 360
 	stats_label.add_theme_font_size_override("font_size", 14)
 	info_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	info_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 10)
+	# The stats scroll when they're too long, so the panel never covers the time bar
+	stats_scroll = ScrollContainer.new()
+	stats_scroll.name = "StatsScroll"
+	stats_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var stats_parent = stats_label.get_parent()
+	stats_parent.add_child(stats_scroll)
+	stats_parent.move_child(stats_scroll, stats_label.get_index())
+	stats_label.reparent(stats_scroll, false)
+	stats_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	fit_panel()
 	bodies_node = get_tree().get_first_node_in_group("solar_system_world")
 
 func _process(delta):
@@ -113,6 +126,21 @@ func refresh_planet_info():
 	name_label.text = data["label"]
 	stats_label.text = "\n".join(lines)
 	mission_button.visible = GameState.DESTINATIONS.has(selected_planet)
+	fit_panel()
+
+# Makes the stats area as tall as its text, but never so tall that the panel reaches the time bar
+func fit_panel():
+	if stats_scroll == null:
+		return
+	var screen_height = get_viewport().get_visible_rect().size.y
+	var other_parts = name_label.get_combined_minimum_size().y + 30.0
+	if mission_button.visible:
+		other_parts += mission_button.get_combined_minimum_size().y + 4.0
+	var room = max(80.0, screen_height - 10.0 - SPACE_FOR_TIME_BAR - other_parts)
+	var text_height = stats_label.get_line_count() * (stats_label.get_line_height() + stats_label.get_theme_constant("line_spacing")) + 8.0
+	stats_scroll.custom_minimum_size = Vector2(stats_label.custom_minimum_size.x + 12.0, min(text_height, room))
+	info_panel.reset_size()
+	info_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 10)
 
 func _on_mission_pressed():
 	GameState.destination = selected_planet
