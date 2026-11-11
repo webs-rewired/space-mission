@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://bbgbqh2xxi4en"]
 
 [ext_resource type="Script" uid="uid://bqlxdmthsajpb" path="res://scripts/launch.gd" id="1_qys52"]
+[ext_resource type="ArrayMesh" uid="uid://bwh6cb7rgih3m" path="res://scripts/rocket_baseA.obj" id="2_dklkq"]
 
 [sub_resource type="Environment" id="Environment_0utxl"]
 background_mode = 1
@@ -19,9 +20,6 @@ height = 2.0
 [sub_resource type="SphereMesh" id="SphereMesh_qys52"]
 radius = 1.5
 height = 3.0
-
-[sub_resource type="BoxMesh" id="BoxMesh_0utxl"]
-size = Vector3(0.5, 0.5, 0.5)
 
 [node name="Launch" type="Node3D" unique_id=914564956]
 script = ExtResource("1_qys52")
@@ -45,7 +43,7 @@ mesh = SubResource("SphereMesh_qys52")
 
 [node name="Probe" type="MeshInstance3D" parent="." unique_id=1021952272]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, 0)
-mesh = SubResource("BoxMesh_0utxl")
+mesh = ExtResource("2_dklkq")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1498369641]
 
