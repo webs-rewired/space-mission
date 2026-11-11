@@ -15,6 +15,17 @@ const MISSION_GOALS = {
 	"Mars": "Land and study the soil.",
 	"Jupiter": "Orbit Jupiter and study its atmosphere.",
 	"Saturn": "Study the rings and moons, and maybe land on Titan.",
+	"Phobos": "Find out where Phobos came from and bring back a sample.",
+	"Deimos": "Map the dusty little moon and compare it with Phobos.",
+	"Io": "Watch the most volcanic world in the solar system erupt.",
+	"Europa": "Find out if the ocean under the ice could support life.",
+	"Ganymede": "Study the only moon with its own magnetic field.",
+	"Callisto": "Explore the most cratered world and its hidden ocean.",
+	"Enceladus": "Fly through the geysers and taste the ocean below.",
+	"Titan": "Explore lakes of liquid methane under an orange sky.",
+	"Titania": "See the half of Titania that no one has ever seen.",
+	"Triton": "Study the backwards moon and its nitrogen geysers.",
+	"Charon": "Map Charon's red pole and its giant canyons.",
 }
 
 var selected_planet = ""
@@ -88,7 +99,8 @@ func refresh_planet_info():
 	lines.append("Day: " + facts["day"])
 	lines.append("Year: " + facts["year"])
 	lines.append("Temperature: " + facts["temperature"])
-	lines.append("Moons: " + facts["moons"])
+	if facts.has("moons"):
+		lines.append("Moons: " + facts["moons"])
 	if facts["sunlight"] != "":
 		lines.append("Sunlight: " + facts["sunlight"])
 	lines.append("Explored: " + facts["explored"])

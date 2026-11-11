@@ -13,8 +13,9 @@ const RocketData = preload("res://scripts/rocket_data.gd")
 # ---------------------------------------------------------------------------
 var destination: String = "Mars"   # default so the builders can be tested on their own with F6
 
-# How fast time runs in the solar system view. 1 = normal, 0 = paused, negative = backwards.
-var time_speed: float = 1.0
+# How fast time runs in the solar system view: how many DAYS pass every real second.
+# 0 = paused, negative = backwards. The solar system's Controls node sets it (real time to start).
+var time_speed: float = 1.0 / 86400.0
 var rocket = RocketData.STARTING_ROCKETS["falcon9"].duplicate()
 var choices = {
 	"power": "solar_small",
@@ -55,7 +56,22 @@ const DESTINATIONS = {
 	"Venus": {"distance_from_sun_au": 0.72, "budget": 700, "small_antenna_data_share": 0.8},
 	"Jupiter": {"distance_from_sun_au": 5.2, "budget": 1000, "small_antenna_data_share": 0.4},
 	"Saturn": {"distance_from_sun_au": 9.54, "budget": 1600, "small_antenna_data_share": 0.3},
+	# Moons: sunlight and radio distance are the same as for their planet
+	"Phobos": {"distance_from_sun_au": 1.52, "budget": 800, "small_antenna_data_share": 0.7},
+	"Deimos": {"distance_from_sun_au": 1.52, "budget": 750, "small_antenna_data_share": 0.7},
+	"Io": {"distance_from_sun_au": 5.2, "budget": 1100, "small_antenna_data_share": 0.4},
+	"Europa": {"distance_from_sun_au": 5.2, "budget": 1100, "small_antenna_data_share": 0.4},
+	"Ganymede": {"distance_from_sun_au": 5.2, "budget": 1050, "small_antenna_data_share": 0.4},
+	"Callisto": {"distance_from_sun_au": 5.2, "budget": 1000, "small_antenna_data_share": 0.4},
+	"Enceladus": {"distance_from_sun_au": 9.54, "budget": 1600, "small_antenna_data_share": 0.3},
+	"Titan": {"distance_from_sun_au": 9.54, "budget": 1700, "small_antenna_data_share": 0.3},
+	"Titania": {"distance_from_sun_au": 19.2, "budget": 1900, "small_antenna_data_share": 0.2},
+	"Triton": {"distance_from_sun_au": 30.1, "budget": 2000, "small_antenna_data_share": 0.15},
+	"Charon": {"distance_from_sun_au": 39.5, "budget": 2000, "small_antenna_data_share": 0.12},
 }
+
+# Moons with no air: parachutes, airbags and sky cranes can't work there, so landers need legs and thrusters
+const AIRLESS_MOONS = ["Moon", "Phobos", "Deimos", "Io", "Europa", "Ganymede", "Callisto", "Enceladus", "Titania", "Triton", "Charon"]
 
 const PARTS = {
 	# Power
@@ -107,6 +123,17 @@ const REAL_MISSIONS = {
 	"Venus": "NASA's Magellan mapped Venus with radar through its clouds in the 1990s. The Soviet Venera landers survived only an hour or two on the surface.",
 	"Jupiter": "NASA's Juno reached Jupiter in 2016. It uses three huge solar arrays and keeps its electronics inside a titanium radiation vault.",
 	"Saturn": "NASA's Cassini orbited Saturn from 2004 to 2017 on three RTGs, and dropped ESA's Huygens probe onto Titan in 2005.",
+	"Phobos": "Japan's MMX mission is designed to land on Phobos, scoop up a sample and bring it back to Earth. ESA's Mars Express has flown past Phobos many times since 2003.",
+	"Deimos": "NASA's Viking 2 orbiter flew within 30 km of Deimos in 1977. The UAE's Hope orbiter took close-up pictures of it in 2023.",
+	"Io": "NASA's Galileo studied Io from 1995 to 2003, and Juno flew just 1,500 km above it in 2023 and 2024, photographing lava lakes. Both had to survive Jupiter's intense radiation.",
+	"Europa": "NASA's Europa Clipper launched in 2024 and arrives in 2030. It keeps its electronics in a radiation vault and flies past Europa about 50 times instead of orbiting, to limit its radiation dose.",
+	"Ganymede": "ESA's JUICE launched in 2023 and is set to orbit Ganymede in 2034, the first spacecraft to orbit another planet's moon. It runs on huge solar panels.",
+	"Callisto": "NASA's Galileo flew past Callisto many times in the 1990s and found hints of a hidden ocean. It's far from Jupiter's worst radiation, so NASA has studied it as a future human base.",
+	"Enceladus": "NASA's Cassini flew through Enceladus's plumes several times between 2005 and 2015, as low as 49 km above the surface, and found salty water, hydrogen and organic molecules.",
+	"Titan": "ESA's Huygens probe parachuted onto Titan in 2005 behind a heat shield. NASA's Dragonfly, a nuclear-powered drone, is planned to launch in 2028 and fly between sites on Titan.",
+	"Titania": "Only NASA's Voyager 2 has visited, flying past in January 1986, and it photographed less than half of Titania. A Uranus orbiter is NASA's top choice for its next big planetary mission.",
+	"Triton": "NASA's Voyager 2 flew past Triton in August 1989 and saw nitrogen geysers on its frozen surface. It ran on RTGs, because sunlight there is about 1/900 of Earth's.",
+	"Charon": "NASA's New Horizons flew past Pluto and Charon in July 2015 at 14 km/s. It ran on an RTG and launched on an Atlas V with a Star 48B kick stage, too fast to stop and orbit.",
 }
 
 # ---------------------------------------------------------------------------

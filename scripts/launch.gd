@@ -7,6 +7,9 @@ const RESULTS_SCENE = "res://scenes/results.tscn"
 
 # Real planet images, Saturn's rings and the starry sky
 const SpaceTextures = preload("res://scripts/space_textures.gd")
+const SolarSystemData = preload("res://scripts/solar_system_data.gd")
+const MoonSurfaces = preload("res://scripts/moon_surfaces.gd")
+const BeltBuilder = preload("res://scripts/belt_builder.gd")
 
 @onready var probe = $Probe
 @onready var target_planet = $Target
@@ -39,7 +42,14 @@ func _ready():
 
 func set_up_target_planet():
 	var destination = GameState.destination
-	SpaceTextures.texture_planet(target_planet, destination)
+	var data = SolarSystemData.BODIES.get(destination, {})
+	var is_moon_of_planet = data.has("orbit") and data["orbit"].has("satellite")
+	if is_moon_of_planet:
+		target_planet.material_override = MoonSurfaces.make_material(destination)
+		if data.get("irregular", false):
+			target_planet.mesh = BeltBuilder.make_rock_mesh(abs(destination.hash()) % 1000, 0.12, false)
+	else:
+		SpaceTextures.texture_planet(target_planet, destination)
 
 	# Earth (where the probe starts) and the starry sky
 	var earth = get_node_or_null("Earth")
@@ -50,9 +60,11 @@ func set_up_target_planet():
 			SpaceTextures.add_star_sky(child)
 
 	# Scale the planet to its real size compared with Earth
-	var planet_radius = SIZE_COMPARED_WITH_EARTH[destination]
-	var sphere_radius = target_planet.mesh.radius
-	target_planet.scale = Vector3.ONE * (planet_radius / sphere_radius)
+	var planet_radius = SIZE_COMPARED_WITH_EARTH.get(destination, data.get("radius_km", 6371.0) / 6371.0)
+	if is_moon_of_planet:
+		planet_radius = max(planet_radius, 0.18)   # tiny moons like Phobos are drawn bigger so you can see them
+	var sphere_radius = target_planet.mesh.radius if target_planet.mesh is SphereMesh else 1.0
+	target_planet.scale = data.get("shape", Vector3.ONE) * (planet_radius / sphere_radius)
 
 	# Big planets sit farther away so they don't swallow the screen
 	target_planet.position = Vector3(6 + planet_radius, 0, 0)
@@ -60,6 +72,29 @@ func set_up_target_planet():
 
 	if destination == "Saturn":
 		add_saturn_rings(sphere_radius)
+	if is_moon_of_planet:
+		add_parent_planet(data["parent"], planet_radius)
+
+# For a moon mission, its planet hangs in the sky behind it, at its real size compared with Earth
+func add_parent_planet(parent_name, moon_radius):
+	var parent_data = SolarSystemData.BODIES[parent_name]
+	var parent_radius = parent_data["radius_km"] / 6371.0
+	var parent_planet = MeshInstance3D.new()
+	parent_planet.name = "ParentPlanet"
+	var sphere = SphereMesh.new()
+	sphere.radius = 1.0
+	sphere.height = 2.0
+	sphere.radial_segments = 96
+	sphere.rings = 48
+	parent_planet.mesh = sphere
+	SpaceTextures.texture_planet(parent_planet, parent_name)
+	parent_planet.scale = Vector3.ONE * parent_radius
+	add_child(parent_planet)
+	parent_planet.position = target_planet.position + Vector3(parent_radius * 1.2 + moon_radius + 2.0, parent_radius * 0.3, -parent_radius * 2.2 - 5.0)
+	if parent_data.has("rings"):
+		var rings = SpaceTextures.make_rings(parent_data["rings"], 1.0)
+		parent_planet.add_child(rings)
+		rings.rotation_degrees.x = 20
 
 func add_saturn_rings(sphere_radius):
 	target_planet.add_child(SpaceTextures.make_saturn_rings(sphere_radius))

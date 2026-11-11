@@ -12,6 +12,11 @@ extends RefCounted
 #     "a", "e", "i", "node", "arg_peri" (all degrees), "mean_anomaly" at "epoch_jd".
 #     Comets give the date they were closest to the Sun ("epoch_jd" with mean anomaly 0).
 #   The Moon uses a standard simple model of its orbit around Earth ("moon": true).
+#   Other moons use JPL's mean orbital elements ("satellite"), measured in the moon's own reference plane
+#   (its planet's equator, or its "Laplace plane"), whose pole is "pole_ra" / "pole_dec". The angles are
+#   measured from where that plane crosses Earth's equator, at Jan 1, 2000. "degrees_per_day" is how fast the
+#   moon goes around; the orbit's long axis and its tilt slowly turn ("apsis_" and "node_degrees_per_day").
+#   Checked against NASA's high-accuracy theory for Jupiter's moons: within half a degree from 2000 to 2035.
 #
 # SPIN AND TILT
 #   "pole_ra" / "pole_dec": where the north pole points (IAU, in sky coordinates). This sets the real tilt.
@@ -23,8 +28,10 @@ extends RefCounted
 #   PRIME_MERIDIANS (below) gives the exact spin angle on any date for bodies with official IAU models,
 #   so Earth's day and night fall on the right places for today's date.
 
-const BODY_ORDER = ["Sun", "Mercury", "Venus", "Earth", "Moon", "Mars", "Ceres", "Jupiter", "Saturn",
-	"Uranus", "Neptune", "Pluto", "Haumea", "Makemake", "Eris", "Halley", "Encke", "67P", "Hale-Bopp"]
+# Every moon comes right after its planet, so the planet's position is worked out first
+const BODY_ORDER = ["Sun", "Mercury", "Venus", "Earth", "Moon", "Mars", "Phobos", "Deimos", "Ceres",
+	"Jupiter", "Io", "Europa", "Ganymede", "Callisto", "Saturn", "Enceladus", "Titan", "Uranus", "Titania",
+	"Neptune", "Triton", "Pluto", "Charon", "Haumea", "Makemake", "Eris", "Halley", "Encke", "67P", "Hale-Bopp"]
 
 # IAU rotation models: [W0 (degrees at Jan 1, 2000, noon), degrees per day]. Bodies not listed spin from rotation_hours.
 const PRIME_MERIDIANS = {
@@ -106,6 +113,9 @@ const BODIES = {
 		"orbit": {"moon": true}, "pole_ra": 269.99, "pole_dec": 66.54, "rotation_hours": 655.72,
 		"locked": true,   # tidally locked: the same side always faces Earth
 		"images": ["moon"], "color": Color(0.8, 0.8, 0.8), "label_color": Color(0.85, 0.85, 0.85),
+		# Used only if 2k_moon.jpg is missing: bright highlands, dark lava "seas" and lots of craters
+		"surface": {"base_color": Color(0.66, 0.64, 0.62), "second_color": Color(0.3, 0.29, 0.28), "patch_scale": 1.5, "patch_amount": 0.35,
+			"crater_amount": 0.8, "crater_scale": 6.0, "bump_strength": 0.8},
 		"facts": {
 			"type": "Moon of Earth", "distance": "384,400 km from Earth on average", "diameter_km": 3475,
 			"mass": "7.35 × 10^22 kg (0.012 Earths)", "gravity": 1.62, "escape_speed": "2.4 km/s", "orbital_speed": "1.0 km/s around Earth",
@@ -251,6 +261,208 @@ const BODIES = {
 			"orbital_speed": "3.4 km/s", "day": "About 15.8 Earth days, locked facing its moon", "year": "About 560 Earth years",
 			"temperature": "About -243 °C", "moons": "1 (Dysnomia)", "sunlight": "About 0.02% of Earth's",
 			"explored": "Never visited. Its discovery in 2005 led to Pluto being renamed a dwarf planet.",
+		},
+	},
+
+	# ===================================================================== MOONS
+	"Phobos": {
+		"kind": "moon", "parent": "Mars", "label": "Phobos", "radius_km": 11.08, "mass_earths": 1.79e-9,
+		"orbit": {"satellite": {"a_km": 9375.0, "e": 0.015, "i": 1.1, "node": 169.2, "arg_peri": 216.3, "mean_anomaly": 189.7,
+			"degrees_per_day": 360.0 / 0.31891023, "apsis_degrees_per_day": 360.0 / (1.1 * 365.25), "node_degrees_per_day": -360.0 / (2.3 * 365.25),
+			"pole_ra": 317.7, "pole_dec": 52.9, "parent_gm": 42828.37}},
+		"locked": true, "rotation_hours": 7.654, "irregular": true,
+		# About 27 x 22 x 18 km: the long end always points at Mars (local -z), the short axis is the pole
+		"shape": Vector3(1.03, 0.82, 1.17),
+		"images": ["phobos"], "color": Color(0.33, 0.3, 0.28), "label_color": Color(0.85, 0.7, 0.62),
+		"surface": {"base_color": Color(0.2, 0.18, 0.17), "second_color": Color(0.15, 0.14, 0.13), "patch_scale": 2.0, "patch_amount": 0.5,
+			"crater_amount": 1.0, "crater_scale": 3.5, "crack_amount": 0.5, "crack_color": Color(0.11, 0.1, 0.1), "crack_scale": 2.2, "bump_strength": 1.2},
+		"facts": {
+			"type": "Moon of Mars, a dark, potato-shaped rock", "distance": "9,376 km from Mars' center, only about 6,000 km above its surface",
+			"diameter_km": 22, "mass": "1.07 × 10^16 kg", "gravity": 0.0057, "escape_speed": "11 m/s (you could throw a ball into space)",
+			"orbital_speed": "2.1 km/s", "day": "7.7 hours, always showing Mars the same face",
+			"year": "Orbits Mars every 7 hours 39 minutes, so it rises in the west 2 or 3 times a day", "temperature": "From about -112 °C to -4 °C",
+			"sunlight": "43% of Earth's",
+			"explored": "Viking, Phobos 2 and Mars Express have photographed it up close. Japan's MMX mission is designed to land and bring a sample home.",
+		},
+	},
+	"Deimos": {
+		"kind": "moon", "parent": "Mars", "label": "Deimos", "radius_km": 6.2, "mass_earths": 2.47e-10,
+		"orbit": {"satellite": {"a_km": 23457.0, "e": 0.0002, "i": 1.8, "node": 54.3, "arg_peri": 0.0, "mean_anomaly": 205.0,
+			"degrees_per_day": 360.0 / 1.2624407, "node_degrees_per_day": -360.0 / (56.2 * 365.25),
+			"pole_ra": 316.6, "pole_dec": 53.5, "parent_gm": 42828.37}},
+		"locked": true, "rotation_hours": 30.3, "irregular": true,
+		"shape": Vector3(0.97, 0.82, 1.26),
+		"images": ["deimos"], "color": Color(0.4, 0.37, 0.34), "label_color": Color(0.85, 0.75, 0.68),
+		"surface": {"base_color": Color(0.26, 0.24, 0.22), "second_color": Color(0.22, 0.2, 0.19), "patch_scale": 1.6, "patch_amount": 0.4,
+			"crater_amount": 0.35, "crater_scale": 4.5, "bump_strength": 0.6},
+		"facts": {
+			"type": "Moon of Mars, small and smooth under deep dust", "distance": "23,460 km from Mars' center",
+			"diameter_km": 12, "mass": "1.48 × 10^15 kg", "gravity": 0.003, "escape_speed": "5.6 m/s (a fast run would launch you into space)",
+			"orbital_speed": "1.35 km/s", "day": "30.3 hours, always showing Mars the same face", "year": "Orbits Mars every 30.3 hours",
+			"temperature": "About -40 °C", "sunlight": "43% of Earth's",
+			"explored": "Viking 2 flew within 30 km of it in 1977. The UAE's Hope orbiter took close-up pictures in 2023.",
+		},
+	},
+	"Io": {
+		"kind": "moon", "parent": "Jupiter", "label": "Io", "radius_km": 1821.6, "mass_earths": 0.01496,
+		"orbit": {"satellite": {"a_km": 421800.0, "e": 0.004, "i": 0.0, "node": 0.0, "arg_peri": 49.1, "mean_anomaly": 330.9,
+			"degrees_per_day": 203.488955790, "apsis_degrees_per_day": -0.7395,
+			"pole_ra": 268.1, "pole_dec": 64.5, "parent_gm": 126686534.0}},
+		"locked": true, "rotation_hours": 42.459,
+		"images": ["io"], "color": Color(0.92, 0.82, 0.45), "label_color": Color(1.0, 0.9, 0.5),
+		"surface": {"base_color": Color(0.88, 0.76, 0.36), "second_color": Color(0.8, 0.52, 0.24), "patch_scale": 2.5, "patch_amount": 0.75,
+			"spot_amount": 0.9, "spot_color": Color(0.12, 0.07, 0.05), "spot_scale": 9.0,
+			"cap_amount": 0.55, "cap_color": Color(0.55, 0.36, 0.24), "cap_side": 0.0, "cap_size": 0.72, "bump_strength": 0.4},
+		"facts": {
+			"type": "Moon of Jupiter, the most volcanic world in the solar system", "distance": "421,700 km from Jupiter",
+			"diameter_km": 3643, "mass": "8.93 × 10^22 kg (0.015 Earths)", "gravity": 1.8, "escape_speed": "2.6 km/s",
+			"orbital_speed": "17.3 km/s", "day": "42.5 hours, always showing Jupiter the same face", "year": "Orbits Jupiter every 1.77 days",
+			"temperature": "About -130 °C, but lava reaches 1,600 °C", "sunlight": "3.7% of Earth's",
+			"explored": "Galileo studied it from 1995 to 2003. Juno flew just 1,500 km above it in 2023 and 2024.",
+		},
+	},
+	"Europa": {
+		"kind": "moon", "parent": "Jupiter", "label": "Europa", "radius_km": 1560.8, "mass_earths": 0.008035,
+		"orbit": {"satellite": {"a_km": 671100.0, "e": 0.009, "i": 0.5, "node": 184.0, "arg_peri": 45.0, "mean_anomaly": 345.4,
+			"degrees_per_day": 101.374724735, "apsis_degrees_per_day": -0.7395, "node_degrees_per_day": -360.0 / (30.202 * 365.25),
+			"pole_ra": 268.1, "pole_dec": 64.5, "parent_gm": 126686534.0}},
+		"locked": true, "rotation_hours": 85.228,
+		"images": ["europa"], "color": Color(0.85, 0.8, 0.72), "label_color": Color(0.9, 0.85, 0.75),
+		"surface": {"base_color": Color(0.87, 0.83, 0.76), "second_color": Color(0.72, 0.6, 0.47), "patch_scale": 3.0, "patch_amount": 0.5,
+			"crack_amount": 1.0, "crack_color": Color(0.55, 0.32, 0.2), "crack_scale": 2.2,
+			"spot_amount": 0.45, "spot_color": Color(0.62, 0.45, 0.32), "spot_scale": 4.0, "crater_amount": 0.05, "bump_strength": 0.4},
+		"facts": {
+			"type": "Moon of Jupiter with an ocean under its ice", "distance": "671,100 km from Jupiter",
+			"diameter_km": 3122, "mass": "4.80 × 10^22 kg (0.008 Earths)", "gravity": 1.31, "escape_speed": "2.0 km/s",
+			"orbital_speed": "13.7 km/s", "day": "3.55 Earth days, always showing Jupiter the same face", "year": "Orbits Jupiter every 3.55 days",
+			"temperature": "From about -160 °C at the equator to -220 °C at the poles", "sunlight": "3.7% of Earth's",
+			"explored": "Galileo found signs of its ocean. NASA's Europa Clipper launched in 2024 and arrives in 2030.",
+		},
+	},
+	"Ganymede": {
+		"kind": "moon", "parent": "Jupiter", "label": "Ganymede", "radius_km": 2634.1, "mass_earths": 0.0248,
+		"orbit": {"satellite": {"a_km": 1070400.0, "e": 0.001, "i": 0.2, "node": 58.5, "arg_peri": 198.3, "mean_anomaly": 324.8,
+			"degrees_per_day": 50.317609207, "apsis_degrees_per_day": 360.0 / (68.301 * 365.25), "node_degrees_per_day": -360.0 / (137.812 * 365.25),
+			"pole_ra": 268.2, "pole_dec": 64.6, "parent_gm": 126686534.0}},
+		"locked": true, "rotation_hours": 171.71,
+		"images": ["ganymede"], "color": Color(0.5, 0.46, 0.42), "label_color": Color(0.8, 0.76, 0.7),
+		"surface": {"base_color": Color(0.56, 0.51, 0.46), "second_color": Color(0.3, 0.27, 0.24), "patch_scale": 1.6, "patch_amount": 0.9,
+			"crater_amount": 0.5, "crater_scale": 5.0, "crack_amount": 0.35, "crack_color": Color(0.66, 0.63, 0.58), "crack_scale": 4.0,
+			"cap_amount": 0.6, "cap_color": Color(0.8, 0.8, 0.83), "cap_side": 0.0, "cap_size": 0.8, "bump_strength": 0.7},
+		"facts": {
+			"type": "Moon of Jupiter, the biggest moon in the solar system", "distance": "1,070,400 km from Jupiter",
+			"diameter_km": 5268, "mass": "1.48 × 10^23 kg (0.025 Earths)", "gravity": 1.43, "escape_speed": "2.7 km/s",
+			"orbital_speed": "10.9 km/s", "day": "7.15 Earth days, always showing Jupiter the same face", "year": "Orbits Jupiter every 7.15 days",
+			"temperature": "About -160 °C", "sunlight": "3.7% of Earth's",
+			"explored": "Galileo found its magnetic field in 1996. ESA's JUICE is set to orbit it from 2034, the first spacecraft to orbit another planet's moon.",
+		},
+	},
+	"Callisto": {
+		"kind": "moon", "parent": "Jupiter", "label": "Callisto", "radius_km": 2410.3, "mass_earths": 0.01803,
+		"orbit": {"satellite": {"a_km": 1882700.0, "e": 0.007, "i": 0.3, "node": 309.1, "arg_peri": 43.8, "mean_anomaly": 87.4,
+			"degrees_per_day": 21.571071177, "apsis_degrees_per_day": 360.0 / (277.921 * 365.25), "node_degrees_per_day": -360.0 / (577.264 * 365.25),
+			"pole_ra": 268.7, "pole_dec": 64.8, "parent_gm": 126686534.0}},
+		"locked": true, "rotation_hours": 400.54,
+		"images": ["callisto"], "color": Color(0.32, 0.29, 0.26), "label_color": Color(0.75, 0.7, 0.65),
+		"surface": {"base_color": Color(0.3, 0.27, 0.24), "second_color": Color(0.38, 0.34, 0.3), "patch_scale": 2.0, "patch_amount": 0.6,
+			"crater_amount": 1.3, "crater_scale": 7.0, "spot_amount": 0.3, "spot_color": Color(0.72, 0.69, 0.65), "spot_scale": 22.0, "bump_strength": 1.0},
+		"facts": {
+			"type": "Moon of Jupiter, the most heavily cratered world known", "distance": "1,882,700 km from Jupiter",
+			"diameter_km": 4821, "mass": "1.08 × 10^23 kg (0.018 Earths)", "gravity": 1.24, "escape_speed": "2.4 km/s",
+			"orbital_speed": "8.2 km/s", "day": "16.7 Earth days, always showing Jupiter the same face", "year": "Orbits Jupiter every 16.7 days",
+			"temperature": "About -140 °C", "sunlight": "3.7% of Earth's",
+			"explored": "Galileo flew past it many times and found hints of a hidden ocean. It's far enough from Jupiter's radiation that NASA has studied it as a future human base.",
+		},
+	},
+	"Enceladus": {
+		"kind": "moon", "parent": "Saturn", "label": "Enceladus", "radius_km": 252.1, "mass_earths": 1.81e-5,
+		"orbit": {"satellite": {"a_km": 238400.0, "e": 0.005, "i": 0.0, "node": 0.0, "arg_peri": 119.5, "mean_anomaly": 57.0,
+			"degrees_per_day": 360.0 / 1.370218, "apsis_degrees_per_day": 360.0 / (2.916 * 365.25),
+			"pole_ra": 40.6, "pole_dec": 83.5, "parent_gm": 37931207.0}},
+		"locked": true, "rotation_hours": 32.885, "plumes": true,
+		"images": ["enceladus"], "color": Color(0.95, 0.96, 0.98), "label_color": Color(0.85, 0.92, 1.0),
+		"surface": {"base_color": Color(0.95, 0.96, 0.98), "second_color": Color(0.86, 0.89, 0.93), "patch_scale": 2.0, "patch_amount": 0.4,
+			"crater_amount": 0.45, "crater_scale": 6.0, "crack_amount": 0.4, "crack_color": Color(0.78, 0.85, 0.93), "crack_scale": 3.0,
+			"stripe_amount": 1.0, "stripe_color": Color(0.5, 0.65, 0.85), "bump_strength": 0.6},
+		"facts": {
+			"type": "Moon of Saturn, shooting water out of its south pole", "distance": "238,000 km from Saturn",
+			"diameter_km": 504, "mass": "1.08 × 10^20 kg", "gravity": 0.113, "escape_speed": "0.24 km/s",
+			"orbital_speed": "12.6 km/s", "day": "1.37 Earth days, always showing Saturn the same face", "year": "Orbits Saturn every 1.37 days",
+			"temperature": "About -200 °C, but the tiger stripes are much warmer", "sunlight": "1.1% of Earth's",
+			"explored": "Cassini flew through its plumes several times, as low as 49 km above the surface, and found salty water, hydrogen and organic molecules.",
+		},
+	},
+	"Titan": {
+		"kind": "moon", "parent": "Saturn", "label": "Titan", "radius_km": 2574.7, "mass_earths": 0.02252,
+		"orbit": {"satellite": {"a_km": 1221900.0, "e": 0.029, "i": 0.3, "node": 78.6, "arg_peri": 78.3, "mean_anomaly": 11.7,
+			"degrees_per_day": 360.0 / 15.945421, "apsis_degrees_per_day": 360.0 / (346.68 * 365.25), "node_degrees_per_day": -360.0 / (687.37 * 365.25),
+			"pole_ra": 36.4, "pole_dec": 84.0, "parent_gm": 37931207.0}},
+		"locked": true, "rotation_hours": 382.69,
+		"images": ["titan"], "color": Color(0.85, 0.58, 0.25), "label_color": Color(1.0, 0.75, 0.4),
+		"atmosphere": [Color(1.0, 0.62, 0.22), 1.8],
+		"surface": {"base_color": Color(0.86, 0.57, 0.24), "second_color": Color(0.7, 0.45, 0.19), "patch_scale": 2.0, "patch_amount": 0.5,
+			"haze_amount": 0.85, "bump_strength": 0.0},
+		"facts": {
+			"type": "Moon of Saturn, the only moon with a thick atmosphere", "distance": "1,221,900 km from Saturn",
+			"diameter_km": 5150, "mass": "1.35 × 10^23 kg (0.023 Earths)", "gravity": 1.35, "escape_speed": "2.6 km/s",
+			"orbital_speed": "5.6 km/s", "day": "16 Earth days, always showing Saturn the same face", "year": "Orbits Saturn every 15.9 days",
+			"temperature": "About -179 °C, with methane rain and lakes", "sunlight": "1.1% of Earth's",
+			"explored": "ESA's Huygens parachuted onto it in 2005. NASA's Dragonfly drone is planned to launch in 2028.",
+		},
+	},
+	"Titania": {
+		"kind": "moon", "parent": "Uranus", "label": "Titania", "radius_km": 788.4, "mass_earths": 0.00057,
+		"orbit": {"satellite": {"a_km": 436298.0, "e": 0.002, "i": 0.1, "node": 29.5, "arg_peri": 184.0, "mean_anomaly": 68.1,
+			"degrees_per_day": 360.0 / 8.7058717, "apsis_degrees_per_day": 360.0 / (579.928 * 365.25), "node_degrees_per_day": -360.0 / (1644.649 * 365.25),
+			"pole_ra": 257.311, "pole_dec": -15.175, "parent_gm": 5793951.0}},
+		"locked": true, "rotation_hours": 208.94,
+		"images": ["titania"], "color": Color(0.5, 0.48, 0.47), "label_color": Color(0.75, 0.85, 0.88),
+		"surface": {"base_color": Color(0.53, 0.51, 0.5), "second_color": Color(0.4, 0.38, 0.37), "patch_scale": 2.0, "patch_amount": 0.6,
+			"crater_amount": 0.8, "crater_scale": 6.0, "crack_amount": 0.6, "crack_color": Color(0.28, 0.27, 0.27), "crack_scale": 1.8, "bump_strength": 0.8},
+		"facts": {
+			"type": "Moon of Uranus, its biggest", "distance": "436,300 km from Uranus",
+			"diameter_km": 1577, "mass": "3.4 × 10^21 kg (0.0006 Earths)", "gravity": 0.38, "escape_speed": "0.77 km/s",
+			"orbital_speed": "3.6 km/s", "day": "8.7 Earth days, always showing Uranus the same face", "year": "Orbits Uranus every 8.7 days",
+			"temperature": "About -200 °C", "sunlight": "0.27% of Earth's",
+			"explored": "Only Voyager 2 has visited, in 1986, and it photographed less than half of Titania.",
+		},
+	},
+	"Triton": {
+		"kind": "moon", "parent": "Neptune", "label": "Triton", "radius_km": 1353.4, "mass_earths": 0.00358,
+		"orbit": {"satellite": {"a_km": 354800.0, "e": 0.0, "i": 157.3, "node": 177.7, "arg_peri": 0.0, "mean_anomaly": 63.0,
+			"degrees_per_day": 360.0 / 5.876854, "node_degrees_per_day": 360.0 / (299.4 * 365.25),
+			"pole_ra": 299.36, "pole_dec": 43.46, "parent_gm": 6835100.0}},
+		"locked": true, "rotation_hours": 141.04,
+		"images": ["triton"], "color": Color(0.78, 0.74, 0.72), "label_color": Color(0.85, 0.85, 1.0),
+		"atmosphere": [Color(0.6, 0.75, 1.0), 0.2],
+		"surface": {"base_color": Color(0.74, 0.72, 0.7), "second_color": Color(0.86, 0.77, 0.73), "patch_scale": 2.0, "patch_amount": 0.6,
+			"cell_amount": 0.8, "cap_amount": 0.9, "cap_color": Color(0.93, 0.8, 0.76), "cap_side": -1.0, "cap_size": 0.2,
+			"spot_amount": 0.3, "spot_color": Color(0.36, 0.31, 0.29), "spot_scale": 9.0, "crater_amount": 0.1, "bump_strength": 0.6},
+		"facts": {
+			"type": "Moon of Neptune that orbits backwards, probably a captured Kuiper belt world", "distance": "354,800 km from Neptune",
+			"diameter_km": 2707, "mass": "2.14 × 10^22 kg (0.0036 Earths)", "gravity": 0.78, "escape_speed": "1.5 km/s",
+			"orbital_speed": "4.4 km/s, backwards", "day": "5.9 Earth days, always showing Neptune the same face",
+			"year": "Orbits Neptune every 5.9 days, the opposite way to Neptune's spin", "temperature": "About -235 °C, one of the coldest surfaces ever measured",
+			"sunlight": "0.11% of Earth's",
+			"explored": "Only Voyager 2 has visited, in 1989. It saw geysers of nitrogen shooting 8 km high.",
+		},
+	},
+	"Charon": {
+		"kind": "moon", "parent": "Pluto", "label": "Charon", "radius_km": 606.0, "mass_earths": 0.000266,
+		# Pluto and Charon always face each other: Pluto's longitude 0 is defined as the side facing Charon
+		"orbit": {"satellite": {"a_km": 19596.0, "e": 0.0, "i": 0.0, "node": 0.0, "arg_peri": 0.0, "mean_anomaly": 302.695,
+			"degrees_per_day": 56.3625225, "pole_ra": 132.993, "pole_dec": -6.163, "parent_gm": 975.5}},
+		"locked": true, "rotation_hours": 153.29,
+		"images": ["charon"], "color": Color(0.55, 0.53, 0.52), "label_color": Color(0.82, 0.78, 0.75),
+		"surface": {"base_color": Color(0.56, 0.54, 0.53), "second_color": Color(0.46, 0.45, 0.45), "patch_scale": 2.0, "patch_amount": 0.5,
+			"crater_amount": 0.5, "crater_scale": 6.0, "crack_amount": 0.5, "crack_color": Color(0.35, 0.34, 0.34), "crack_scale": 1.5,
+			"cap_amount": 0.85, "cap_color": Color(0.46, 0.26, 0.18), "cap_side": 1.0, "cap_size": 0.82, "bump_strength": 0.7},
+		"facts": {
+			"type": "Moon of Pluto, so big the two are almost a double planet", "distance": "19,600 km from Pluto",
+			"diameter_km": 1212, "mass": "1.59 × 10^21 kg (0.0003 Earths)", "gravity": 0.29, "escape_speed": "0.59 km/s",
+			"orbital_speed": "0.2 km/s", "day": "6.4 Earth days. Charon and Pluto always show each other the same face",
+			"year": "Orbits Pluto every 6.4 days", "temperature": "About -220 °C", "sunlight": "About 0.06% of Earth's",
+			"explored": "Only New Horizons has visited, flying past in July 2015.",
 		},
 	},
 	"Halley": {

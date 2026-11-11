@@ -7,6 +7,7 @@ extends RefCounted
 
 const J2000 = 2451545.0                 # Julian date of January 1, 2000 at noon (the standard starting point)
 const UNIX_EPOCH_JULIAN_DATE = 2440587.5
+const KILOMETERS_PER_AU = 149597870.7
 const MOON_DISTANCE_AU = 384400.0 / 149597870.7
 const TRUE_SCALE_UNITS_PER_AU = 100.0   # at true scale, 1 AU = 100 units
 const VIEWABLE_EARTH_DISTANCE = 10.0    # in the viewable layout Earth sits 10 units from the Sun
@@ -25,9 +26,11 @@ static func date_text(julian_date):
 	var date = Time.get_datetime_dict_from_unix_time(int(floor(unix_time_from_julian_date(julian_date))))
 	return "%s %d, %d" % [MONTH_NAMES[date["month"] - 1], date["day"], date["year"]]
 
-# "14:05 UTC"
-static func time_text(julian_date):
+# "14:05 UTC", or "14:05:32 UTC" with seconds
+static func time_text(julian_date, with_seconds = false):
 	var date = Time.get_datetime_dict_from_unix_time(int(floor(unix_time_from_julian_date(julian_date))))
+	if with_seconds:
+		return "%02d:%02d:%02d UTC" % [date["hour"], date["minute"], date["second"]]
 	return "%02d:%02d UTC" % [date["hour"], date["minute"]]
 
 # Solves Kepler's equation M = E - e sin(E) for E (all in radians)
@@ -137,6 +140,68 @@ static func game_xyz(ecliptic, true_scale):
 static func moon_offset_game_xyz(ecliptic, true_scale):
 	var factor = TRUE_SCALE_UNITS_PER_AU if true_scale else VIEWABLE_MOON_DISTANCE / MOON_DISTANCE_AU
 	return [ecliptic[0] * factor, ecliptic[2] * factor, -ecliptic[1] * factor]
+
+# ---------------------------------------------------------------------------
+# Moons of other planets (JPL mean elements in each moon's own reference plane)
+# ---------------------------------------------------------------------------
+# The moon's orbit on a date, plus the directions of its reference plane in the ecliptic frame
+static func satellite_elements(satellite, julian_date):
+	var days = julian_date - J2000
+	var node = satellite["node"] + satellite.get("node_degrees_per_day", 0.0) * days
+	var pericenter_longitude = satellite["node"] + satellite["arg_peri"] + satellite.get("apsis_degrees_per_day", 0.0) * days
+	var mean_longitude = satellite["node"] + satellite["arg_peri"] + satellite["mean_anomaly"] + satellite["degrees_per_day"] * days
+	var right_ascension = deg_to_rad(satellite["pole_ra"])
+	var declination = deg_to_rad(satellite["pole_dec"])
+	var pole = equatorial_to_ecliptic(Vector3(cos(declination) * cos(right_ascension), cos(declination) * sin(right_ascension), sin(declination))).normalized()
+	# Angles are measured from where the reference plane crosses Earth's equator, going up
+	var x_axis = equatorial_to_ecliptic(Vector3(-sin(right_ascension), cos(right_ascension), 0.0)).normalized()
+	return {"a": satellite["a_km"], "e": satellite["e"], "inclination": deg_to_rad(satellite["i"]), "node": deg_to_rad(node),
+		"argument_of_perihelion": deg_to_rad(pericenter_longitude - node), "mean_anomaly": deg_to_rad(mean_longitude - pericenter_longitude),
+		"x_axis": x_axis, "y_axis": pole.cross(x_axis), "pole": pole}
+
+# Where the moon is (km from its planet, ecliptic frame) for a given eccentric anomaly
+static func satellite_xyz(elements, eccentric):
+	var in_plane = position_xyz(elements, eccentric)
+	var x_axis = elements["x_axis"]
+	var y_axis = elements["y_axis"]
+	var pole = elements["pole"]
+	return [x_axis.x * in_plane[0] + y_axis.x * in_plane[1] + pole.x * in_plane[2],
+		x_axis.y * in_plane[0] + y_axis.y * in_plane[1] + pole.y * in_plane[2],
+		x_axis.z * in_plane[0] + y_axis.z * in_plane[1] + pole.z * in_plane[2]]
+
+static func satellite_ecliptic_xyz(satellite, julian_date):
+	var elements = satellite_elements(satellite, julian_date)
+	return satellite_xyz(elements, solve_kepler(elements["mean_anomaly"], elements["e"]))
+
+# The direction the moon goes around in (its orbit's axis), in Godot coordinates
+static func satellite_orbit_axis(elements):
+	var inclination = elements["inclination"]
+	var node = elements["node"]
+	var axis = elements["x_axis"] * (sin(inclination) * sin(node)) + elements["y_axis"] * (-sin(inclination) * cos(node)) + elements["pole"] * cos(inclination)
+	return to_godot(axis).normalized()
+
+# A moon's position from its planet in game units. Exact at true scale. In the viewable layout, moons close
+# to the planet keep their real spacing (so they stay outside the rings), and far ones are squeezed so a
+# planet's whole family fits around it.
+static func satellite_offset_game_xyz(ecliptic_km, parent_radius_km, parent_display_radius, true_scale):
+	var godot = [ecliptic_km[0], ecliptic_km[2], -ecliptic_km[1]]
+	var factor = TRUE_SCALE_UNITS_PER_AU / KILOMETERS_PER_AU
+	if not true_scale:
+		var distance = sqrt(godot[0] * godot[0] + godot[1] * godot[1] + godot[2] * godot[2])
+		if distance == 0.0:
+			return [0.0, 0.0, 0.0]
+		var planet_radii = distance / parent_radius_km
+		var shown_radii = planet_radii if planet_radii <= 2.5 else 2.5 + 1.4 * log(planet_radii / 2.5)
+		factor = shown_radii * parent_display_radius / distance
+	return [godot[0] * factor, godot[1] * factor, godot[2] * factor]
+
+static func satellite_path_points(satellite, julian_date, point_count, true_scale, parent_radius_km, parent_display_radius):
+	var elements = satellite_elements(satellite, julian_date)
+	var points = PackedVector3Array()
+	for index in point_count + 1:
+		var offset = satellite_offset_game_xyz(satellite_xyz(elements, TAU * index / point_count), parent_radius_km, parent_display_radius, true_scale)
+		points.append(Vector3(offset[0], offset[1], offset[2]))
+	return points
 
 # Ecliptic (x, y, z north) to Godot (x, y up, z toward the viewer)
 static func to_godot(ecliptic):

@@ -97,7 +97,7 @@ func _process(delta):
 
 	# How close and how far the camera can see, adjusted to the zoom so tiny planets don't get cut off
 	camera.near = max(0.00005, camera.position.z * 0.01)
-	camera.far = clamp(camera.near * 500000.0, 50.0, 40000.0)
+	camera.far = clamp(camera.near * 500000.0, 50.0, 200000000.0)
 
 	if followed_planet != "":
 		var planet = get_tree().current_scene.find_child(followed_planet, true, false)

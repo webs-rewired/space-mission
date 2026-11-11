@@ -7,6 +7,7 @@ extends RefCounted
 # If an image is missing, the body gets a generated rocky or cloudy surface in its real colors instead.
 
 const TEXTURE_FOLDER = "res://assets/textures/"
+const SolarSystemData = preload("res://scripts/solar_system_data.gd")
 
 # Finds the first image that exists from a list of names like ["ceres", "ceres_fictional"]. Returns null if none.
 static func find_texture(image_names):
@@ -154,11 +155,20 @@ const BACKUP_COLORS = {
 
 static func texture_planet(planet_mesh: MeshInstance3D, planet_name: String):
 	var planet_material = StandardMaterial3D.new()
-	var texture = find_texture(PLANET_IMAGE_NAMES.get(planet_name, ""))
+	var image_names = [PLANET_IMAGE_NAMES.get(planet_name, "")]
+	var backup_color = BACKUP_COLORS.get(planet_name, Color.WHITE)
+	var banded = false
+	if SolarSystemData.BODIES.has(planet_name):
+		var data = SolarSystemData.BODIES[planet_name]
+		image_names = data["images"]
+		backup_color = data["color"]
+		banded = data["mass_earths"] > 5.0
+	var texture = find_texture(image_names) if image_names.size() > 0 else null
 	if texture:
 		planet_material.albedo_texture = texture
 	else:
-		planet_material.albedo_color = BACKUP_COLORS.get(planet_name, Color.WHITE)
+		# No image: a generated surface in the body's real colors
+		planet_material.albedo_texture = generated_surface(backup_color, banded, abs(planet_name.hash()) % 10000)
 	if planet_name == "Sun":
 		planet_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	else:

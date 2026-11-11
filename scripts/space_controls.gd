@@ -26,7 +26,7 @@ const SPEEDS = [
 	[365.25, "1 year per second"],
 	[3652.5, "10 years per second"],
 ]
-const NORMAL_SPEED_STEP = 6
+const NORMAL_SPEED_STEP = 0   # the scene starts in real time
 
 # Which names win when two would overlap on screen (lower = more important)
 const NAME_PRIORITY = {"star": 0, "planet": 1, "moon": 2, "dwarf": 3, "comet": 4}
@@ -65,6 +65,7 @@ func _ready():
 	if not bodies_node.is_built:
 		await bodies_node.built
 	bodies_node.date_limit_reached.connect(_on_date_limit_reached)
+	bodies_node.edge_reached.connect(_on_edge_reached)
 	build_go_to_menu()
 	build_name_tags()
 
@@ -78,7 +79,7 @@ func _process(delta):
 	var date = OrbitMath.date_text(bodies_node.julian_date)
 	# Show the time of day when time moves slowly enough to read it
 	if paused or SPEEDS[speed_step][0] <= 1.0:
-		date += "   " + OrbitMath.time_text(bodies_node.julian_date)
+		date += "   " + OrbitMath.time_text(bodies_node.julian_date, speed_step <= 1)
 	date_label.text = date
 	update_name_tags()
 
@@ -179,6 +180,9 @@ func go_to_today():
 		bodies_node.reset_to_today()
 		show_message("Back to today: " + OrbitMath.date_text(bodies_node.julian_date))
 
+func _on_edge_reached():
+	show_message("The edge of the solar system: about 2 light-years out, where the Sun's gravity gives way to other stars. You can't go farther.")
+
 func _on_date_limit_reached():
 	paused = true
 	update_time_speed()
@@ -200,6 +204,7 @@ func reset_everything():
 	switches["Gravity fields"].button_pressed = false
 	switches["Asteroid belt"].button_pressed = true
 	switches["Kuiper belt"].button_pressed = true
+	switches["Oort cloud"].button_pressed = true
 	switches["Dwarf planets"].button_pressed = true
 	switches["Comets"].button_pressed = true
 	# Camera back to the starting view, stats panel closed, panels shown
@@ -211,7 +216,7 @@ func reset_everything():
 		info_panel.visible = false
 	if not controls_shown:
 		toggle_controls()
-	show_message("Everything is back to the start, on today's date")
+	show_message("Everything is back to the start: today's date, in real time")
 
 # ---------------------------------------------------------------------------
 # On-screen controls
@@ -268,7 +273,9 @@ func build_controls():
 	message_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_KEEP_SIZE, 0)
 	message_label.offset_left = -420
 	message_label.offset_right = 420
-	message_label.offset_top = -100
+	message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	message_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	message_label.offset_top = -150
 	message_label.offset_bottom = -70
 
 	# Display switches in the bottom left
@@ -291,6 +298,7 @@ func build_controls():
 	switch_column.add_child(make_switch("Gravity fields", false, func(on): call_bodies("set_gravity_fields_visible", [on])))
 	switch_column.add_child(make_switch("Asteroid belt", true, func(on): call_bodies("set_belt_visible", ["asteroids", on])))
 	switch_column.add_child(make_switch("Kuiper belt", true, func(on): call_bodies("set_belt_visible", ["kuiper", on])))
+	switch_column.add_child(make_switch("Oort cloud", true, func(on): call_bodies("set_oort_cloud_visible", [on])))
 	switch_column.add_child(make_switch("Dwarf planets", true, func(on): call_bodies("set_kind_visible", ["dwarf", on])))
 	switch_column.add_child(make_switch("Comets", true, func(on): call_bodies("set_kind_visible", ["comet", on])))
 	scale_note = Label.new()
@@ -346,9 +354,8 @@ func toggle_fullscreen():
 # Go to menu
 # ---------------------------------------------------------------------------
 func build_go_to_menu():
-	var groups = [["planet", "Planets"], ["dwarf", "Dwarf planets"], ["comet", "Comets"]]
+	var groups = [["planet", "Planets"], ["moon", "Moons"], ["dwarf", "Dwarf planets"], ["comet", "Comets"]]
 	add_go_to_item("Sun")
-	add_go_to_item("Moon")
 	for group in groups:
 		go_to_menu.add_separator(group[1])
 		for body_name in SolarSystemData.BODY_ORDER:

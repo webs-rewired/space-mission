@@ -18,6 +18,18 @@ const SPEED_NEEDED = {
 	"Venus": 12900,
 	"Jupiter": 15700,
 	"Saturn": 16700,
+	# Moons: the rocket's job is getting to the planet; the probe does the last steps to its moon
+	"Phobos": 13000,
+	"Deimos": 13000,
+	"Io": 15700,
+	"Europa": 15700,
+	"Ganymede": 15700,
+	"Callisto": 15700,
+	"Enceladus": 16700,
+	"Titan": 16700,
+	"Titania": 17500,
+	"Triton": 17800,
+	"Charon": 17900,
 }
 
 const SPEED_NOTE = {
@@ -26,6 +38,17 @@ const SPEED_NOTE = {
 	"Venus": "About 9,400 m/s to reach Earth orbit, plus about 3,500 m/s to head for Venus.",
 	"Jupiter": "About 9,400 m/s to reach Earth orbit, plus about 6,300 m/s to head for Jupiter.",
 	"Saturn": "About 9,400 m/s to reach Earth orbit, plus about 7,300 m/s to head for Saturn.",
+	"Phobos": "About 9,400 m/s to reach Earth orbit, plus about 3,600 m/s to head for Mars. Your probe does the last steps to Phobos.",
+	"Deimos": "About 9,400 m/s to reach Earth orbit, plus about 3,600 m/s to head for Mars. Your probe does the last steps to Deimos.",
+	"Io": "About 9,400 m/s to reach Earth orbit, plus about 6,300 m/s to head for Jupiter. Your probe does the last steps to Io.",
+	"Europa": "About 9,400 m/s to reach Earth orbit, plus about 6,300 m/s to head for Jupiter. Your probe does the last steps to Europa.",
+	"Ganymede": "About 9,400 m/s to reach Earth orbit, plus about 6,300 m/s to head for Jupiter. Your probe does the last steps to Ganymede.",
+	"Callisto": "About 9,400 m/s to reach Earth orbit, plus about 6,300 m/s to head for Jupiter. Your probe does the last steps to Callisto.",
+	"Enceladus": "About 9,400 m/s to reach Earth orbit, plus about 7,300 m/s to head for Saturn. Your probe does the last steps to Enceladus.",
+	"Titan": "About 9,400 m/s to reach Earth orbit, plus about 7,300 m/s to head for Saturn. Your probe does the last steps to Titan.",
+	"Titania": "About 9,400 m/s to reach Earth orbit, plus about 8,100 m/s to head for Uranus. Your probe does the last steps to Titania.",
+	"Triton": "About 9,400 m/s to reach Earth orbit, plus about 8,400 m/s to head for Neptune. Your probe does the last steps to Triton.",
+	"Charon": "About 9,400 m/s to reach Earth orbit, plus about 8,500 m/s to head for Pluto. Your probe does the last steps to Charon.",
 }
 
 const FUEL_NAMES = {

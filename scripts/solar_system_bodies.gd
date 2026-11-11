@@ -5,13 +5,15 @@ extends Node
 #
 # When the scene starts it:
 #   - finds the planets you made (Sun, Venus, Earth, Moon, Mars, Jupiter, Saturn) and creates the rest:
-#     Mercury, Uranus, Neptune, the five dwarf planets (Ceres, Pluto, Haumea, Makemake, Eris) and four comets
+#     Mercury, Uranus, Neptune, the five dwarf planets (Ceres, Pluto, Haumea, Makemake, Eris), four comets,
+#     and 11 more moons (Phobos, Deimos, Io, Europa, Ganymede, Callisto, Enceladus, Titan, Titania, Triton, Charon)
 #   - puts every body on its REAL orbit at its REAL position for today's date (NASA JPL orbit data),
 #     so every orbit has its own size, stretch, tilt and direction
 #   - tilts every body the real way and spins it at its real speed (IAU data), so day and night on Earth
 #     fall on the right places for the real date and time
 #   - adds textures, atmospheres, Earth's clouds and city lights, rings, comet tails and the animated Sun
-#   - builds the asteroid belt (with its real gaps), Jupiter's Trojan asteroids and the Kuiper belt
+#   - builds the asteroid belt (with its real gaps), Jupiter's Trojan asteroids, the Kuiper belt and the Oort cloud
+#   - keeps the camera inside the edge of the solar system (about 2 light-years out)
 #   - draws every orbit path
 #
 # TIME: GameState.time_speed is how many DAYS pass every real second (0 = paused, negative = backwards).
@@ -25,10 +27,12 @@ const OrbitMath = preload("res://scripts/orbit_math.gd")
 const SpaceTextures = preload("res://scripts/space_textures.gd")
 const BeltBuilder = preload("res://scripts/belt_builder.gd")
 const SunEffects = preload("res://scripts/sun_effects.gd")
+const MoonSurfaces = preload("res://scripts/moon_surfaces.gd")
 
 signal built                  # everything is ready to use
 signal layout_changed         # true scale was switched on or off
 signal date_limit_reached     # time reached the year 1800 or 2200 and stopped
+signal edge_reached           # the camera tried to fly past the edge of the solar system
 
 const EARLIEST_DATE = 2378496.5        # Jan 1, 1800 (NASA's planet table is made for 1800 to 2050)
 const LATEST_DATE = 2524593.5          # Jan 1, 2200
@@ -37,8 +41,14 @@ const MOON_MASS_FRACTION = 0.0121506   # the Moon's share of the Earth + Moon ma
 const SUN_GRAVITY_KM = 1.32712440018e11      # GM of the Sun, km³/s²
 const EARTH_MOON_GRAVITY_KM = 403503.2       # GM of Earth + Moon, km³/s²
 const LIGHT_SPEED_KM = 299792.458
-const CAMERA_LIMITS_VIEWABLE = [0.05, 450.0]
-const CAMERA_LIMITS_TRUE_SCALE = [0.0002, 15000.0]
+# The Oort cloud: a giant shell of icy bodies, the home of long-period comets. No one has seen it directly;
+# we know it's there from the comets that fall in from every direction.
+const OORT_CLOUD_INNER_AU = 2000.0
+const OORT_CLOUD_OUTER_AU = 100000.0
+const OORT_CLOUD_POINTS = 7000
+# The edge: about 125,000 AU (2 light-years), roughly where the Sun's gravity stops winning against other stars
+const EDGE_AU = 125000.0
+const CLOSEST_CAMERA = {"viewable": 0.05, "true": 0.0002}
 const DAYS_BEFORE_REBUILDING_PATHS = 36525.0   # orbits slowly change shape over centuries
 
 # How bright the night side of each planet is. Real space is very dark (about 0.05).
@@ -147,7 +157,15 @@ var spin_axes_shown = false
 var gravity_fields_shown = false
 var hidden_kinds = {}          # "dwarf" or "comet" -> true when switched off
 var lines_built_date = 0.0
-var moon_line_date = 0.0
+var moon_names = []             # every moon, checked one per frame to see if its path needs redrawing
+var next_moon_to_check = 0
+
+# Oort cloud and the edge of the solar system
+var oort_cloud: MeshInstance3D = null
+var oort_cloud_shown = true
+var oort_cloud_points = []      # [x, y, z] in AU
+var edge_sphere: MeshInstance3D = null
+var seconds_since_edge_message = 99.0
 
 # Belts
 var belts = {}                 # "asteroids", "trojans", "kuiper" -> belt node
@@ -200,6 +218,9 @@ func build_solar_system():
 
 	build_orbit_lines()
 	build_belts()
+	build_oort_cloud()
+	build_edge()
+	apply_camera_limits()
 	update_positions(0.0)
 
 	if missing_images.size() > 0:
@@ -231,6 +252,8 @@ func add_body(body_name):
 	body.transform = Transform3D.IDENTITY
 	if info["kind"] == "comet":
 		body.mesh = BeltBuilder.make_rock_mesh(abs(body_name.hash()) % 1000)
+	elif data.get("irregular", false):
+		body.mesh = BeltBuilder.make_rock_mesh(abs(body_name.hash()) % 1000, 0.12, false)   # Phobos and Deimos are lumpy
 	else:
 		body.mesh = sphere_mesh
 	body.set_meta("body_name", body_name)
@@ -239,6 +262,9 @@ func add_body(body_name):
 	info["prime_meridian"] = SolarSystemData.PRIME_MERIDIANS.get(body_name, [0.0, 360.0 * 24.0 / data["rotation_hours"]])
 	info["spin_angle"] = OrbitMath.spin_angle_at(info["prime_meridian"], julian_date)
 	info["shape"] = data.get("shape", Vector3.ONE)
+	info["is_satellite"] = data.has("orbit") and data["orbit"].has("satellite")
+	if info["kind"] == "moon":
+		moon_names.append(body_name)
 	bodies[body_name] = info
 	dress_body(info)
 
@@ -263,7 +289,7 @@ func dress_body(info):
 	var image = null
 	if data["images"].size() > 0:
 		image = SpaceTextures.find_texture(data["images"])
-		if image == null:
+		if image == null and info["kind"] != "moon":
 			missing_images.append("2k_" + data["images"][0] + ".jpg")
 	match info["kind"]:
 		"star":
@@ -279,7 +305,13 @@ func dress_body(info):
 			body.material_override = rock_material
 			add_comet_parts(info)
 		_:
-			body.material_override = make_surface_material(info, image)
+			if info["kind"] == "moon":
+				# Moons get a real map if you've added one (like 2k_moon.jpg), otherwise a detailed generated surface
+				body.material_override = MoonSurfaces.make_material(info["name"])
+				if data.get("plumes", false):
+					add_plumes(info)
+			else:
+				body.material_override = make_surface_material(info, image)
 	if data.has("atmosphere"):
 		add_atmosphere(info)
 	if data.has("clouds"):
@@ -315,6 +347,17 @@ func make_surface_material(info, image):
 	surface_material.roughness = 0.9
 	surface_material.metallic_specular = 0.2
 	return surface_material
+
+# Enceladus: geysers of water ice spraying out of the tiger stripes at the south pole
+func add_plumes(info):
+	for plume_number in 3:
+		var plume = make_tail("Plume", Color(0.75, 0.88, 1.0))
+		plume.material_override.set_shader_parameter("brightness", 0.55)
+		var lean = Basis(Vector3(cos(plume_number * 2.1), 0.0, sin(plume_number * 2.1)), 0.18)
+		plume.basis = lean * Basis(Vector3.RIGHT, PI) * Basis.from_scale(Vector3(0.22, 1.7, 0.22))
+		plume.position = lean * Vector3(0.0, -0.95, 0.0) + Vector3(0.12 * (plume_number - 1), 0.0, 0.0)
+		plume.visible = true
+		info["mesh"].add_child(plume)
 
 func make_shell(scale_factor):
 	var shell = MeshInstance3D.new()
@@ -552,6 +595,8 @@ func display_radius(body_name):
 	var radius = 0.5 * pow(data["radius_km"] / SolarSystemData.EARTH_RADIUS_KM, 0.45)
 	if info["kind"] == "comet":
 		radius *= 3.0    # comet cores are only a few km wide; drawn 3 times bigger so you can find them
+	elif data["radius_km"] < 50.0:
+		radius *= 2.5    # Phobos and Deimos are tiny; drawn bigger so you can find them
 	return radius
 
 func apply_sizes():
@@ -577,6 +622,7 @@ func apply_sizes():
 func _process(delta):
 	if not is_built:
 		return
+	seconds_since_edge_message += delta
 	julian_date += delta * GameState.time_speed
 	if julian_date < EARLIEST_DATE or julian_date > LATEST_DATE:
 		julian_date = clamp(julian_date, EARLIEST_DATE, LATEST_DATE)
@@ -608,8 +654,13 @@ func update_positions(delta):
 
 	update_focus_line()
 	update_belts(sun_position)
-	if abs(julian_date - moon_line_date) > 0.5:
-		build_orbit_line(bodies["Moon"])
+	update_edge()
+	# Moon orbits slowly turn, so check one moon's path each frame and redraw it if it's out of date
+	if moon_names.size() > 0:
+		next_moon_to_check = (next_moon_to_check + 1) % moon_names.size()
+		var moon = bodies[moon_names[next_moon_to_check]]
+		if abs(julian_date - moon.get("line_date", -1e9)) > moon_path_lifetime(moon):
+			build_orbit_line(moon)
 	if abs(julian_date - lines_built_date) > DAYS_BEFORE_REBUILDING_PATHS:
 		build_orbit_lines()
 
@@ -619,6 +670,9 @@ func calculate_positions():
 		var info = bodies[body_name]
 		var orbit = info["data"].get("orbit")
 		if orbit == null:
+			continue
+		if info["is_satellite"]:
+			place_satellite(info)
 			continue
 		var ecliptic = OrbitMath.ecliptic_xyz(orbit, julian_date)
 		info["ecliptic"] = ecliptic
@@ -641,6 +695,36 @@ func calculate_positions():
 			info["position"] = position
 			info["orbit_position"] = position
 
+# A moon of another planet: its real position around its planet, and which way it faces
+func place_satellite(info):
+	var satellite = info["data"]["orbit"]["satellite"]
+	var parent = bodies[info["data"]["parent"]]
+	var elements = OrbitMath.satellite_elements(satellite, julian_date)
+	var kilometers = OrbitMath.satellite_xyz(elements, OrbitMath.solve_kepler(elements["mean_anomaly"], elements["e"]))
+	info["ecliptic"] = kilometers   # km from its planet
+	var offset = OrbitMath.satellite_offset_game_xyz(kilometers, parent["data"]["radius_km"], parent["radius"], true_scale)
+	var parent_position = parent["position"]
+	info["position"] = [parent_position[0] + offset[0], parent_position[1] + offset[1], parent_position[2] + offset[2]]
+	info["orbit_position"] = info["position"]
+	# These moons are tidally locked: the same side always faces the planet (longitude 0 points at it),
+	# and they spin around the axis of their orbit
+	var spin_axis = OrbitMath.satellite_orbit_axis(elements)
+	var toward_planet = -Vector3(offset[0], offset[1], offset[2]).normalized()
+	var back = -(toward_planet - spin_axis * spin_axis.dot(toward_planet)).normalized()
+	info["facing_basis"] = Basis(spin_axis.cross(back), spin_axis, back)
+
+# How many days a moon's drawn path stays accurate before it needs redrawing (its orbit slowly turns)
+func moon_path_lifetime(info):
+	if not info["is_satellite"]:
+		return 0.5   # Earth's Moon: its orbit turns quite fast
+	var satellite = info["data"]["orbit"]["satellite"]
+	var turning = 0.0
+	if satellite["e"] >= 0.003:
+		turning = abs(satellite.get("apsis_degrees_per_day", 0.0))
+	if satellite["i"] >= 0.05:
+		turning = max(turning, abs(satellite.get("node_degrees_per_day", 0.0)))
+	return clamp(0.5 / max(turning, 0.000001), 0.25, 3650.0)
+
 func followed_body():
 	if camera_pivot and "followed_planet" in camera_pivot:
 		var body_name = camera_pivot.followed_planet
@@ -650,16 +734,32 @@ func followed_body():
 
 # Keeps the camera's target at the center of the game world (see the note at the top)
 func move_origin():
-	var new_origin = origin
 	var focus = followed_body()
 	if focus != "":
-		new_origin = bodies[focus]["position"].duplicate()
+		var new_origin = bodies[focus]["position"].duplicate()
+		if camera_pivot:
+			camera_pivot.global_position -= Vector3(new_origin[0] - origin[0], new_origin[1] - origin[1], new_origin[2] - origin[2])
+		origin = new_origin
 	elif camera_pivot:
+		# Fold the camera's movement into the origin, stopping at the edge of the solar system
 		var pivot_position = camera_pivot.global_position
-		new_origin = [origin[0] + pivot_position.x, origin[1] + pivot_position.y, origin[2] + pivot_position.z]
-	if camera_pivot:
-		camera_pivot.global_position -= Vector3(new_origin[0] - origin[0], new_origin[1] - origin[1], new_origin[2] - origin[2])
-	origin = new_origin
+		origin = keep_inside_edge([origin[0] + pivot_position.x, origin[1] + pivot_position.y, origin[2] + pivot_position.z])
+		camera_pivot.global_position = Vector3.ZERO
+
+# The camera can't fly past the edge of the solar system: it stops just inside it
+func keep_inside_edge(point):
+	var camera_back = 0.0
+	if camera_pivot and "camera" in camera_pivot and camera_pivot.camera:
+		camera_back = camera_pivot.camera.position.z
+	var limit = edge_distance() * 0.98 - camera_back
+	var distance = sqrt(point[0] * point[0] + point[1] * point[1] + point[2] * point[2])
+	if distance <= limit or distance == 0.0:
+		return point
+	if seconds_since_edge_message > 4.0:
+		seconds_since_edge_message = 0.0
+		edge_reached.emit()
+	var shrink = max(limit, 0.0) / distance
+	return [point[0] * shrink, point[1] * shrink, point[2] * shrink]
 
 # Puts the Sun back where it started (used when the camera view is reset)
 func reset_origin():
@@ -671,6 +771,11 @@ func spin_bodies(delta):
 	var slow_down = 1.0 if earth_spin <= fastest_earth_spin else fastest_earth_spin / earth_spin
 	for body_name in bodies:
 		var info = bodies[body_name]
+		if info.has("facing_basis"):
+			var facing = info["facing_basis"]
+			info["mesh"].transform = Transform3D(facing * Basis.from_scale(info["shape"] * info["radius"]), Vector3.ZERO)
+			info["axis"].basis = facing.scaled(Vector3.ONE * info["radius"] * info["shape"].y)
+			continue
 		var real_angle = OrbitMath.spin_angle_at(info["prime_meridian"], julian_date)
 		if info["data"].get("locked", false):
 			info["spin_angle"] = real_angle   # the Moon keeps the same face toward Earth at any speed
@@ -716,8 +821,12 @@ func build_orbit_line(info):
 	if info["line"] != null:
 		info["line"].queue_free()
 	var is_moon = info["kind"] == "moon"
-	var point_count = 256 if is_moon else 720
-	var points = OrbitMath.orbit_path_points(info["data"]["orbit"], julian_date, point_count, true_scale, is_moon)
+	var points
+	if info["is_satellite"]:
+		var parent_info = bodies[info["data"]["parent"]]
+		points = OrbitMath.satellite_path_points(info["data"]["orbit"]["satellite"], julian_date, 256, true_scale, parent_info["data"]["radius_km"], parent_info["radius"])
+	else:
+		points = OrbitMath.orbit_path_points(info["data"]["orbit"], julian_date, 256 if is_moon else 720, true_scale, is_moon)
 	var surface = SurfaceTool.new()
 	surface.begin(Mesh.PRIMITIVE_LINE_STRIP)
 	for point in points:
@@ -726,12 +835,11 @@ func build_orbit_line(info):
 	line.name = info["name"] + "OrbitPath"
 	line.mesh = surface.commit()
 	line.material_override = line_material(info["data"]["label_color"], line_strength(info))
-	# Paths around the Sun hang off the Sun's marker; the Moon's path hangs off Earth's
-	var parent = bodies["Earth"]["marker"] if is_moon else bodies["Sun"]["marker"]
+	# Paths around the Sun hang off the Sun's marker; a moon's path hangs off its planet's marker
+	var parent = bodies[info["data"]["parent"]]["marker"] if is_moon else bodies["Sun"]["marker"]
 	parent.add_child(line)
 	info["line"] = line
-	if is_moon:
-		moon_line_date = julian_date
+	info["line_date"] = julian_date
 	update_line_visibility(info)
 
 func update_line_visibility(info):
@@ -748,15 +856,20 @@ func update_focus_line():
 		focus_line.visible = false
 		return
 	var info = bodies[focus]
-	var elements = OrbitMath.elements_at(info["data"]["orbit"], julian_date)
+	var elements
+	if info["is_satellite"]:
+		elements = OrbitMath.satellite_elements(info["data"]["orbit"]["satellite"], julian_date)
+	else:
+		elements = OrbitMath.elements_at(info["data"]["orbit"], julian_date)
 	var eccentric_now = OrbitMath.solve_kepler(elements["mean_anomaly"], elements["e"])
-	var is_moon = info["kind"] == "moon"
-	var center = bodies["Earth"]["position"] if is_moon else [0.0, 0.0, 0.0]
+	var center = [0.0, 0.0, 0.0]
+	if info["kind"] == "moon":
+		center = bodies[info["data"]["parent"]]["position"]
 	var anchor = info["orbit_position"]
 
 	# How far the body travels for a tiny step around its orbit, to pick a fine enough first step
-	var here = path_point(elements, eccentric_now, is_moon, center)
-	var nearby = path_point(elements, eccentric_now + 0.000001, is_moon, center)
+	var here = path_point(info, elements, eccentric_now, center)
+	var nearby = path_point(info, elements, eccentric_now + 0.000001, center)
 	var step_length = Vector3(nearby[0] - here[0], nearby[1] - here[1], nearby[2] - here[2]).length() / 0.000001
 	var first_step = max(1e-9, 0.05 * info["radius"] / max(step_length, 1e-12))
 	var offsets = [0.0]
@@ -770,7 +883,7 @@ func update_focus_line():
 
 	var points = PackedVector3Array()
 	for offset in offsets:
-		var point = path_point(elements, eccentric_now + offset, is_moon, center)
+		var point = path_point(info, elements, eccentric_now + offset, center)
 		points.append(Vector3(point[0] - anchor[0], point[1] - anchor[1], point[2] - anchor[2]))
 	var arrays = []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -782,9 +895,15 @@ func update_focus_line():
 	focus_line.position = Vector3.ZERO
 	focus_line.visible = true
 
-func path_point(elements, eccentric, is_moon, center):
-	var ecliptic = OrbitMath.position_xyz(elements, eccentric)
-	var point = OrbitMath.moon_offset_game_xyz(ecliptic, true_scale) if is_moon else OrbitMath.game_xyz(ecliptic, true_scale)
+func path_point(info, elements, eccentric, center):
+	var point
+	if info["is_satellite"]:
+		var parent_info = bodies[info["data"]["parent"]]
+		point = OrbitMath.satellite_offset_game_xyz(OrbitMath.satellite_xyz(elements, eccentric), parent_info["data"]["radius_km"], parent_info["radius"], true_scale)
+	elif info["kind"] == "moon":
+		point = OrbitMath.moon_offset_game_xyz(OrbitMath.position_xyz(elements, eccentric), true_scale)
+	else:
+		point = OrbitMath.game_xyz(OrbitMath.position_xyz(elements, eccentric), true_scale)
 	return [center[0] + point[0], center[1] + point[1], center[2] + point[2]]
 
 # ---------------------------------------------------------------------------
@@ -838,6 +957,8 @@ func set_true_scale(on):
 	true_scale = on
 	apply_sizes()
 	apply_light_range()
+	build_oort_cloud()
+	build_edge()
 	var focus = followed_body()
 	if focus == "":
 		# Look at the whole solar system from the Sun
@@ -851,14 +972,119 @@ func set_true_scale(on):
 	build_orbit_lines()
 	build_belts()
 	if camera_pivot:
-		var limits = CAMERA_LIMITS_TRUE_SCALE if on else CAMERA_LIMITS_VIEWABLE
-		camera_pivot.min_distance = limits[0]
-		camera_pivot.max_distance = limits[1]
+		apply_camera_limits()
 		if focus != "" and camera_pivot.has_method("follow_planet"):
 			camera_pivot.follow_planet(focus)
 		elif camera_pivot.has_method("zoom_to"):
 			camera_pivot.zoom_to(260.0 if on else camera_pivot.start_distance)
 	layout_changed.emit()
+
+# ---------------------------------------------------------------------------
+# The Oort cloud and the edge of the solar system
+# ---------------------------------------------------------------------------
+# How far the edge is from the Sun, in game units (2 light-years at true scale; squeezed like everything else otherwise)
+func edge_distance():
+	return OrbitMath.game_xyz([EDGE_AU, 0.0, 0.0], true_scale)[0]
+
+# You can zoom out until the camera reaches the edge of the solar system
+func apply_camera_limits():
+	if camera_pivot and "min_distance" in camera_pivot:
+		camera_pivot.min_distance = CLOSEST_CAMERA["true" if true_scale else "viewable"]
+		camera_pivot.max_distance = edge_distance() * 0.9
+
+func build_oort_cloud():
+	if oort_cloud_points.is_empty():
+		var random = RandomNumberGenerator.new()
+		random.seed = 1950   # the year Jan Oort described the cloud
+		for index in OORT_CLOUD_POINTS:
+			var inner_part = index < OORT_CLOUD_POINTS * 0.3
+			# The inner cloud (2,000 to 20,000 AU) is a thick doughnut near the planets' plane; the outer cloud is a round shell
+			var low = OORT_CLOUD_INNER_AU if inner_part else 20000.0
+			var high = 20000.0 if inner_part else OORT_CLOUD_OUTER_AU
+			var distance = exp(random.randf_range(log(low), log(high)))
+			var direction = Vector3(random.randfn(), random.randfn(), random.randfn() * (0.35 if inner_part else 1.0)).normalized()
+			oort_cloud_points.append([direction.x * distance, direction.y * distance, direction.z * distance])
+	if oort_cloud:
+		oort_cloud.queue_free()
+	var points = PackedVector3Array()
+	var colors = PackedColorArray()
+	var random_shade = RandomNumberGenerator.new()
+	random_shade.seed = 7
+	for point in oort_cloud_points:
+		var game_point = OrbitMath.game_xyz(point, true_scale)
+		points.append(Vector3(game_point[0], game_point[1], game_point[2]))
+		var shade = random_shade.randf_range(0.35, 0.9)
+		colors.append(Color(0.75 * shade, 0.85 * shade, shade, 0.8))
+	var arrays = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = points
+	arrays[Mesh.ARRAY_COLOR] = colors
+	var cloud_mesh = ArrayMesh.new()
+	cloud_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_POINTS, arrays)
+	oort_cloud = MeshInstance3D.new()
+	oort_cloud.name = "OortCloud"
+	oort_cloud.mesh = cloud_mesh
+	var cloud_material = StandardMaterial3D.new()
+	cloud_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	cloud_material.vertex_color_use_as_albedo = true
+	cloud_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	cloud_material.use_point_size = true
+	cloud_material.point_size = 2.0
+	oort_cloud.material_override = cloud_material
+	oort_cloud.visible = oort_cloud_shown
+	oort_cloud.extra_cull_margin = 16384.0
+	bodies["Sun"]["marker"].add_child(oort_cloud)
+
+const EDGE_SHADER = """
+shader_type spatial;
+render_mode unshaded, cull_front, blend_add, depth_draw_never;
+uniform float nearness = 0.0;   // 0 = far from the edge, 1 = right at it
+varying vec3 local_position;
+// A thin line every 1 unit of the coordinate, always about one pixel wide however far away it is
+float grid_line(float coordinate) {
+	float distance_to_line = abs(fract(coordinate + 0.5) - 0.5);
+	float width = fwidth(coordinate);
+	return 1.0 - smoothstep(width, width * 2.5, distance_to_line);
+}
+void vertex() { local_position = VERTEX; }
+void fragment() {
+	vec3 point = normalize(local_position);
+	float latitude = degrees(asin(clamp(point.y, -1.0, 1.0)));
+	float longitude = degrees(atan(point.z, point.x));
+	float big_squares = max(grid_line(latitude / 10.0), grid_line(longitude / 10.0));
+	float small_squares = max(grid_line(latitude), grid_line(longitude));
+	ALBEDO = vec3(0.35, 0.6, 1.0) * (0.06 + 0.7 * big_squares + 0.3 * small_squares) * nearness;
+}
+"""
+
+# A faint glowing grid that appears as you get close to the edge
+func build_edge():
+	if edge_sphere == null:
+		edge_sphere = MeshInstance3D.new()
+		edge_sphere.name = "EdgeOfTheSolarSystem"
+		edge_sphere.mesh = sphere_mesh
+		var shader = Shader.new()
+		shader.code = EDGE_SHADER
+		var edge_material = ShaderMaterial.new()
+		edge_material.shader = shader
+		edge_sphere.material_override = edge_material
+		edge_sphere.extra_cull_margin = 16384.0
+		bodies["Sun"]["marker"].add_child(edge_sphere)
+	edge_sphere.scale = Vector3.ONE * edge_distance()
+
+func update_edge():
+	if edge_sphere == null or camera_pivot == null:
+		return
+	var camera = get_viewport().get_camera_3d()
+	if camera == null:
+		return
+	var from_sun = (camera.global_position - bodies["Sun"]["marker"].global_position).length()
+	edge_sphere.material_override.set_shader_parameter("nearness", smoothstep(0.55, 0.97, from_sun / edge_distance()))
+
+func set_oort_cloud_visible(on):
+	oort_cloud_shown = on
+	if oort_cloud:
+		oort_cloud.visible = on
 
 func reset_to_today():
 	julian_date = OrbitMath.julian_date_now()
@@ -889,14 +1115,17 @@ func set_kind_visible(kind, on):
 	hidden_kinds[kind] = not on
 	for body_name in bodies:
 		var info = bodies[body_name]
-		if info["kind"] == kind:
-			info["marker"].visible = on
-			update_line_visibility(info)
+		info["marker"].visible = is_body_shown(body_name)
+		update_line_visibility(info)
 	if not on and camera_pivot and "followed_planet" in camera_pivot and bodies.has(camera_pivot.followed_planet):
-		if bodies[camera_pivot.followed_planet]["kind"] == kind:
+		if not is_body_shown(camera_pivot.followed_planet):
 			camera_pivot.followed_planet = ""
 
+# A moon is hidden along with its planet (Charon goes with Pluto when dwarf planets are switched off)
 func is_body_shown(body_name):
+	var data = bodies[body_name]["data"]
+	if data.has("parent") and hidden_kinds.get(bodies[data["parent"]]["kind"], false):
+		return false
 	return not hidden_kinds.get(bodies[body_name]["kind"], false)
 
 func body_names():
@@ -917,6 +1146,11 @@ func live_facts(body_name):
 		return ""
 	var info = bodies[body_name]
 	var ecliptic = info["ecliptic"]
+	if info["is_satellite"]:
+		var satellite = info["data"]["orbit"]["satellite"]
+		var kilometers = sqrt(ecliptic[0] * ecliptic[0] + ecliptic[1] * ecliptic[1] + ecliptic[2] * ecliptic[2])
+		var moon_speed = sqrt(satellite["parent_gm"] * (2.0 / kilometers - 1.0 / satellite["a_km"]))
+		return "Right now: %s km from %s, moving at %.2f km/s around it" % [format_number(kilometers), info["data"]["parent"], moon_speed]
 	var distance_au = sqrt(ecliptic[0] * ecliptic[0] + ecliptic[1] * ecliptic[1] + ecliptic[2] * ecliptic[2])
 	var distance_km = distance_au * SolarSystemData.KILOMETERS_PER_AU
 	var elements = OrbitMath.elements_at(info["data"]["orbit"], julian_date)

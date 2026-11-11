@@ -109,6 +109,12 @@ func update_stats():
 		lines.append(colored("Jupiter has no solid surface to land on.", "yellow"))
 	if has_lander and GameState.destination == "Saturn":
 		lines.append("Your lander will go to Saturn's moon Titan.")
+	if has_lander and GameState.destination in GameState.AIRLESS_MOONS and GameState.choices["landing"] != "landing_legs":
+		lines.append(colored("%s has no air, so parachutes, airbags and sky cranes can't slow you down. Use landing legs." % GameState.destination, "yellow"))
+	if has_lander and GameState.destination in ["Phobos", "Deimos"]:
+		lines.append("%s's gravity is so weak that a hard landing would bounce you back into space." % GameState.destination)
+	if has_lander and GameState.destination == "Titan" and GameState.choices["shield"] != "shield_heat":
+		lines.append(colored("Titan's thick air means your lander needs a heat shield to get down.", "yellow"))
 	stats_label.text = "\n".join(lines)
 
 	next_button.disabled = not within_budget

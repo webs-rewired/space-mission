@@ -50,8 +50,8 @@ void fragment() {
 
 const KIRKWOOD_GAPS = [2.50, 2.82, 2.95, 3.27]
 
-# A lumpy potato-shaped rock
-static func make_rock_mesh(seed_number):
+# A lumpy potato-shaped rock. lumpiness = how bumpy; stretched = squash it into a random potato shape
+static func make_rock_mesh(seed_number, lumpiness = 0.35, stretched = true):
 	var sphere = SphereMesh.new()
 	sphere.radius = 1.0
 	sphere.height = 2.0
@@ -63,11 +63,11 @@ static func make_rock_mesh(seed_number):
 	noise.frequency = 0.9
 	var random = RandomNumberGenerator.new()
 	random.seed = seed_number
-	var stretch = Vector3(random.randf_range(0.8, 1.4), random.randf_range(0.55, 0.9), random.randf_range(0.7, 1.1))
+	var stretch = Vector3(random.randf_range(0.8, 1.4), random.randf_range(0.55, 0.9), random.randf_range(0.7, 1.1)) if stretched else Vector3.ONE
 	var vertices = arrays[Mesh.ARRAY_VERTEX]
 	for index in vertices.size():
 		var point = vertices[index]
-		vertices[index] = point * (1.0 + 0.35 * noise.get_noise_3dv(point * 1.7)) * stretch
+		vertices[index] = point * (1.0 + lumpiness * noise.get_noise_3dv(point * 1.7)) * stretch
 	arrays[Mesh.ARRAY_VERTEX] = vertices
 	arrays[Mesh.ARRAY_NORMAL] = null
 	arrays[Mesh.ARRAY_TANGENT] = null
