@@ -117,6 +117,10 @@ func set_flight_progress(new_progress):
 	var probe_position = FLIGHT_START.lerp(flight_end, new_progress)
 	probe_position.y = sin(new_progress * PI) * 4.0   # curved path
 	probe.position = probe_position
+	# Point the rocket's nose the way it's flying (up at first, level at the top of the curve, then down)
+	var direction = flight_end - FLIGHT_START
+	direction.y = cos(new_progress * PI) * 4.0 * PI
+	probe.basis = Basis(Quaternion(Vector3.UP, direction.normalized()))
 
 func fly_to(target_progress):
 	var tween = create_tween()
