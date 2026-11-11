@@ -61,8 +61,8 @@ func set_up_target_planet():
 
 	# Scale the planet to its real size compared with Earth
 	var planet_radius = SIZE_COMPARED_WITH_EARTH.get(destination, data.get("radius_km", 6371.0) / 6371.0)
-	if is_moon_of_planet:
-		planet_radius = max(planet_radius, 0.18)   # tiny moons like Phobos are drawn bigger so you can see them
+	# Tiny worlds like Phobos, Ceres and Makemake are drawn bigger so you can see them
+	planet_radius = max(planet_radius, 0.18)
 	var sphere_radius = target_planet.mesh.radius if target_planet.mesh is SphereMesh else 1.0
 	target_planet.scale = data.get("shape", Vector3.ONE) * (planet_radius / sphere_radius)
 
@@ -72,6 +72,13 @@ func set_up_target_planet():
 
 	if destination == "Saturn":
 		add_saturn_rings(sphere_radius)
+	elif data.has("rings") and not is_moon_of_planet:
+		var rings = SpaceTextures.make_rings(data["rings"], sphere_radius)
+		# Undo the world's stretched shape (Haumea is egg-shaped) so its ring stays round
+		rings.scale = Vector3.ONE / data.get("shape", Vector3.ONE)
+		target_planet.add_child(rings)
+		# Tip the world over by its real tilt (Uranus lies on its side, so you see its rings face-on like Voyager 2 did)
+		target_planet.rotation_degrees.z = {"Uranus": 98.0, "Neptune": 28.0, "Jupiter": 3.0, "Haumea": 30.0}.get(destination, 10.0)
 	if is_moon_of_planet:
 		add_parent_planet(data["parent"], planet_radius)
 
