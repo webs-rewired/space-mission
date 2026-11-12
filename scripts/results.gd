@@ -6,8 +6,8 @@ extends Control
 @onready var box = $CenterContainer/PanelContainer/VBox
 @onready var outcome_label = box.get_node("OutcomeLabel")
 @onready var score_label = box.get_node("ScoreLabel")
-@onready var events_label = box.get_node("EventsLabel")
-@onready var real_mission_label = box.get_node("RealMissionLabel")
+@onready var events_label = box.get_node("Scroll/ScrollColumn/EventsLabel")   # inside a scroll box, so long reports never run off the screen
+@onready var real_mission_label = box.get_node("Scroll/ScrollColumn/RealMissionLabel")
 @onready var try_again_button = box.get_node("Buttons/TryAgainButton")
 @onready var new_destination_button = box.get_node("Buttons/NewDestinationButton")
 

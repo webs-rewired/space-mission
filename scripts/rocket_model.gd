@@ -33,7 +33,7 @@ static var flame_shader: Shader = null
 # NASA's Shuttle booster model, standing up with its nozzle at y = 0 and 1 unit = 1 meter.
 # Uses scenes/parts/giant_booster.tscn, or finds solid_rocket_booster.glb anywhere in the project. Null if it's missing.
 static func load_giant_booster():
-	if ResourceLoader.exists(GIANT_BOOSTER_SCENE):
+	if ResourceLoader.exists(GIANT_BOOSTER_SCENE) and ResourceLoader.exists("res://assets/rockets/solid_rocket_booster.glb"):
 		var booster_scene = load(GIANT_BOOSTER_SCENE)
 		if booster_scene is PackedScene:
 			var booster = booster_scene.instantiate()

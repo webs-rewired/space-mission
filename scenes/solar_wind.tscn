@@ -1,0 +1,35 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="glow"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+
+[sub_resource type="CylinderMesh" id="streak_mesh"]
+material = SubResource("glow")
+top_radius = 0.006
+bottom_radius = 0.006
+height = 0.45
+radial_segments = 4
+rings = 1
+
+[sub_resource type="Gradient" id="fade"]
+offsets = PackedFloat32Array(0, 0.2, 0.8, 1)
+colors = PackedColorArray(1, 0.9, 0.5, 0, 1, 0.8, 0.35, 1, 1, 0.55, 0.15, 0.8, 1, 0.4, 0.1, 0)
+
+[node name="SolarWind" type="CPUParticles3D"]
+emitting = true
+amount = 220
+lifetime = 1.0
+one_shot = true
+mesh = SubResource("streak_mesh")
+particle_flag_align_y = true
+emission_shape = 3
+emission_box_extents = Vector3(2.5, 0.2, 2.5)
+direction = Vector3(0, -1, 0)
+spread = 4.0
+gravity = Vector3(0, 0, 0)
+initial_velocity_min = 7.0
+initial_velocity_max = 10.0
+color_ramp = SubResource("fade")

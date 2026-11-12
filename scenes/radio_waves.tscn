@@ -1,0 +1,40 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="glow"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+cull_mode = 2
+
+[sub_resource type="TorusMesh" id="ring_mesh"]
+material = SubResource("glow")
+inner_radius = 0.94
+outer_radius = 1.0
+rings = 48
+ring_segments = 6
+
+[sub_resource type="Curve" id="grow"]
+_data = [Vector2(0, 0.15), 0.0, 1.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="Gradient" id="fade"]
+offsets = PackedFloat32Array(0, 0.15, 1)
+colors = PackedColorArray(0.5, 0.9, 1, 0, 0.5, 0.9, 1, 0.9, 0.3, 0.6, 1, 0)
+
+[node name="RadioWaves" type="CPUParticles3D"]
+emitting = true
+amount = 4
+lifetime = 1.6
+one_shot = true
+local_coords = true
+mesh = SubResource("ring_mesh")
+direction = Vector3(0, 1, 0)
+spread = 0.0
+gravity = Vector3(0, 0, 0)
+initial_velocity_min = 1.4
+initial_velocity_max = 1.4
+scale_amount_min = 1.2
+scale_amount_max = 1.2
+scale_amount_curve = SubResource("grow")
+color_ramp = SubResource("fade")

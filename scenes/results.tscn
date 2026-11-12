@@ -29,29 +29,44 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="PanelContainer" type="PanelContainer" parent="CenterContainer" unique_id=1587938545]
-custom_minimum_size = Vector2(520, 0)
+custom_minimum_size = Vector2(640, 0)
 layout_mode = 2
 
 [node name="VBox" type="VBoxContainer" parent="CenterContainer/PanelContainer" unique_id=256449889]
 layout_mode = 2
+theme_override_constants/separation = 8
 
 [node name="OutcomeLabel" type="Label" parent="CenterContainer/PanelContainer/VBox" unique_id=1709843989]
 layout_mode = 2
 theme_override_font_sizes/font_size = 36
 horizontal_alignment = 1
+autowrap_mode = 3
 
 [node name="ScoreLabel" type="Label" parent="CenterContainer/PanelContainer/VBox" unique_id=887121710]
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
 horizontal_alignment = 1
+autowrap_mode = 3
 
-[node name="EventsLabel" type="RichTextLabel" parent="CenterContainer/PanelContainer/VBox" unique_id=1972951000]
+[node name="Scroll" type="ScrollContainer" parent="CenterContainer/PanelContainer/VBox"]
+custom_minimum_size = Vector2(0, 380)
 layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="ScrollColumn" type="VBoxContainer" parent="CenterContainer/PanelContainer/VBox/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="EventsLabel" type="RichTextLabel" parent="CenterContainer/PanelContainer/VBox/Scroll/ScrollColumn" unique_id=1972951000]
+layout_mode = 2
+size_flags_horizontal = 3
 bbcode_enabled = true
 fit_content = true
 
-[node name="RealMissionLabel" type="Label" parent="CenterContainer/PanelContainer/VBox" unique_id=513164485]
+[node name="RealMissionLabel" type="Label" parent="CenterContainer/PanelContainer/VBox/Scroll/ScrollColumn" unique_id=513164485]
 layout_mode = 2
+size_flags_horizontal = 3
 autowrap_mode = 3
 
 [node name="Buttons" type="HBoxContainer" parent="CenterContainer/PanelContainer/VBox" unique_id=1675420819]

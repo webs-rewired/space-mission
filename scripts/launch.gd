@@ -74,6 +74,28 @@ const MOST_ROCK_STRIKES = 5      # after this many, the probe has learned its le
 const FAST_TRIP_SECONDS = 45.0
 const SLOW_TRIP_SECONDS = 180.0
 
+# Arriving: the probe swings into orbit around its target, and landers then go down to the surface
+const ORBIT_LAP_SECONDS = 14.0     # one trip around the target
+const ORBIT_TILT_DEGREES = 12.0
+const DESCENT_SECONDS = 5.0
+const SPARKS_SCENE = preload("res://scenes/effects/sparks.tscn")
+const SOLAR_WIND_SCENE = preload("res://scenes/effects/solar_wind.tscn")
+const RADIO_WAVES_SCENE = preload("res://scenes/effects/radio_waves.tscn")
+var arrival_mode = ""             # "", "orbiting", "descending" or "landed"
+var orbit_angle = PI
+var orbit_radius = 1.0
+var descent_time = 0.0
+var descent_start = Vector3.ZERO
+var descent_start_scale = 1.0
+var landed_scale = 1.0
+const PROBE_HEIGHT = 0.8          # the journey's probe model, in scene units
+var landing_spot = Vector3.ZERO
+var pending_event = false         # an event's animation is playing; its panel opens when the animation ends
+var animation_seconds_left = 0.0
+var flame_seconds_left = 0.0
+var shake = 0.0
+var flicker_seconds_left = 0.0
+
 var total_flight_days = 210.0
 var elapsed_flight_days = 0.0
 var time_rate_days_per_second = 1.0
@@ -153,38 +175,56 @@ func _process(delta):
 		return
 
 	# A mission event pauses the simulation so the player can read it and make a decision.
-	var belt = scenery.belt_at(flight_progress) if scenery else {}
-	if not event_panel.visible:
-		var rate = time_rate_days_per_second
-		if not belt.is_empty() and rate > 0.0:
-			# Slow down through a belt so there's time to steer
-			rate = min(rate, (belt["end"] - belt["start"]) * total_flight_days / BELT_CROSSING_SECONDS)
-		elapsed_flight_days = min(
-			elapsed_flight_days + delta * rate,
-			total_flight_days
-		)
-		steer_through_belt(delta, belt)
-		var new_progress = clamp(elapsed_flight_days / max(total_flight_days, 0.001), 0.0, 1.0)
-		set_flight_progress(new_progress)
+	var belt = scenery.belt_at(flight_progress) if scenery and arrival_mode == "" else {}
+	if not event_panel.visible and not pending_event:
+		if arrival_mode == "":
+			var rate = time_rate_days_per_second
+			if not belt.is_empty() and rate > 0.0:
+				# Slow down through a belt so there's time to steer
+				rate = min(rate, (belt["end"] - belt["start"]) * total_flight_days / BELT_CROSSING_SECONDS)
+			elapsed_flight_days = min(
+				elapsed_flight_days + delta * rate,
+				total_flight_days
+			)
+			steer_through_belt(delta, belt)
+			var new_progress = clamp(elapsed_flight_days / max(total_flight_days, 0.001), 0.0, 1.0)
+			set_flight_progress(new_progress)
 
-		# Events happen at mission-time milestones, rather than after a fixed 1.5-second tween.
+		if arrival_mode == "" and flight_progress >= 0.999:
+			begin_orbit()
+
+		# Events happen at mission-time milestones. Each one plays its animation first, then its panel opens.
 		if event_index < GameState.events.size():
 			var next_milestone = progress_at_event(event_index)
-			if flight_progress >= next_milestone:
-				set_flight_progress(next_milestone)
-				elapsed_flight_days = total_flight_days * next_milestone
-				_show_event()
+			if flight_progress >= next_milestone or arrival_mode != "":
+				if arrival_mode == "":
+					set_flight_progress(next_milestone)
+					elapsed_flight_days = total_flight_days * next_milestone
+				pending_event = true
+				animation_seconds_left = start_event_animation(GameState.events[event_index])
 
+	if pending_event:
+		animation_seconds_left -= delta
+		if animation_seconds_left <= 0.0:
+			pending_event = false
+			_show_event()
+
+	if arrival_mode != "":
+		update_arrival(delta)
 	update_flight_hud()
-	announce_sights()
+	if arrival_mode == "":
+		announce_sights()
 	update_caption(delta)
+	update_screen_effects(delta)
 	place_chase_camera(1.0 - exp(-3.0 * delta))
 
-	# The engine plume is shown during departure and final approach burns.
+	# The engine plume shows during departure, the final approach and any burn an event calls for
 	if probe_flame:
+		flame_seconds_left -= delta
 		probe_flame.visible = (
-			flight_progress < 0.08
-			or (flying_to_final_event and flight_progress > 0.85 and flight_progress < 0.999)
+			(arrival_mode == "" and flight_progress < 0.08)
+			or (arrival_mode == "" and flying_to_final_event and flight_progress > 0.85 and flight_progress < 0.999)
+			or flame_seconds_left > 0.0
 		)
 		if probe_flame.visible:
 			probe_flame.scale.y = 0.5 * (1.0 + randf_range(-0.08, 0.08))
@@ -199,6 +239,9 @@ func flight_direction(progress):
 func place_chase_camera(blend):
 	if camera == null:
 		return
+	if arrival_mode != "":
+		place_arrival_camera(blend)
+		return
 	var direction = flight_direction(flight_progress)
 	var wanted = probe.position - direction * 2.8 + Vector3(0, 1.0, 1.6)
 	if scenery and not scenery.belt_at(flight_progress).is_empty():
@@ -207,6 +250,36 @@ func place_chase_camera(blend):
 	var look_point = probe.position.lerp(target_planet.position, 0.3)
 	if camera.position.distance_to(look_point) > 0.01:
 		camera.look_at(look_point, Vector3.UP)
+	apply_shake()
+
+func place_arrival_camera(blend):
+	var center = target_planet.position
+	var outward = (probe.position - center).normalized()
+	var forward = -probe.basis.y if arrival_mode != "orbiting" else probe.basis.y
+	var side = outward.cross(Vector3.UP).normalized() if abs(outward.dot(Vector3.UP)) < 0.95 else Vector3.RIGHT
+	var wanted = probe.position + outward * 1.6 - forward * 1.4 + side * 1.2 + Vector3(0, 0.5, 0)
+	var look_point = probe.position.lerp(center, 0.2)
+	if arrival_mode == "descending":
+		var size = max(probe.scale.x * 2.0, target_radius() * 0.6)
+		wanted = probe.position + outward * 1.0 * size + side * 1.8 * size
+		look_point = probe.position.lerp(center, 0.15)
+	elif arrival_mode == "landed":
+		# Down low beside the probe, with the world's horizon curving away behind it
+		var size = max(probe.scale.x * 2.5, target_radius() * 0.35)
+		wanted = probe.position + outward * 0.45 * size + side * 1.5 * size
+		look_point = probe.position + outward * 0.15 * size
+	camera.position = camera.position.lerp(wanted, clamp(blend, 0.0, 1.0))
+	if camera.position.distance_to(look_point) > 0.01:
+		camera.look_at(look_point, Vector3.UP if abs(outward.dot(Vector3.UP)) < 0.95 else Vector3.FORWARD)
+	apply_shake()
+
+func apply_shake():
+	if shake > 0.0:
+		camera.h_offset = randf_range(-1.0, 1.0) * shake * 0.12
+		camera.v_offset = randf_range(-1.0, 1.0) * shake * 0.12
+	else:
+		camera.h_offset = 0.0
+		camera.v_offset = 0.0
 
 # A fading line behind the probe showing the path it has flown
 func update_trail():
@@ -558,6 +631,175 @@ func update_flight_hud():
 		mission_status_label.text += "\nIn the %s: steer with WASD / arrows" % scenery.belt_at(flight_progress)["name"].to_lower()
 
 
+# ---------------------------------------------------------------------------
+# Arriving: orbit insertion, then (for landers) the trip down to the surface
+# ---------------------------------------------------------------------------
+# "the Moon", but "Mars"
+func world_name():
+	var label = SolarSystemData.BODIES.get(GameState.destination, {}).get("label", GameState.destination)
+	return "the Moon" if GameState.destination == "Moon" else label
+
+func has_lander():
+	return GameState.choices.get("landing", "landing_none") != "landing_none"
+
+func target_radius():
+	var sphere_radius = target_planet.mesh.radius if target_planet.mesh is SphereMesh else 1.0
+	return sphere_radius * target_planet.scale.x
+
+func begin_orbit():
+	arrival_mode = "orbiting"
+	steer = Vector2.ZERO
+	flight_progress = 1.0
+	elapsed_flight_days = total_flight_days
+	var center = target_planet.position
+	orbit_radius = max(probe.position.distance_to(center), target_radius() + 0.6)
+	orbit_angle = atan2(probe.position.z - center.z, probe.position.x - center.x)
+	flame_seconds_left = 2.5    # the braking burn that lets the world's gravity catch the probe
+	var label = world_name()
+	if GameState.direct_entry():
+		# Heat-shield landers dive straight into the air without stopping in orbit first, like Perseverance at Mars
+		flame_seconds_left = 0.0
+		begin_descent()
+		show_caption("Straight in! Your lander hits %s's air behind its heat shield, like Perseverance did." % label, 5.0)
+		return
+	show_caption(("Braking burn complete: %s's gravity has caught your probe. You're in orbit!" % label).replace(": the", ": The"), 5.0)
+
+func begin_descent():
+	arrival_mode = "descending"
+	descent_time = 0.0
+	descent_start = probe.position
+	# The worlds here are drawn small, so the probe shrinks on the way down to look the right size standing on one
+	descent_start_scale = probe.scale.x
+	landed_scale = clamp(target_radius() * 0.3 / PROBE_HEIGHT, 0.03, 1.0)
+	var center = target_planet.position
+	var outward = (probe.position - center).normalized()
+	var label = world_name()
+	if GameState.destination in GameState.NO_SURFACE:
+		# Giant planets have no ground: the probe dives into the clouds, like Galileo's probe at Jupiter in 1995
+		landing_spot = center + outward * target_radius() * 0.97
+		show_caption("Diving into %s's clouds, like the Galileo probe did at Jupiter in 1995" % label, 5.0)
+	else:
+		landing_spot = center + outward * (target_radius() + 0.46 * landed_scale)   # the probe's base on the ground
+		if not GameState.direct_entry():
+			show_caption("Going down to the surface of %s..." % label, 4.0)
+	if not GameState.destination in GameState.AIRLESS_WORLDS:
+		flash(Color(1.0, 0.55, 0.15), 0.35)   # hitting the air: the heat shield glows
+		spawn_effect(SPARKS_SCENE, probe.position - outward * 0.3, Vector3.ZERO, Color(1.0, 0.6, 0.3), 0.6)
+
+func update_arrival(delta):
+	var center = target_planet.position
+	var tilt = Basis(Vector3(1, 0, 0), deg_to_rad(ORBIT_TILT_DEGREES))
+	match arrival_mode:
+		"orbiting":
+			orbit_angle += delta * TAU / ORBIT_LAP_SECONDS
+			probe.position = center + tilt * Vector3(cos(orbit_angle), 0.0, sin(orbit_angle)) * orbit_radius
+			var forward = tilt * Vector3(-sin(orbit_angle), 0.0, cos(orbit_angle))
+			probe.basis = Basis(Quaternion(Vector3.UP, forward))
+		"descending":
+			descent_time += delta
+			var fraction = smoothstep(0.0, 1.0, descent_time / DESCENT_SECONDS)
+			probe.position = descent_start.lerp(landing_spot, fraction)
+			# Engine toward the ground, braking all the way down (setting the basis also sets the size, so both go together)
+			var size = lerp(descent_start_scale, landed_scale, min(1.0, fraction * 1.4))
+			probe.basis = Basis(Quaternion(Vector3.UP, (probe.position - center).normalized())).scaled(Vector3.ONE * size)
+			flame_seconds_left = 0.1 if fraction < 0.97 else 0.0
+			if fraction >= 1.0:
+				arrival_mode = "landed"
+				if not GameState.destination in GameState.NO_SURFACE:
+					shake = 0.6
+					spawn_effect(SPARKS_SCENE, landing_spot, Vector3.ZERO, Color(0.7, 0.6, 0.5), landed_scale * 1.5)   # a puff of dust
+					show_caption("Touchdown! You're on the surface of %s." % world_name(), 4.0)
+					if trail:
+						trail.visible = false   # the long line back to Earth just gets in the way down here
+				else:
+					probe.visible = false
+
+# ---------------------------------------------------------------------------
+# Event animations: the general kinds of events get a short animation before their panel opens.
+# Returns how many seconds to wait before showing the panel.
+# ---------------------------------------------------------------------------
+const EVENT_ANIMATIONS = [
+	["flare", ["solar flare", "solar storm", "radiation", "cosmic ray"]],
+	["hit", ["micrometeoroid", "meteor", "impact", "debris", "rock strike", "ring crossing"]],
+	["radio", ["deep space network", "long-distance call", "relay", "transmission", "signal", "antenna"]],
+	["glitch", ["software", "bug", "bit flip", "computer", "reaction wheel", "heater", "glitch", "safe mode", "insulation"]],
+	["burn", ["course correction", "burn", "engine", "gravity assist", "close dive", "fly lower", "aerobraking"]],
+	["quake", ["quake", "creaking", "sinking leg"]],
+]
+
+func event_animation_kind(event):
+	var words = (event.get("title", "") + " " + event.get("text", "")).to_lower()
+	for entry in EVENT_ANIMATIONS:
+		for keyword in entry[1]:
+			if words.contains(keyword):
+				return entry[0]
+	return ""
+
+func start_event_animation(event):
+	if arrival_mode == "orbiting" and event.get("phase", "") in ["descent", "surface"] and has_lander():
+		begin_descent()
+		return DESCENT_SECONDS + 1.2
+	if event.has("insertion_check"):
+		return DESCENT_SECONDS + 1.0 if arrival_mode == "descending" else 2.8   # let the braking burn (or the dive) play first
+	match event_animation_kind(event):
+		"flare":
+			var sun_direction = Vector3(0, -0.7071, -0.7071)   # the way the scene's sunlight travels
+			var light = get_node_or_null("DirectionalLight3D")
+			if light:
+				sun_direction = -light.global_transform.basis.z
+			spawn_effect(SOLAR_WIND_SCENE, probe.position - sun_direction * 3.0, -sun_direction)
+			flash(Color(1.0, 0.75, 0.3), 0.35)
+			return 1.8
+		"hit":
+			spawn_effect(SPARKS_SCENE, probe.position, Vector3.ZERO)
+			flash(Color(1.0, 0.3, 0.2), 0.45)
+			shake = 0.8
+			return 1.4
+		"radio":
+			var earth = get_node_or_null("Earth")
+			var toward_earth = (earth.global_position - probe.position).normalized() if earth else Vector3.LEFT
+			spawn_effect(RADIO_WAVES_SCENE, probe.position, toward_earth)
+			return 1.8
+		"glitch":
+			flicker_seconds_left = 1.2
+			return 1.4
+		"burn":
+			flame_seconds_left = 2.0
+			return 1.6
+		"quake":
+			shake = 1.0
+			return 1.4
+	return 0.3
+
+# Adds a particle effect at a place, pointing its "up" along a direction, and removes it when it's done
+func spawn_effect(scene, place, direction, tint = Color.WHITE, size = 1.0):
+	var effect = scene.instantiate()
+	add_child(effect)
+	effect.global_position = place
+	if direction != Vector3.ZERO:
+		effect.global_basis = Basis(Quaternion(Vector3.UP, direction.normalized()))
+	if effect is CPUParticles3D:
+		effect.color = tint
+		effect.scale_amount_min *= size
+		effect.scale_amount_max *= size
+		effect.initial_velocity_min *= size
+		effect.initial_velocity_max *= size
+		effect.restart()
+		get_tree().create_timer(effect.lifetime * 2.0 + 0.5).timeout.connect(effect.queue_free)
+
+func flash(color, strength):
+	if hit_flash:
+		hit_flash.color = Color(color.r, color.g, color.b, strength)
+
+func update_screen_effects(delta):
+	shake = max(0.0, shake - delta * 1.2)
+	if flicker_seconds_left > 0.0 and hit_flash:
+		flicker_seconds_left -= delta
+		# The probe's computer glitching: the picture cuts in and out
+		hit_flash.color = Color(0.0, 0.02, 0.05, 0.75 if randf() < 0.35 else 0.0)
+		if flicker_seconds_left <= 0.0:
+			hit_flash.color.a = 0.0
+
 func remove_choice_buttons():
 	for button in choice_buttons.get_children():
 		button.queue_free()
@@ -602,6 +844,10 @@ func _on_continue_pressed():
 	event_panel.visible = false
 	event_index += 1
 	if GameState.lost or event_index >= GameState.events.size():
+		if not GameState.lost and has_lander() and arrival_mode == "orbiting":
+			# No landing event came up, but a lander still goes down before the mission ends
+			begin_descent()
+			await get_tree().create_timer(DESCENT_SECONDS + 1.5).timeout
 		go_to_results()
 	else:
 		fly_to(progress_at_event(event_index))
