@@ -28,6 +28,7 @@ const SpaceTextures = preload("res://scripts/space_textures.gd")
 const BeltBuilder = preload("res://scripts/belt_builder.gd")
 const SunEffects = preload("res://scripts/sun_effects.gd")
 const MoonSurfaces = preload("res://scripts/moon_surfaces.gd")
+const Spacecraft = preload("res://scripts/spacecraft.gd")
 
 signal built                  # everything is ready to use
 signal layout_changed         # true scale was switched on or off
@@ -50,6 +51,9 @@ const OORT_CLOUD_POINTS = 7000
 const EDGE_AU = 125000.0
 const CLOSEST_CAMERA = {"viewable": 0.05, "true": 0.0002}
 const DAYS_BEFORE_REBUILDING_PATHS = 36525.0   # orbits slowly change shape over centuries
+const SPACECRAFT_RADIUS = {"viewable": 0.05, "true": 0.00004}   # spacecraft are drawn this big (much bigger than real)
+const SPACECRAFT_SMALLEST_LOOK = 0.004      # but never smaller on screen than this share of their distance from the camera
+const SPACECRAFT_FUTURE_DAYS = 365.25 * 40  # how far ahead the escaping spacecraft's paths are drawn
 
 # How bright the night side of each planet is. Real space is very dark (about 0.05).
 @export var night_side_brightness: float = 0.08
@@ -237,6 +241,9 @@ func add_body(body_name):
 	marker.name = body_name + "Marker"
 	world.add_child(marker)
 	info["marker"] = marker
+	if info["kind"] == "spacecraft":
+		add_spacecraft(info)
+		return
 
 	# Use the planet from the scene if there is one, otherwise make it
 	var body = scene_root.find_child(body_name, true, false)
@@ -267,6 +274,40 @@ func add_body(body_name):
 		moon_names.append(body_name)
 	bodies[body_name] = info
 	dress_body(info)
+
+# A spacecraft: its 3D model, and a small light of its own so it's always lit from the Sun's side
+func add_spacecraft(info):
+	var data = info["data"]
+	var model = Spacecraft.make_model(data)
+	model.name = info["name"]
+	model.set_meta("body_name", info["name"])
+	info["marker"].add_child(model)
+	info["mesh"] = model
+	info["shape"] = Vector3.ONE
+	info["pole_basis"] = Basis.IDENTITY
+	info["prime_meridian"] = [0.0, 0.0]
+	info["spin_angle"] = 0.0
+	info["is_satellite"] = data.has("orbit") and data["orbit"].has("satellite")
+	var craft_light = OmniLight3D.new()
+	craft_light.name = "SpacecraftSunlight"
+	craft_light.light_cull_mask = 2      # lights only the spacecraft (its parts are on layer 2)
+	craft_light.light_energy = 1.0
+	craft_light.omni_attenuation = 0.0   # same brightness at any size (true scale makes spacecraft tiny)
+	craft_light.shadow_enabled = false
+	info["marker"].add_child(craft_light)
+	info["craft_light"] = craft_light
+	# A faint fill light from the camera's side, so the shady side isn't pitch black
+	var fill_light = OmniLight3D.new()
+	fill_light.name = "SpacecraftFillLight"
+	fill_light.light_cull_mask = 2
+	fill_light.light_energy = 0.3
+	fill_light.omni_attenuation = 0.0
+	fill_light.shadow_enabled = false
+	info["marker"].add_child(fill_light)
+	info["fill_light"] = fill_light
+	if info["is_satellite"]:
+		moon_names.append(info["name"])   # its path is redrawn as its orbit turns, like a moon's
+	bodies[info["name"]] = info
 
 # Hides Saturn's old donut ring, and turns off the old click spheres (clicking is now worked out on screen,
 # which also works for tiny planets at true scale)
@@ -588,6 +629,8 @@ func find_world_environment(node):
 func display_radius(body_name):
 	var info = bodies[body_name]
 	var data = info["data"]
+	if info["kind"] == "spacecraft":
+		return SPACECRAFT_RADIUS["true" if true_scale else "viewable"]
 	if true_scale:
 		return data["radius_km"] / SolarSystemData.KILOMETERS_PER_AU * OrbitMath.TRUE_SCALE_UNITS_PER_AU
 	if body_name == "Sun":
@@ -607,7 +650,8 @@ func apply_sizes():
 		info["mesh"].set_meta("radius", radius * max(info["shape"].x, max(info["shape"].y, info["shape"].z)))
 		if info.has("rings"):
 			info["rings"].transform = Transform3D(info["pole_basis"].scaled(Vector3.ONE * radius), Vector3.ZERO)
-		info["axis"].transform = Transform3D(info["pole_basis"].scaled(Vector3.ONE * radius * info["shape"].y), Vector3.ZERO)
+		if info.has("axis"):
+			info["axis"].transform = Transform3D(info["pole_basis"].scaled(Vector3.ONE * radius * info["shape"].y), Vector3.ZERO)
 		if info.has("gravity_field"):
 			var mass = info["data"]["mass_earths"]
 			var field_radius = radius * 1.3 + 0.8 * (log(1.0 + mass * 10.0) / log(10.0))
@@ -651,6 +695,8 @@ func update_positions(delta):
 			info["clouds"].rotate_object_local(Vector3.UP, 0.01 * delta * sign(GameState.time_speed))
 		if info["kind"] == "comet" and info["marker"].visible:
 			update_comet(info)
+		elif info["kind"] == "spacecraft":
+			update_spacecraft(info)
 
 	update_focus_line()
 	update_belts(sun_position)
@@ -669,6 +715,9 @@ func calculate_positions():
 	for body_name in SolarSystemData.BODY_ORDER:
 		var info = bodies[body_name]
 		var orbit = info["data"].get("orbit")
+		if info["data"].has("route"):
+			place_route_spacecraft(info)
+			continue
 		if orbit == null:
 			continue
 		if info["is_satellite"]:
@@ -712,6 +761,63 @@ func place_satellite(info):
 	var toward_planet = -Vector3(offset[0], offset[1], offset[2]).normalized()
 	var back = -(toward_planet - spin_axis * spin_axis.dot(toward_planet)).normalized()
 	info["facing_basis"] = Basis(spin_axis.cross(back), spin_axis, back)
+
+# Voyager 1, Voyager 2 and New Horizons: where their real routes put them on this date
+func place_route_spacecraft(info):
+	var state = Spacecraft.route_state(info["name"], julian_date)
+	if state == null:
+		state = Spacecraft.route_state(info["name"], info["data"]["route"][0][0])   # not launched yet: wait at the start
+	info["state"] = state
+	var kilometers = state[0]
+	var au = [kilometers[0] / SolarSystemData.KILOMETERS_PER_AU, kilometers[1] / SolarSystemData.KILOMETERS_PER_AU, kilometers[2] / SolarSystemData.KILOMETERS_PER_AU]
+	info["ecliptic"] = au
+	var position = OrbitMath.game_xyz(au, true_scale)
+	info["position"] = position
+	info["orbit_position"] = position
+
+# Turns each spacecraft the way the real one points, keeps it big enough to see, and moves its little sunlight
+func update_spacecraft(info):
+	var marker = info["marker"]
+	marker.visible = is_body_shown(info["name"])
+	if not marker.visible:
+		return
+	var data = info["data"]
+	var direction = Vector3.FORWARD
+	var basis = Basis.IDENTITY
+	var sun_direction = bodies["Sun"]["marker"].position - marker.position
+	if sun_direction.length() < 0.0000001:
+		sun_direction = Vector3.RIGHT
+	if data["faces"] == "level":
+		# The ISS flies level with the ground: solar wings face out from Earth, modules lined up along its path
+		var satellite = data["orbit"]["satellite"]
+		var elements_now = OrbitMath.satellite_elements(satellite, julian_date)
+		var elements_later = OrbitMath.satellite_elements(satellite, julian_date + 1.0 / 86400.0)
+		var here = OrbitMath.satellite_xyz(elements_now, OrbitMath.solve_kepler(elements_now["mean_anomaly"], elements_now["e"]))
+		var later = OrbitMath.satellite_xyz(elements_later, OrbitMath.solve_kepler(elements_later["mean_anomaly"], elements_later["e"]))
+		var up = OrbitMath.to_godot(Vector3(here[0], here[1], here[2])).normalized()
+		var ahead = OrbitMath.to_godot(Vector3(later[0] - here[0], later[1] - here[1], later[2] - here[2]))
+		ahead = (ahead - up * up.dot(ahead)).normalized()
+		basis = Basis(up, ahead, up.cross(ahead))
+	else:
+		if data["faces_toward"] == "sun":
+			direction = sun_direction
+		else:
+			direction = bodies["Earth"]["marker"].position - marker.position
+		if direction.length() < 0.0000001:
+			direction = sun_direction
+		basis = Spacecraft.facing_basis(data["faces"], direction)
+	var drawn_radius = info["radius"]
+	var camera = get_viewport().get_camera_3d()
+	var toward_camera = Vector3.UP
+	if camera:
+		drawn_radius = max(drawn_radius, camera.global_position.distance_to(marker.global_position) * SPACECRAFT_SMALLEST_LOOK)
+		toward_camera = (camera.global_position - marker.global_position).normalized()
+	info["mesh"].transform = Transform3D(basis.scaled(Vector3.ONE * drawn_radius), Vector3.ZERO)
+	var craft_light = info["craft_light"]
+	craft_light.position = sun_direction.normalized() * drawn_radius * 3.0
+	craft_light.omni_range = drawn_radius * 6.0
+	info["fill_light"].position = toward_camera * drawn_radius * 3.0
+	info["fill_light"].omni_range = drawn_radius * 6.0
 
 # How many days a moon's drawn path stays accurate before it needs redrawing (its orbit slowly turns)
 func moon_path_lifetime(info):
@@ -771,6 +877,8 @@ func spin_bodies(delta):
 	var slow_down = 1.0 if earth_spin <= fastest_earth_spin else fastest_earth_spin / earth_spin
 	for body_name in bodies:
 		var info = bodies[body_name]
+		if info["kind"] == "spacecraft":
+			continue
 		if info.has("facing_basis"):
 			var facing = info["facing_basis"]
 			info["mesh"].transform = Transform3D(facing * Basis.from_scale(info["shape"] * info["radius"]), Vector3.ZERO)
@@ -809,12 +917,14 @@ func line_strength(info):
 			return 0.22
 		"dwarf":
 			return 0.28
+		"spacecraft":
+			return 0.3
 	return 0.4
 
 func build_orbit_lines():
 	lines_built_date = julian_date
 	for body_name in bodies:
-		if bodies[body_name]["data"].has("orbit"):
+		if bodies[body_name]["data"].has("orbit") or bodies[body_name]["data"].has("route"):
 			build_orbit_line(bodies[body_name])
 
 func build_orbit_line(info):
@@ -822,7 +932,9 @@ func build_orbit_line(info):
 		info["line"].queue_free()
 	var is_moon = info["kind"] == "moon"
 	var points
-	if info["is_satellite"]:
+	if info["data"].has("route"):
+		points = Spacecraft.route_path_points(info["name"], true_scale, SPACECRAFT_FUTURE_DAYS)
+	elif info["is_satellite"]:
 		var parent_info = bodies[info["data"]["parent"]]
 		points = OrbitMath.satellite_path_points(info["data"]["orbit"]["satellite"], julian_date, 256, true_scale, parent_info["data"]["radius_km"], parent_info["radius"])
 	else:
@@ -836,7 +948,7 @@ func build_orbit_line(info):
 	line.mesh = surface.commit()
 	line.material_override = line_material(info["data"]["label_color"], line_strength(info))
 	# Paths around the Sun hang off the Sun's marker; a moon's path hangs off its planet's marker
-	var parent = bodies[info["data"]["parent"]]["marker"] if is_moon else bodies["Sun"]["marker"]
+	var parent = bodies[info["data"]["parent"]]["marker"] if is_moon or info["is_satellite"] else bodies["Sun"]["marker"]
 	parent.add_child(line)
 	info["line"] = line
 	info["line_date"] = julian_date
@@ -844,7 +956,8 @@ func build_orbit_line(info):
 
 func update_line_visibility(info):
 	if info["line"] != null:
-		info["line"].visible = orbit_lines_shown and is_body_shown(info["name"]) and info["name"] != followed_body()
+		var uses_focus_path = info["data"].has("orbit")
+		info["line"].visible = orbit_lines_shown and is_body_shown(info["name"]) and (info["name"] != followed_body() or not uses_focus_path)
 
 # The path of the body the camera follows is redrawn every frame around the body itself, with points packed
 # tightly near it, so it passes exactly through the body even when you zoom right in at true scale.
@@ -863,7 +976,7 @@ func update_focus_line():
 		elements = OrbitMath.elements_at(info["data"]["orbit"], julian_date)
 	var eccentric_now = OrbitMath.solve_kepler(elements["mean_anomaly"], elements["e"])
 	var center = [0.0, 0.0, 0.0]
-	if info["kind"] == "moon":
+	if info["kind"] == "moon" or info["is_satellite"]:
 		center = bodies[info["data"]["parent"]]["position"]
 	var anchor = info["orbit_position"]
 
@@ -1098,7 +1211,8 @@ func set_orbit_lines_visible(on):
 func set_spin_axes_visible(on):
 	spin_axes_shown = on
 	for body_name in bodies:
-		bodies[body_name]["axis"].visible = on
+		if bodies[body_name].has("axis"):
+			bodies[body_name]["axis"].visible = on
 
 func set_gravity_fields_visible(on):
 	gravity_fields_shown = on
@@ -1124,6 +1238,8 @@ func set_kind_visible(kind, on):
 # A moon is hidden along with its planet (Charon goes with Pluto when dwarf planets are switched off)
 func is_body_shown(body_name):
 	var data = bodies[body_name]["data"]
+	if julian_date < data.get("shown_from", -1e12):
+		return false   # a spacecraft before its launch (or before its current orbit began)
 	if data.has("parent") and hidden_kinds.get(bodies[data["parent"]]["kind"], false):
 		return false
 	return not hidden_kinds.get(bodies[body_name]["kind"], false)
@@ -1142,6 +1258,8 @@ func body_radius(body_name):
 
 # A live line for the stats panel, like "Right now: 0.99 AU from the Sun, moving at 30.2 km/s"
 func live_facts(body_name):
+	if bodies.has(body_name) and bodies[body_name]["kind"] == "spacecraft":
+		return spacecraft_live_facts(bodies[body_name])
 	if not bodies.has(body_name) or not bodies[body_name]["data"].has("orbit"):
 		return ""
 	var info = bodies[body_name]
@@ -1164,6 +1282,53 @@ func live_facts(body_name):
 	var light_text = "%.1f minutes" % light_minutes if light_minutes < 120.0 else "%.1f hours" % (light_minutes / 60.0)
 	return "Right now: %.3f AU (%s million km) from the Sun, moving at %.1f km/s. Sunlight takes %s to get there." % [
 		distance_au, format_number(distance_km / 1000000.0), speed, light_text]
+
+# Live numbers for a spacecraft: how far, how fast, and how long its radio signals take to reach Earth
+func spacecraft_live_facts(info):
+	if julian_date < info["data"].get("shown_from", -1e12):
+		return "Not launched yet on this date (or not in this orbit yet)."
+	var data = info["data"]
+	var sun_km = []
+	var speed_text = ""
+	if info["is_satellite"]:
+		var satellite = data["orbit"]["satellite"]
+		var offset = info["ecliptic"]
+		var parent_name = data["parent"]
+		var from_center = sqrt(offset[0] * offset[0] + offset[1] * offset[1] + offset[2] * offset[2])
+		var speed = sqrt(satellite["parent_gm"] * (2.0 / from_center - 1.0 / satellite["a_km"]))
+		var above = from_center - SolarSystemData.BODIES[parent_name]["radius_km"]
+		var parent_position = OrbitMath.ecliptic_xyz(SolarSystemData.BODIES[parent_name]["orbit"], julian_date)
+		sun_km = [parent_position[0] * SolarSystemData.KILOMETERS_PER_AU + offset[0], parent_position[1] * SolarSystemData.KILOMETERS_PER_AU + offset[1], parent_position[2] * SolarSystemData.KILOMETERS_PER_AU + offset[2]]
+		speed_text = "Right now: %s km above %s's %s, moving at %.2f km/s." % [format_number(above), parent_name, "clouds" if parent_name == "Jupiter" else "surface", speed]
+		if parent_name == "Earth":
+			return speed_text + " It goes around Earth every %d minutes." % int(round(1440.0 * 360.0 / satellite["degrees_per_day"]))
+	elif data.has("route"):
+		var state = info["state"]
+		sun_km = state[0]
+		var speed = Spacecraft.length(state[1])
+		speed_text = "Right now: %.2f AU (%s billion km) from the Sun, moving at %.2f km/s." % [Spacecraft.length(sun_km) / SolarSystemData.KILOMETERS_PER_AU, str(snapped(Spacecraft.length(sun_km) / 1e9, 0.01)), speed]
+	else:
+		# Parker Solar Probe: speed from the vis-viva equation, and when it next swoops past the Sun
+		var ecliptic = info["ecliptic"]
+		var distance_km = sqrt(ecliptic[0] * ecliptic[0] + ecliptic[1] * ecliptic[1] + ecliptic[2] * ecliptic[2]) * SolarSystemData.KILOMETERS_PER_AU
+		sun_km = [ecliptic[0] * SolarSystemData.KILOMETERS_PER_AU, ecliptic[1] * SolarSystemData.KILOMETERS_PER_AU, ecliptic[2] * SolarSystemData.KILOMETERS_PER_AU]
+		var orbit = data["orbit"]
+		var speed = sqrt(SUN_GRAVITY_KM * (2.0 / distance_km - 1.0 / (orbit["a"] * SolarSystemData.KILOMETERS_PER_AU)))
+		var orbits_done = ceil((julian_date - orbit["epoch_jd"]) / orbit["period_days"])
+		var next_close_pass = orbit["epoch_jd"] + orbits_done * orbit["period_days"]
+		speed_text = "Right now: %s million km from the Sun, moving at %.1f km/s. Next closest pass: %s." % [str(snapped(distance_km / 1e6, 0.1)), speed, OrbitMath.date_text(next_close_pass)]
+	var earth_au = OrbitMath.ecliptic_xyz(SolarSystemData.BODIES["Earth"]["orbit"], julian_date)
+	var from_earth = Spacecraft.length([sun_km[0] - earth_au[0] * SolarSystemData.KILOMETERS_PER_AU, sun_km[1] - earth_au[1] * SolarSystemData.KILOMETERS_PER_AU, sun_km[2] - earth_au[2] * SolarSystemData.KILOMETERS_PER_AU])
+	var light_seconds = from_earth / LIGHT_SPEED_KM
+	var light_text = ""
+	if light_seconds >= 3600.0:
+		light_text = "%d hours %d minutes" % [int(light_seconds / 3600.0), int(fmod(light_seconds, 3600.0) / 60.0)]
+	else:
+		light_text = "%d minutes %d seconds" % [int(light_seconds / 60.0), int(fmod(light_seconds, 60.0))]
+	var text = speed_text + "\n%s km from Earth: its radio signals take %s to reach us." % [format_number(from_earth), light_text]
+	if info["name"] == "Voyager 1" and light_seconds >= 86400.0:
+		text += " That's more than one light-day!"
+	return text
 
 func format_number(number):
 	var digits = str(int(round(number)))

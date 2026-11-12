@@ -98,6 +98,9 @@ func show_planet_info(planet_name):
 func refresh_planet_info():
 	var data = SolarSystemData.BODIES[selected_planet]
 	var facts = data["facts"]
+	if data["kind"] == "spacecraft":
+		show_spacecraft_info(data, facts)
+		return
 	var lines = []
 	lines.append(facts["type"])
 	lines.append("")
@@ -134,6 +137,29 @@ func refresh_planet_info():
 	name_label.text = data["label"]
 	stats_label.text = "\n".join(lines)
 	mission_button.visible = GameState.DESTINATIONS.has(selected_planet)
+	fit_panel()
+
+# Spacecraft have their own kind of stats: their story, plus live distance, speed and signal time
+func show_spacecraft_info(data, facts):
+	var lines = [facts["type"], ""]
+	if bodies_node and bodies_node.has_method("live_facts"):
+		var live = bodies_node.live_facts(selected_planet)
+		if live != "":
+			lines.append(live)
+			lines.append("")
+	lines.append("Launched: " + facts["launched"])
+	lines.append("Mission: " + facts["mission"])
+	lines.append("Size: " + facts["size"])
+	lines.append("Mass: " + facts["mass"])
+	lines.append("Power: " + facts["power"])
+	lines.append("Status: " + facts["status"])
+	lines.append("")
+	lines.append("Did you know? " + facts["did_you_know"])
+	lines.append("")
+	lines.append("Press F to follow %s with the camera." % data["label"])
+	name_label.text = data["label"]
+	stats_label.text = "\n".join(lines)
+	mission_button.visible = false
 	fit_panel()
 
 # Makes the stats area as tall as its text, but never so tall that the panel reaches the time bar

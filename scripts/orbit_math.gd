@@ -146,10 +146,13 @@ static func moon_offset_game_xyz(ecliptic, true_scale):
 # ---------------------------------------------------------------------------
 # The moon's orbit on a date, plus the directions of its reference plane in the ecliptic frame
 static func satellite_elements(satellite, julian_date):
-	var days = julian_date - J2000
+	# Angles are given at Jan 1, 2000 unless the orbit has its own date ("epoch_jd", like the ISS's tracking data)
+	var days = julian_date - satellite.get("epoch_jd", J2000)
 	var node = satellite["node"] + satellite.get("node_degrees_per_day", 0.0) * days
 	var pericenter_longitude = satellite["node"] + satellite["arg_peri"] + satellite.get("apsis_degrees_per_day", 0.0) * days
-	var mean_longitude = satellite["node"] + satellite["arg_peri"] + satellite["mean_anomaly"] + satellite["degrees_per_day"] * days
+	# "degrees_per_day_per_day": a low orbit sinking in thin air speeds up a little every day
+	var mean_longitude = satellite["node"] + satellite["arg_peri"] + satellite["mean_anomaly"] + satellite["degrees_per_day"] * days \
+		+ satellite.get("degrees_per_day_per_day", 0.0) * days * days
 	var right_ascension = deg_to_rad(satellite["pole_ra"])
 	var declination = deg_to_rad(satellite["pole_dec"])
 	var pole = equatorial_to_ecliptic(Vector3(cos(declination) * cos(right_ascension), cos(declination) * sin(right_ascension), sin(declination))).normalized()

@@ -18,6 +18,13 @@ extends RefCounted
 #   moon goes around; the orbit's long axis and its tilt slowly turn ("apsis_" and "node_degrees_per_day").
 #   Checked against NASA's high-accuracy theory for Jupiter's moons: within half a degree from 2000 to 2035.
 #
+# SPACECRAFT (kind "spacecraft", worked out in spacecraft.gd)
+#   "route": the real trip as [date, "Planet"] stops (closest approach at each flyby), ending with
+#     [date, [right ascension (hours), declination (degrees), distance from Earth (AU)]] from NASA's tracking.
+#   Parker Solar Probe uses an orbit around the Sun; Juno and the ISS use "satellite" orbits around their planet.
+#   "shown_from": the date it appears (launch, or when its current orbit began).
+#   "faces": which side of the model ("+y", "-z") points at "earth" or the "sun"; the ISS flies "level" with Earth.
+#
 # SPIN AND TILT
 #   "pole_ra" / "pole_dec": where the north pole points (IAU, in sky coordinates). This sets the real tilt.
 #   Bodies without a measured pole use "tilt" (degrees from straight up) toward "tilt_toward" (ecliptic longitude).
@@ -31,7 +38,8 @@ extends RefCounted
 # Every moon comes right after its planet, so the planet's position is worked out first
 const BODY_ORDER = ["Sun", "Mercury", "Venus", "Earth", "Moon", "Mars", "Phobos", "Deimos", "Ceres",
 	"Jupiter", "Io", "Europa", "Ganymede", "Callisto", "Saturn", "Enceladus", "Titan", "Uranus", "Titania",
-	"Neptune", "Triton", "Pluto", "Charon", "Haumea", "Makemake", "Eris", "Halley", "Encke", "67P", "Hale-Bopp"]
+	"Neptune", "Triton", "Pluto", "Charon", "Haumea", "Makemake", "Eris", "Halley", "Encke", "67P", "Hale-Bopp",
+	"Voyager 1", "Voyager 2", "New Horizons", "Parker Solar Probe", "Juno", "ISS"]
 
 # IAU rotation models: [W0 (degrees at Jan 1, 2000, noon), degrees per day]. Bodies not listed spin from rotation_hours.
 const PRIME_MERIDIANS = {
@@ -513,6 +521,134 @@ const BODIES = {
 			"orbital_speed": "Fastest near the Sun", "day": "About 11.4 hours", "year": "About 2,500 Earth years",
 			"temperature": "Changes hugely with distance from the Sun", "moons": "0", "sunlight": "",
 			"explored": "Seen with the naked eye for a record 18 months in 1996 and 1997.",
+		},
+	},
+
+	# -----------------------------------------------------------------------
+	# Spacecraft
+	# -----------------------------------------------------------------------
+	"Voyager 1": {
+		"kind": "spacecraft", "label": "Voyager 1", "radius_km": 0.0066, "mass_earths": 0.0, "rotation_hours": 24.0,
+		"images": [], "color": Color(0.85, 0.7, 0.4), "label_color": Color(1.0, 0.78, 0.35),
+		"model_file": "voyager.glb", "faces": "+y", "faces_toward": "earth", "shown_from": 2443392.03889,
+		"route": [
+			[2443392.03889, "Earth"],      # launch, Sep 5, 1977 12:56 UTC
+			[2443938.00377, "Jupiter"],    # Mar 5, 1979 12:05 UTC
+			[2444556.49063, "Saturn"],     # Nov 12, 1980 23:46 UTC
+			[2461356.49794, [17.26667, 12.08333, 173.102]],   # Nov 11, 2026: RA 17h 16m, Dec +12° 05', 173.102 AU from Earth
+		],
+		"facts": {
+			"type": "Spacecraft. The farthest object people have ever built.",
+			"launched": "September 5, 1977, on a Titan IIIE rocket from Cape Canaveral",
+			"mission": "Flew past Jupiter in March 1979 and Saturn in November 1980, with a close look at Titan. It crossed the heliopause into interstellar space on August 25, 2012.",
+			"size": "3.7 m dish antenna and a 13 m long magnetometer boom",
+			"mass": "About 826 kg at launch",
+			"power": "Three nuclear batteries (RTGs). Their power drops about 4 watts a year, so instruments are being switched off one by one.",
+			"status": "Still sending data home with a few instruments left on.",
+			"did_you_know": "It reaches one light-day from Earth on November 18, 2026: a radio message takes a full 24 hours to get there. It carries the Golden Record, with sounds and pictures of Earth.",
+		},
+	},
+	"Voyager 2": {
+		"kind": "spacecraft", "label": "Voyager 2", "radius_km": 0.0066, "mass_earths": 0.0, "rotation_hours": 24.0,
+		"images": [], "color": Color(0.85, 0.7, 0.4), "label_color": Color(1.0, 0.78, 0.35),
+		"model_file": "voyager.glb", "faces": "+y", "faces_toward": "earth", "shown_from": 2443376.10347,
+		"route": [
+			[2443376.10347, "Earth"],      # launch, Aug 20, 1977 14:29 UTC
+			[2444064.43740, "Jupiter"],    # Jul 9, 1979 22:29 UTC
+			[2444842.64233, "Saturn"],     # Aug 26, 1981 03:24 UTC
+			[2446455.24985, "Uranus"],     # Jan 24, 1986 17:59 UTC
+			[2447763.66431, "Neptune"],    # Aug 25, 1989 03:56 UTC
+			[2461356.49794, [20.08333, -59.73333, 144.787]],  # Nov 11, 2026: RA 20h 05m, Dec -59° 44', 144.787 AU from Earth
+		],
+		"facts": {
+			"type": "Spacecraft. The only one to visit all four giant planets.",
+			"launched": "August 20, 1977 (16 days before Voyager 1), on a Titan IIIE rocket",
+			"mission": "Flew past Jupiter (1979), Saturn (1981), Uranus (1986) and Neptune (1989). It is still the only spacecraft to visit Uranus and Neptune. It crossed into interstellar space on November 5, 2018.",
+			"size": "3.7 m dish antenna and a 13 m long magnetometer boom",
+			"mass": "About 826 kg at launch",
+			"power": "Three nuclear batteries (RTGs), losing about 4 watts a year",
+			"status": "Still sending data. It's heading so far south that only NASA's big dish in Australia can talk to it.",
+			"did_you_know": "Its pictures of Neptune in 1989 took about 4 hours to reach Earth at the speed of light.",
+		},
+	},
+	"New Horizons": {
+		"kind": "spacecraft", "label": "New Horizons", "radius_km": 0.0015, "mass_earths": 0.0, "rotation_hours": 24.0,
+		"images": [], "color": Color(0.85, 0.7, 0.4), "label_color": Color(1.0, 0.78, 0.35),
+		"model_file": "new_horizons.glb", "faces": "+y", "faces_toward": "earth", "shown_from": 2453755.29167,
+		"route": [
+			[2453755.29167, "Earth"],      # launch, Jan 19, 2006 19:00 UTC
+			[2454159.73866, "Jupiter"],    # Feb 28, 2007 05:43 UTC
+			[2457217.99302, "Pluto"],      # Jul 14, 2015 11:49 UTC
+			[2461356.49794, [19.26667, -20.3, 66.537]],       # Nov 11, 2026: RA 19h 16m, Dec -20° 18', 66.537 AU from Earth
+		],
+		"facts": {
+			"type": "Spacecraft. The first to visit Pluto.",
+			"launched": "January 19, 2006, on an Atlas V. It left Earth faster than anything before it (16.3 km/s).",
+			"mission": "Got a speed boost from Jupiter in February 2007, flew past Pluto and Charon on July 14, 2015, then past Arrokoth on January 1, 2019, the most distant world ever explored up close.",
+			"size": "About the size of a grand piano, with a 2.1 m dish antenna",
+			"mass": "478 kg at launch",
+			"power": "One nuclear battery (RTG), about 245 watts at launch",
+			"status": "Still exploring the Kuiper belt. It woke up in June 2026 from a record 321-day hibernation.",
+			"did_you_know": "It took nine and a half years to reach Pluto, and its pictures took 4.5 hours to get home.",
+		},
+	},
+	"Parker Solar Probe": {
+		"kind": "spacecraft", "label": "Parker Solar Probe", "radius_km": 0.0015, "mass_earths": 0.0, "rotation_hours": 24.0,
+		"images": [], "color": Color(0.9, 0.9, 0.9), "label_color": Color(1.0, 0.78, 0.35),
+		"model_file": "parker_solar_probe.glb", "faces": "-z", "faces_toward": "sun", "shown_from": 2460621.40833,
+		# Its final orbit since its last Venus flyby (Nov 6, 2024): closest to the Sun on Dec 24, 2024 11:53 UTC,
+		# 9.86 Sun radii from its center, then every 88.3 days. Its tilt matches Venus's orbit, which shaped it.
+		"orbit": {"a": 0.38811, "e": 0.88185, "i": 3.394, "node": 76.611, "arg_peri": 68.666, "mean_anomaly": 0.0,
+			"epoch_jd": 2460668.99514, "period_days": 88.314},
+		"facts": {
+			"type": "Spacecraft. The fastest object ever built, and the closest to the Sun.",
+			"launched": "August 12, 2018, on a Delta IV Heavy",
+			"mission": "Used seven Venus flybys to shrink its orbit. Since late 2024 it dives to 6.1 million km from the Sun's surface every 88 days, flying through the Sun's outer atmosphere (the corona).",
+			"size": "About 3 m tall, hiding behind a 2.3 m wide heat shield that always faces the Sun",
+			"mass": "685 kg at launch",
+			"power": "Solar panels that fold back behind the heat shield near the Sun, cooled by water",
+			"status": "Its path here is its final orbit, which began in November 2024.",
+			"did_you_know": "At its closest it moves at about 191 km/s, fast enough to fly from New York to Tokyo in under a minute. Its heat shield is built to take about 1,400 °C while the instruments behind it stay near room temperature.",
+		},
+	},
+	"Juno": {
+		"kind": "spacecraft", "label": "Juno", "radius_km": 0.01, "mass_earths": 0.0, "rotation_hours": 24.0,
+		"images": [], "color": Color(0.8, 0.8, 0.85), "label_color": Color(1.0, 0.78, 0.35),
+		"model_file": "juno.glb", "faces": "+y", "faces_toward": "earth", "shown_from": 2457574.66181, "parent": "Jupiter",
+		# A long, thin orbit over Jupiter's poles: 33 days, swooping about 3,500 km over the cloud tops.
+		# The shape and period are real; where it is along the orbit is estimated from its close pass of Thebe on May 1, 2026.
+		"orbit": {"satellite": {"a_km": 2965801.0, "e": 0.97471, "i": 90.0, "node": 88.83, "arg_peri": 140.0, "mean_anomaly": 0.0,
+			"degrees_per_day": 10.909091, "epoch_jd": 2461162.0,
+			"pole_ra": 268.057, "pole_dec": 64.495, "parent_gm": 126686534.0}},
+		"facts": {
+			"type": "Spacecraft orbiting Jupiter",
+			"launched": "August 5, 2011, on an Atlas V. It flew past Earth in 2013 for a speed boost.",
+			"mission": "Arrived at Jupiter on July 4, 2016. Every 33 days it swoops over Jupiter's poles just a few thousand km above the clouds, studying what's inside the planet, its storms and its auroras.",
+			"size": "About 20 m across its three solar wings",
+			"mass": "3,625 kg at launch",
+			"power": "Solar panels: about 14,000 watts near Earth but only about 500 watts at Jupiter, where sunlight is 25 times weaker",
+			"status": "Still orbiting Jupiter. It flew close past the little moon Thebe on May 1, 2026. Its funding beyond its extended mission has been uncertain.",
+			"did_you_know": "It was the first solar-powered spacecraft to work as far out as Jupiter. It carries three LEGO figures: Galileo, Jupiter and Juno.",
+		},
+	},
+	"ISS": {
+		"kind": "spacecraft", "label": "ISS", "radius_km": 0.055, "mass_earths": 0.0, "rotation_hours": 24.0,
+		"images": [], "color": Color(0.85, 0.85, 0.85), "label_color": Color(1.0, 0.78, 0.35),
+		"model_file": "iss.glb", "faces": "level", "faces_toward": "earth", "shown_from": 2451137.77778, "parent": "Earth",
+		# From the official tracking data (TLE) of Nov 10, 2026 04:12 UTC. Earth's bulge turns the orbit
+		# (node -4.95° a day, perigee +3.69° a day) and air drag slowly speeds it up as it sinks.
+		"orbit": {"satellite": {"a_km": 6796.94, "e": 0.0007292, "i": 51.6322, "node": 297.3244, "arg_peri": 8.9462, "mean_anomaly": 351.1656,
+			"degrees_per_day": 5576.186689, "degrees_per_day_per_day": 0.0336456, "apsis_degrees_per_day": -1.25628, "node_degrees_per_day": -4.95055,
+			"epoch_jd": 2461354.67503, "pole_ra": 270.0, "pole_dec": 90.0, "parent_gm": 398600.4418}},
+		"facts": {
+			"type": "Space station orbiting Earth",
+			"launched": "Its first part (Zarya) launched November 20, 1998. People have lived on board without a break since November 2, 2000.",
+			"mission": "A science lab where astronauts from many countries live and work. It circles Earth about 15.5 times a day, about 420 km up.",
+			"size": "109 m end to end, longer than the wingspan of the biggest airliner (Airbus A380, 80 m)",
+			"mass": "About 420,000 kg",
+			"power": "Eight huge pairs of solar wings, plus newer roll-out solar panels",
+			"status": "NASA plans to retire it around 2030 and steer it into a remote part of the Pacific Ocean.",
+			"did_you_know": "Its orbit here comes from official tracking data from November 10, 2026. Air drag and engine boosts change it, so it gets less exact the further you move the date from then.",
 		},
 	},
 }

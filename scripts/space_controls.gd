@@ -29,7 +29,7 @@ const SPEEDS = [
 const NORMAL_SPEED_STEP = 0   # the scene starts in real time
 
 # Which names win when two would overlap on screen (lower = more important)
-const NAME_PRIORITY = {"star": 0, "planet": 1, "moon": 2, "dwarf": 3, "comet": 4}
+const NAME_PRIORITY = {"star": 0, "planet": 1, "moon": 2, "dwarf": 3, "comet": 4, "spacecraft": 5}
 
 var bodies_node: Node = null
 var scene_root: Node = null
@@ -301,6 +301,7 @@ func build_controls():
 	switch_column.add_child(make_switch("Oort cloud", true, func(on): call_bodies("set_oort_cloud_visible", [on])))
 	switch_column.add_child(make_switch("Dwarf planets", true, func(on): call_bodies("set_kind_visible", ["dwarf", on])))
 	switch_column.add_child(make_switch("Comets", true, func(on): call_bodies("set_kind_visible", ["comet", on])))
+	switch_column.add_child(make_switch("Spacecraft", true, func(on): call_bodies("set_kind_visible", ["spacecraft", on])))
 	scale_note = Label.new()
 	scale_note.add_theme_font_size_override("font_size", 11)
 	scale_note.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
@@ -354,7 +355,7 @@ func toggle_fullscreen():
 # Go to menu
 # ---------------------------------------------------------------------------
 func build_go_to_menu():
-	var groups = [["planet", "Planets"], ["moon", "Moons"], ["dwarf", "Dwarf planets"], ["comet", "Comets"]]
+	var groups = [["planet", "Planets"], ["moon", "Moons"], ["dwarf", "Dwarf planets"], ["comet", "Comets"], ["spacecraft", "Spacecraft"]]
 	add_go_to_item("Sun")
 	for group in groups:
 		go_to_menu.add_separator(group[1])
