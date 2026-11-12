@@ -11,6 +11,7 @@ const RocketData = preload("res://scripts/rocket_data.gd")
 const RocketModel = preload("res://scripts/rocket_model.gd")
 const Spacecraft = preload("res://scripts/spacecraft.gd")
 const SolarSystemData = preload("res://scripts/solar_system_data.gd")
+const RealRocket = preload("res://scripts/real_rocket.gd")
 
 const GO = Color(0.35, 0.85, 0.45)
 const WATCH = Color(1.0, 0.8, 0.3)
@@ -411,7 +412,13 @@ func rebuild_model():
 	var real_rocket = RocketData.REAL_ROCKETS.get(preset, {})
 	var real_model = null
 	if not real_rocket.is_empty() and not show_my_parts:
-		real_model = load_real_model(real_rocket)
+		# The real rocket, stacked from the same stage models the launch uses
+		var stack_id = RealRocket.stack_for_preset(preset)
+		real_model = RealRocket.assemble(stack_id) if stack_id != "" else null
+		if real_model != null:
+			real_model["root"].rotation_degrees.y = real_rocket.get("turn_degrees", 0.0)
+		else:
+			real_model = load_real_model(real_rocket)
 	var height = 0.0
 	if real_model != null:
 		rocket_holder.add_child(real_model["root"])
@@ -430,7 +437,7 @@ func rebuild_model():
 			lookalike_label.text = "Your parts, at their real sizes"
 			view_button.text = "Show the real %s" % real_rocket["name"]
 		else:
-			lookalike_label.text = "Your parts (add %s to the project to see the real %s)" % [real_rocket["model"], real_rocket["name"]]
+			lookalike_label.text = "Your parts (the %s model files aren't in the project)" % real_rocket["name"]
 	view_button.visible = real_model != null or (show_my_parts and not real_rocket.is_empty())
 	wanted_height = rocket_holder.global_position.y + height * 0.5
 	wanted_distance = height * 1.9 + 50.0

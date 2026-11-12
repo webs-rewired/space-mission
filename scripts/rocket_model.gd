@@ -29,6 +29,16 @@ void fragment() {
 """
 
 static var flame_shader: Shader = null
+static var flame_noise: NoiseTexture2D = null
+const FLAME_SHADER_FILE = "res://shaders/rocket_flame.gdshader"
+
+# How each kind of propellant burns: [core, middle, tail colors, brightness, shock diamonds, turbulence]
+const FLAME_LOOKS = {
+	"kerosene": [Color(1.0, 0.96, 0.82), Color(1.0, 0.6, 0.16), Color(0.8, 0.22, 0.04), 6.0, 0.45, 0.45],   # Merlin, RD-180: yellow-orange
+	"hydrogen": [Color(0.86, 0.9, 1.0), Color(0.62, 0.68, 1.0), Color(0.45, 0.4, 0.85), 3.0, 1.3, 0.2],    # RS-25, RL10: nearly clear, with bright diamonds
+	"methane": [Color(0.72, 0.78, 1.0), Color(1.0, 0.58, 0.38), Color(0.85, 0.32, 0.28), 5.0, 0.9, 0.35],  # Raptor: blue near the nozzle, then orange-pink
+	"solid": [Color(1.0, 1.0, 0.93), Color(1.0, 0.82, 0.48), Color(1.0, 0.55, 0.2), 9.0, 0.15, 0.55],      # solid boosters: blinding white-yellow
+}
 
 # NASA's Shuttle booster model, standing up with its nozzle at y = 0 and 1 unit = 1 meter.
 # Uses scenes/parts/giant_booster.tscn, or finds solid_rocket_booster.glb anywhere in the project. Null if it's missing.
@@ -126,10 +136,22 @@ static func add_engines(parent, count, tank_radius, bottom_y, bell_height):
 	return {"spots": spots, "bell_radius": bell_radius}
 
 # A glowing exhaust flame pointing down from y = 0. Scale it to set its width and length.
-static func make_flame():
+static func make_flame(fuel = "kerosene"):
 	if flame_shader == null:
-		flame_shader = Shader.new()
-		flame_shader.code = FLAME_SHADER
+		if ResourceLoader.exists(FLAME_SHADER_FILE):
+			flame_shader = load(FLAME_SHADER_FILE)
+		else:
+			flame_shader = Shader.new()
+			flame_shader.code = FLAME_SHADER
+	if flame_noise == null:
+		var noise = FastNoiseLite.new()
+		noise.frequency = 0.02
+		noise.fractal_octaves = 4
+		flame_noise = NoiseTexture2D.new()
+		flame_noise.noise = noise
+		flame_noise.seamless = true
+		flame_noise.width = 128
+		flame_noise.height = 128
 	var flame = MeshInstance3D.new()
 	var mesh = CylinderMesh.new()
 	mesh.top_radius = 1.0
@@ -143,9 +165,19 @@ static func make_flame():
 	var material = ShaderMaterial.new()
 	material.shader = flame_shader
 	material.set_shader_parameter("flicker", randf() * 10.0)
+	var look = FLAME_LOOKS.get(fuel, FLAME_LOOKS["kerosene"])
+	material.set_shader_parameter("core_color", look[0])
+	material.set_shader_parameter("middle_color", look[1])
+	material.set_shader_parameter("tail_color", look[2])
+	material.set_shader_parameter("brightness", look[3])
+	material.set_shader_parameter("diamonds", look[4])
+	material.set_shader_parameter("turbulence", look[5])
+	material.set_shader_parameter("seed", randf() * 10.0)
+	material.set_shader_parameter("noise_texture", flame_noise)
 	flame.material_override = material
 	# Shift the cone so it hangs below its node: top (wide end) at y = 0, tail at y = -1
 	var holder = Node3D.new()
+	holder.set_meta("is_flame", true)   # so size measurements can leave the flames out
 	holder.add_child(flame)
 	flame.position = Vector3(0, -0.5, 0)
 	flame.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -202,7 +234,7 @@ static func build(rocket):
 	add_cylinder(bottom, top_radius, bottom_radius, 4.0, Vector3(0, y + 2.0, 0), dark)
 	pieces["bottom"] = bottom
 	for spot in bottom_engines["spots"]:
-		var flame = make_flame()
+		var flame = make_flame(RocketData.ENGINES[rocket["bottom_engine"]]["fuel"])
 		flame.position = Vector3(spot.x, 0.3, spot.y)
 		flame.scale = Vector3(bottom_engines["bell_radius"] * 0.95, 14.0, bottom_engines["bell_radius"] * 0.95)
 		bottom.add_child(flame)
@@ -230,7 +262,7 @@ static func build(rocket):
 			add_cylinder(holder, booster["radius"] + 0.04, booster["radius"] + 0.04, 0.5, Vector3(0, 3.0 + booster_height * 0.7, 0), dark)
 			add_ogive(holder, booster["radius"], booster["radius"] * 3.0, 3.0 + booster_height, Vector3.ZERO, white)
 			add_cylinder(holder, booster["radius"] * 0.5, booster["radius"] * 0.9, 2.2, Vector3(0, 1.9, 0), make_material(Color(0.3, 0.3, 0.32), 0.9, 0.35))
-		var flame = make_flame()
+		var flame = make_flame("solid")
 		flame.position = Vector3(0, 0.8, 0)
 		flame.scale = Vector3(booster["radius"] * 0.95, 18.0, booster["radius"] * 0.95)
 		holder.add_child(flame)
@@ -247,7 +279,7 @@ static func build(rocket):
 	add_tank(top, top_radius, top_height, y, top_tank["fuel"])
 	pieces["top"] = top
 	for spot in top_engines["spots"]:
-		var flame = make_flame()
+		var flame = make_flame(RocketData.ENGINES[rocket["top_engine"]]["fuel"])
 		flame.position = Vector3(spot.x, y - 3.2, spot.y)
 		flame.scale = Vector3(top_engines["bell_radius"] * 1.1, 10.0, top_engines["bell_radius"] * 1.1)
 		top.add_child(flame)

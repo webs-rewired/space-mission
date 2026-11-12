@@ -15,6 +15,14 @@ signal finished
 const RocketModel = preload("res://scripts/rocket_model.gd")
 const RocketData = preload("res://scripts/rocket_data.gd")
 const SpaceTextures = preload("res://scripts/space_textures.gd")
+const RealRocket = preload("res://scripts/real_rocket.gd")
+const Spacecraft = preload("res://scripts/spacecraft.gd")
+const SEPARATION_SCENE = preload("res://scenes/effects/separation_burst.tscn")
+const CLOUD_SHADER = preload("res://shaders/cloud_puff.gdshader")
+const SMOKE_SHADER = preload("res://shaders/smoke_puff.gdshader")
+const SKY_PHOTO = "kloofendal_48d_partly_cloudy_2k.hdr"   # Poly Haven (CC0): a real partly cloudy sky
+const LAUNCH_TOWER_SCALE = 47.2     # NASA's Mobile Launcher model is 2.46 units tall; the real one is 116 m
+const LAUNCH_DECK_HEIGHT = 14.2     # the rocket stands on the launcher's deck, above the flame trench
 
 const GRAVITY = 9.81
 const PAD_SHOT_SECONDS = 25.0       # real mission seconds watched from the ground camera
@@ -48,6 +56,8 @@ var earth_ball: MeshInstance3D
 var camera: Camera3D
 var sun: DirectionalLight3D
 var smoke: CPUParticles3D
+var exhaust_trail: CPUParticles3D   # the column of smoke the rocket leaves behind as it climbs
+var smoke_noise: NoiseTexture2D
 
 var timeline = []              # [real mission seconds, event name], in order
 var next_event = 0
@@ -75,6 +85,10 @@ var tower: Node3D
 var tower_arm: Node3D
 var engine_light: OmniLight3D
 var shake = 0.0                # camera shake strength
+var camera_target = Vector3.ZERO   # the high view's camera follows the stage that's still flying
+var camera_distance = 15.0
+var stage_separated = false
+var deck_height = 0.0          # how high the rocket's base sits on the pad (on the Mobile Launcher's deck if it's there)
 var reusable_booster = false   # Falcon 9 and Starship boosters fly back to land
 var booster_flip: Node3D = null
 var booster_flip_seconds = 0.0
@@ -174,40 +188,77 @@ func build_pad_world():
 	add_child(pad_world)
 	sky_environment = Environment.new()
 	var sky = Sky.new()
-	var sky_material = ProceduralSkyMaterial.new()
-	sky_material.sky_top_color = Color(0.16, 0.32, 0.62)
-	sky_material.sky_horizon_color = Color(0.72, 0.78, 0.86)
-	sky_material.ground_horizon_color = Color(0.6, 0.62, 0.6)
-	sky_material.ground_bottom_color = Color(0.25, 0.27, 0.22)
-	sky.sky_material = sky_material
+	var photo_path = find_file("res://", SKY_PHOTO)
+	if photo_path != "":
+		# A real photo of a partly cloudy sky (it lights the rocket too)
+		var photo_sky = PanoramaSkyMaterial.new()
+		photo_sky.panorama = load(photo_path)
+		photo_sky.energy_multiplier = 1.25
+		sky.sky_material = photo_sky
+		sky_environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+		sky_environment.ambient_light_energy = 0.45
+		sky_environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	else:
+		var sky_material = ProceduralSkyMaterial.new()
+		sky_material.sky_top_color = Color(0.16, 0.32, 0.62)
+		sky_material.sky_horizon_color = Color(0.72, 0.78, 0.86)
+		sky_material.ground_horizon_color = Color(0.6, 0.62, 0.6)
+		sky_material.ground_bottom_color = Color(0.25, 0.27, 0.22)
+		sky.sky_material = sky_material
+		sky_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		sky_environment.ambient_light_color = Color(0.85, 0.85, 0.82)
+		sky_environment.ambient_light_energy = 0.55
 	sky_environment.background_mode = Environment.BG_SKY
+	# Bloom: the engine fire is far brighter than the sky, so it glows
+	sky_environment.glow_enabled = true
+	sky_environment.glow_hdr_threshold = 2.2
+	sky_environment.glow_intensity = 0.9
 	sky_environment.sky = sky
-	sky_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	sky_environment.ambient_light_color = Color(0.85, 0.85, 0.82)
-	sky_environment.ambient_light_energy = 0.55
 	sky_environment.tonemap_mode = Environment.TONE_MAPPER_ACES
+	sky_environment.fog_enabled = true
+	sky_environment.fog_light_color = Color(0.72, 0.78, 0.86)
+	sky_environment.fog_density = 0.00012
+	sky_environment.fog_aerial_perspective = 0.9
+	sky_environment.fog_sky_affect = 0.0
 
 	var ground = MeshInstance3D.new()
 	var plane = PlaneMesh.new()
-	plane.size = Vector2(6000, 6000)
+	plane.size = Vector2(30000, 30000)
 	ground.mesh = plane
 	ground.position.y = -0.05
-	ground.material_override = RocketModel.make_material(Color(0.32, 0.4, 0.24), 0.0, 0.95)
+	var grass = StandardMaterial3D.new()
+	var grass_noise = FastNoiseLite.new()
+	grass_noise.frequency = 0.03
+	grass_noise.fractal_octaves = 4
+	var grass_texture = NoiseTexture2D.new()
+	grass_texture.noise = grass_noise
+	grass_texture.seamless = true
+	var grass_colors = Gradient.new()
+	grass_colors.set_color(0, Color(0.13, 0.17, 0.08))
+	grass_colors.set_color(1, Color(0.25, 0.29, 0.15))
+	grass_texture.color_ramp = grass_colors
+	grass.albedo_texture = grass_texture
+	grass.uv1_scale = Vector3(400, 400, 400)
+	grass.roughness = 1.0
+	ground.material_override = grass
 	pad_world.add_child(ground)
 	var pad = MeshInstance3D.new()
 	var pad_mesh = CylinderMesh.new()
-	pad_mesh.top_radius = 32
-	pad_mesh.bottom_radius = 34
+	pad_mesh.top_radius = 70
+	pad_mesh.bottom_radius = 72
 	pad_mesh.height = 1.0
 	pad.mesh = pad_mesh
 	pad.position.y = -0.5
-	pad.material_override = RocketModel.make_material(Color(0.4, 0.4, 0.39), 0.0, 1.0)
+	pad.material_override = RocketModel.make_material(Color(0.24, 0.24, 0.23), 0.0, 1.0)
 	pad_world.add_child(pad)
 
 	sun = DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-40, 35, 0)
-	sun.light_energy = 1.3
+	sun.rotation_degrees = Vector3(-48, 35, 0)   # the sun in the sky photo is 48 degrees up
+	sun.light_energy = 1.05
+	sun.shadow_enabled = true
+	sun.directional_shadow_max_distance = 800.0
 	add_child(sun)
+	build_clouds()
 
 	# The engines' glow lights up the pad and the clouds of steam
 	engine_light = OmniLight3D.new()
@@ -235,28 +286,123 @@ func build_pad_world():
 	grow.add_point(Vector2(0, 0.4))
 	grow.add_point(Vector2(1, 2.2))
 	smoke.scale_amount_curve = grow
-	var puff = QuadMesh.new()
-	puff.size = Vector2(1, 1)
-	var puff_material = StandardMaterial3D.new()
-	puff_material.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	puff_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	puff_material.albedo_texture = soft_dot_texture()
-	puff_material.albedo_color = Color(0.92, 0.92, 0.9, 0.55)
-	puff_material.vertex_color_use_as_albedo = true
-	puff.material = puff_material
-	smoke.mesh = puff
+	smoke.mesh = smoke_card()
 	var fade_out = Gradient.new()
 	fade_out.set_color(0, Color(1, 1, 1, 0.9))
 	fade_out.set_color(1, Color(1, 1, 1, 0.0))
 	smoke.color_ramp = fade_out
 	smoke.position = Vector3(0, 1.0, 0)
 	pad_world.add_child(smoke)
+	build_exhaust_trail()
 
 	camera = Camera3D.new()
 	camera.fov = 50.0
 	camera.near = 0.1
 	camera.far = 20000.0
 	add_child(camera)
+
+# Finds a file by name anywhere in the project ("" if it isn't there)
+func find_file(folder, file_name):
+	var directory = DirAccess.open(folder)
+	if directory == null:
+		return ""
+	for found in directory.get_files():
+		if found.to_lower() == file_name.to_lower():
+			return folder.path_join(found)
+	for sub_folder in directory.get_directories():
+		if sub_folder.begins_with("."):
+			continue
+		var path = find_file(folder.path_join(sub_folder), file_name)
+		if path != "":
+			return path
+	return ""
+
+# Puffy cumulus clouds about 1 to 2 km up. A few hang right over the pad, so the rocket climbs through them.
+func build_clouds():
+	var noise = FastNoiseLite.new()
+	noise.frequency = 0.012
+	noise.fractal_octaves = 5
+	var noise_texture = NoiseTexture2D.new()
+	noise_texture.noise = noise
+	noise_texture.seamless = true
+	noise_texture.width = 256
+	noise_texture.height = 256
+	var random = RandomNumberGenerator.new()
+	random.seed = 2026
+	var cloud_places = [Vector3(90, 1300, 110), Vector3(-120, 1550, -70)]   # over the pad, off to the sides of the camera's view
+	for index in 26:
+		var angle = random.randf() * TAU
+		var distance = random.randf_range(700.0, 6000.0)
+		cloud_places.append(Vector3(cos(angle) * distance, random.randf_range(1000.0, 2200.0), sin(angle) * distance))
+	for place in cloud_places:
+		var cloud_size = random.randf_range(160.0, 420.0)
+		for puff_index in random.randi_range(5, 9):
+			var puff = MeshInstance3D.new()
+			var card = QuadMesh.new()
+			card.size = Vector2(1, 1)
+			puff.mesh = card
+			var material = ShaderMaterial.new()
+			material.shader = CLOUD_SHADER
+			material.set_shader_parameter("noise_texture", noise_texture)
+			material.set_shader_parameter("seed", random.randf() * 10.0)
+			puff.material_override = material
+			puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var puff_size = cloud_size * random.randf_range(0.45, 0.8)
+			puff.scale = Vector3(puff_size, puff_size * 0.75, 1.0)
+			puff.position = place + Vector3(random.randf_range(-0.5, 0.5) * cloud_size, random.randf_range(-0.1, 0.25) * cloud_size, random.randf_range(-0.4, 0.4) * cloud_size)
+			pad_world.add_child(puff)
+
+# A card that draws as a lumpy puff of smoke (for particles)
+func smoke_card():
+	if smoke_noise == null:
+		var noise = FastNoiseLite.new()
+		noise.frequency = 0.015
+		noise.fractal_octaves = 5
+		smoke_noise = NoiseTexture2D.new()
+		smoke_noise.noise = noise
+		smoke_noise.seamless = true
+		smoke_noise.width = 256
+		smoke_noise.height = 256
+	var card = QuadMesh.new()
+	card.size = Vector2(1, 1)
+	var material = ShaderMaterial.new()
+	material.shader = SMOKE_SHADER
+	material.set_shader_parameter("noise_texture", smoke_noise)
+	card.material = material
+	return card
+
+# The exhaust leaves a column of smoke behind the climbing rocket. Solid boosters make thick white smoke,
+# kerosene a thinner grey trail, and hydrogen and methane engines almost none (their exhaust is mostly water vapor).
+func build_exhaust_trail():
+	exhaust_trail = CPUParticles3D.new()
+	var has_boosters = RocketData.BOOSTERS[GameState.rocket["boosters"]]["count"] > 0
+	var fuel = RocketData.ENGINES[GameState.rocket["bottom_engine"]]["fuel"]
+	var thickness = 1.0 if has_boosters else (0.55 if fuel == "kerosene" else 0.3)
+	exhaust_trail.amount = 1400
+	exhaust_trail.lifetime = 8.0
+	exhaust_trail.local_coords = false
+	exhaust_trail.emitting = false
+	exhaust_trail.direction = Vector3(0, -1, 0)
+	exhaust_trail.spread = 12.0
+	exhaust_trail.initial_velocity_min = 6.0
+	exhaust_trail.initial_velocity_max = 14.0
+	exhaust_trail.damping_min = 2.0
+	exhaust_trail.damping_max = 4.0
+	exhaust_trail.gravity = Vector3(0.8, 0.25, 0.3)   # a light sea breeze carries it away
+	exhaust_trail.scale_amount_min = 6.0 * (1.0 + thickness)
+	exhaust_trail.scale_amount_max = 12.0 * (1.0 + thickness)
+	var grow = Curve.new()
+	grow.add_point(Vector2(0, 0.35))
+	grow.add_point(Vector2(1, 3.0))
+	exhaust_trail.scale_amount_curve = grow
+	exhaust_trail.mesh = smoke_card()
+	var fade = Gradient.new()
+	fade.set_color(0, Color(1, 1, 1, 0.0))
+	fade.set_color(1, Color(0.9, 0.9, 0.9, 0.0))
+	fade.add_point(0.04, Color(1, 0.97, 0.9, 0.75 * thickness))
+	fade.add_point(0.5, Color(0.95, 0.95, 0.95, 0.4 * thickness))
+	exhaust_trail.color_ramp = fade
+	pad_world.add_child(exhaust_trail)
 
 func soft_dot_texture():
 	var gradient = Gradient.new()
@@ -299,7 +445,9 @@ func build_high_world():
 	earth_ball.add_child(air)
 
 func build_rocket():
-	pieces = RocketModel.build(GameState.rocket)
+	pieces = RealRocket.build(GameState.rocket)   # the real Falcon 9, Atlas V, SLS or Starship, split into its stages
+	if pieces == null:
+		pieces = RocketModel.build(GameState.rocket)   # model files missing: build it from the parts
 	rocket_root = Node3D.new()
 	add_child(rocket_root)
 	rocket_root.add_child(pieces["root"])
@@ -310,6 +458,14 @@ func build_rocket():
 
 # The launch tower beside the rocket, with an access arm that swings away before liftoff
 func build_tower():
+	var launcher_path = Spacecraft.find_model("mobile_launcher.glb")
+	if launcher_path != "" and load(launcher_path) is PackedScene:
+		# NASA's Mobile Launcher: the rocket stands on its deck over the flame trench, with the 116 m tower beside it
+		tower = load(launcher_path).instantiate()
+		tower.scale = Vector3.ONE * LAUNCH_TOWER_SCALE
+		pad_world.add_child(tower)
+		deck_height = LAUNCH_DECK_HEIGHT
+		return
 	tower = Node3D.new()
 	pad_world.add_child(tower)
 	var steel = RocketModel.make_material(Color(0.55, 0.3, 0.22), 0.6, 0.5)
@@ -347,39 +503,18 @@ func build_tower():
 	arm.position = Vector3(arm_length / 2.0, 0, 0)
 	tower_arm.add_child(arm)
 
-# A quick white puff where pieces let go (small separation thrusters and springs)
+# A quick, faint burst of vapor where pieces let go (separation springs, pushers and small thrusters)
 func separation_puff(place):
-	var puff = CPUParticles3D.new()
-	puff.one_shot = true
-	puff.explosiveness = 0.9
-	puff.amount = 40
-	puff.lifetime = 1.2
-	puff.spread = 180.0
-	puff.initial_velocity_min = ROCKET_SIZE_HIGH * 0.2
-	puff.initial_velocity_max = ROCKET_SIZE_HIGH * 0.5
-	puff.gravity = Vector3.ZERO
-	puff.damping_min = 2.0
-	puff.damping_max = 3.0
-	puff.scale_amount_min = ROCKET_SIZE_HIGH * 0.02
-	puff.scale_amount_max = ROCKET_SIZE_HIGH * 0.05
-	var dot = QuadMesh.new()
-	var dot_material = StandardMaterial3D.new()
-	dot_material.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-	dot_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	dot_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	dot_material.albedo_texture = soft_dot_texture()
-	dot_material.albedo_color = Color(1, 1, 1, 0.8)
-	dot_material.vertex_color_use_as_albedo = true
-	dot.material = dot_material
-	puff.mesh = dot
-	var fade_out = Gradient.new()
-	fade_out.set_color(0, Color(1, 1, 1, 0.9))
-	fade_out.set_color(1, Color(1, 1, 1, 0.0))
-	puff.color_ramp = fade_out
-	high_world.add_child(puff)
-	puff.global_position = place
-	puff.emitting = true
-	get_tree().create_timer(2.0).timeout.connect(puff.queue_free)
+	var burst = SEPARATION_SCENE.instantiate()
+	var size = ROCKET_SIZE_HIGH / 14.0 if in_high_shot else pieces["height"] / 40.0
+	burst.scale_amount_min *= size
+	burst.scale_amount_max *= size
+	burst.initial_velocity_min *= size
+	burst.initial_velocity_max *= size
+	(high_world if in_high_shot else pad_world).add_child(burst)
+	burst.global_position = place
+	burst.restart()
+	get_tree().create_timer(2.0).timeout.connect(burst.queue_free)
 
 func build_screen():
 	var layer = CanvasLayer.new()
@@ -486,26 +621,31 @@ func update_pad_shot():
 	engine_light.position = rocket_root.position + Vector3(0, 2.0, 0)
 	# Climbing faster and faster as it burns fuel and gets lighter
 	var height = 0.5 * liftoff_acceleration * seconds * seconds * (1.0 + seconds / 60.0)
-	rocket_root.position = Vector3(0, height, 0)
+	rocket_root.position = Vector3(0, deck_height + height, 0)
 	rocket_root.rotation = Vector3.ZERO
 	var rocket_height = pieces["height"]
-	var distance = rocket_height * 1.6 + 60.0
+	# Like a real tracking camera miles away, it backs off as the rocket climbs so it never has to look straight up
+	var distance = max(rocket_height * 1.6 + 60.0, (rocket_root.position.y - deck_height) * 1.4)
 	camera.position = Vector3(-distance * 0.8, 3.0, distance * 0.6)
-	var look_point = rocket_root.position + Vector3(0, rocket_height * 0.45, 0)
+	var look_point = rocket_root.position + Vector3(0, rocket_height * 0.22, 0)   # low enough to see the fire under it
 	if mission_seconds < 2.0:
 		# Close-up of the engines lighting, then cut to the wide shot as it clears the tower
-		camera.position = Vector3(pieces["width"] * 2.5 + 8.0, 2.5, pieces["width"] * 3.0 + 14.0)
+		camera.position = Vector3(-(pieces["width"] * 4.0 + 22.0), deck_height + 7.0, pieces["width"] * 4.0 + 30.0)
 		look_point = rocket_root.position + Vector3(0, rocket_height * 0.18, 0)
 	camera.look_at(look_point, Vector3.UP)
 	var away = camera.position.distance_to(look_point)
-	camera.fov = clamp(rad_to_deg(2.0 * atan(rocket_height * 0.9 / away)), 3.0, 55.0)
+	camera.fov = clamp(rad_to_deg(2.0 * atan(rocket_height * 1.25 / away)), 3.0, 55.0)
 	smoke.emitting = seconds < 14.0
+	# The smoke starts where the fire ends, so it doesn't hide the flames
+	exhaust_trail.global_position = rocket_root.position + Vector3(0, -pieces["height"] * 0.4, 0)
+	exhaust_trail.emitting = mission_seconds > 0.2 and (flames_on["bottom"] or flames_on["booster"])
 
 func switch_to_high_shot():
 	in_high_shot = true
 	pad_world.visible = false
 	high_world.visible = true
 	smoke.emitting = false
+	exhaust_trail.emitting = false
 	if world_environment and space_environment:
 		world_environment.environment = space_environment
 	rocket_root.position = Vector3.ZERO
@@ -513,6 +653,9 @@ func switch_to_high_shot():
 	camera.fov = 50.0
 	sun.rotation_degrees = Vector3(-25, -60, 0)
 	sun.light_energy = 0.9
+	sun.shadow_enabled = false
+	camera_target = part_point(pieces["root"], 0.55)
+	camera_distance = ROCKET_SIZE_HIGH * 2.2
 	fade.color.a = 1.0     # a quick fade from black between the two views
 
 func update_high_shot(delta, mission_delta):
@@ -525,9 +668,27 @@ func update_high_shot(delta, mission_delta):
 	# Tipping over toward the horizon as it climbs (a "gravity turn"), then flying level along it
 	var turn = smoothstep(PAD_SHOT_SECONDS, orbit_seconds, mission_seconds)
 	rocket_root.rotation.z = -deg_to_rad(lerp(30.0, 86.0, turn))
-	camera.position = Vector3(-ROCKET_SIZE_HIGH * 0.9, ROCKET_SIZE_HIGH * 0.35, ROCKET_SIZE_HIGH * 2.3)
-	camera.look_at(Vector3(ROCKET_SIZE_HIGH * 0.15, -ROCKET_SIZE_HIGH * 0.1, 0), Vector3.UP)
+	# Follow whatever is still flying: the whole rocket, then just the top stage once the bottom stage drops away
+	var flying = pieces["top"] if stage_separated else pieces["root"]
+	var flying_length = part_length(flying) * rocket_root.scale.y
+	var blend = min(1.0, delta * 2.0)
+	camera_target = camera_target.lerp(part_point(flying, 0.55), blend)
+	camera_distance = lerp(camera_distance, max(flying_length * 2.2, 2.5), blend)
+	camera.position = camera_target + Vector3(-0.36, 0.16, 0.92) * camera_distance
+	camera.look_at(camera_target + Vector3(0, -flying_length * 0.08, 0), Vector3.UP)
 	camera.far = 20000.0
+
+# A point along a rocket piece, from its bottom (0) to its top (1), in the world
+func part_point(piece, fraction):
+	var box = RealRocket.solid_bounds(piece, Transform3D.IDENTITY, null)
+	if box == null:
+		return piece.global_position
+	var local_point = Vector3(box.get_center().x, box.position.y + box.size.y * fraction, box.get_center().z)
+	return piece.get_parent().global_transform * local_point
+
+func part_length(piece):
+	var box = RealRocket.solid_bounds(piece, Transform3D.IDENTITY, null)
+	return box.size.y if box != null else pieces["height"]
 
 func run_event(event_name):
 	match event_name:
@@ -549,30 +710,48 @@ func run_event(event_name):
 			show_caption("Booster separation")
 			set_flames("booster", false)
 			for booster in pieces["boosters"]:
-				separation_puff(booster.global_position + Vector3(0, ROCKET_SIZE_HIGH * 0.3, 0))
-			for booster in pieces["boosters"]:
-				var outward = Vector3(booster.position.x, 0, booster.position.z).normalized()
-				drop_piece(booster, outward * 1.2 + Vector3(-1.5, -0.6, 0), Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)) * 0.6)
+				# Small thrusters at each end push the booster sideways, away from the core
+				var box = RealRocket.solid_bounds(booster, booster.get_parent().global_transform, null)
+				var middle = box.get_center() if box != null else booster.global_position
+				separation_puff(middle)
+				var outward = rocket_root.global_transform.basis.inverse() * (middle - rocket_root.global_position)
+				outward = Vector3(outward.x, 0, outward.z).normalized()
+				drop_piece(booster, rocket_root.global_transform.basis.orthonormalized() * (outward * 1.2) + Vector3(-1.5, -0.6, 0), Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)) * 0.6)
 		"cutoff":
 			show_caption("Main engine cutoff")
 			set_flames("bottom", false)
 			set_flames("booster", false)
 		"separation":
-			show_caption("Stage separation")
-			separation_puff(pieces["top"].global_position)
-			drop_piece(pieces["bottom"], Vector3(-2.5, -0.8, 0), Vector3(0, 0, 0.35))
+			if pieces.get("real_rocket", "") == "Starship":
+				show_caption("Hot staging: the ship lights its engines while still on the booster")
+				set_flames("top", true)
+			else:
+				show_caption("Stage separation")
+			stage_separated = true
+			separation_puff(part_point(pieces["top"], 0.0))   # right at the joint between the stages
+			var falling_stage = drop_piece(pieces["bottom"], Vector3(-2.5, -0.8, 0), Vector3(0, 0, 0.35))
 			if reusable_booster:
-				booster_flip = pieces["bottom"]
+				booster_flip = falling_stage
 				booster_flip_seconds = 0.0
 		"top_ignition":
 			show_caption("Top stage ignition")
 			set_flames("top", true)
 		"fairing":
-			show_caption("Fairing separation: there's your probe!")
-			separation_puff(pieces["payload"].global_position)
-			for half_index in pieces["fairing"].size():
-				var side = 1.0 if half_index == 0 else -1.0
-				drop_piece(pieces["fairing"][half_index], Vector3(-1.0, -0.2, side * 2.0), Vector3(side * 0.8, 0, 0))
+			if pieces["fairing"].is_empty():
+				pass   # Starship has no fairing: its probe rides inside the ship's cargo bay
+			elif pieces["fairing"].size() == 1:
+				# SLS: the launch abort tower fires its own motor and flies off ahead
+				show_caption(pieces.get("fairing_caption", "Launch abort tower jettisoned"))
+				separation_puff(pieces["fairing"][0].global_position)
+				drop_piece(pieces["fairing"][0], Vector3(2.5, 1.2, 0.4), Vector3(0, 0, 0.6))
+			else:
+				show_caption(pieces.get("fairing_caption", "Fairing separation: there's your probe!"))
+				separation_puff(pieces["payload"].global_position)
+				for half_index in pieces["fairing"].size():
+					# The two halves split apart like a clamshell (sideways from the rocket, across the view) and fall behind
+					var side = -1.0 if half_index == 0 else 1.0
+					var apart = rocket_root.global_transform.basis.orthonormalized() * Vector3(side * 1.6, 0.2, 0.0)
+					drop_piece(pieces["fairing"][half_index], apart + Vector3(-0.8, -0.1, 0.0), Vector3(0, 0, side * 0.9))
 		"orbit":
 			show_caption("In orbit around Earth!")
 			set_flames("top", false)
@@ -587,14 +766,20 @@ func run_event(event_name):
 # A stage, booster or fairing half lets go: it keeps its place in the world and drifts away tumbling
 func drop_piece(piece, velocity, spin):
 	if piece == null or not is_instance_valid(piece):
-		return
+		return null
 	var place = piece.global_transform
 	var holder = high_world if in_high_shot else pad_world
+	# Tumble around the piece's middle (its center of mass), not around the bottom of the rocket
+	var box = RealRocket.solid_bounds(piece, piece.get_parent().global_transform, null)
+	var pivot = Node3D.new()
+	holder.add_child(pivot)
+	pivot.global_transform = Transform3D(place.basis.orthonormalized(), box.get_center() if box != null else place.origin)
 	piece.get_parent().remove_child(piece)
-	holder.add_child(piece)
+	pivot.add_child(piece)
 	piece.global_transform = place
 	var size = ROCKET_SIZE_HIGH if in_high_shot else pieces["height"] * 0.2
-	falling_pieces.append({"node": piece, "velocity": velocity * size * 0.35, "spin": spin, "age": 0.0})
+	falling_pieces.append({"node": pivot, "velocity": velocity * size * 0.35, "spin": spin, "age": 0.0})
+	return pivot
 
 func update_falling_pieces(delta):
 	for falling in falling_pieces.duplicate():
