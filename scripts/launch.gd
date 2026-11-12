@@ -19,6 +19,8 @@ const MoonSurfaces = preload("res://scripts/moon_surfaces.gd")
 const BeltBuilder = preload("res://scripts/belt_builder.gd")
 const LaunchLiftoff = preload("res://scripts/launch_liftoff.gd")
 const RocketModel = preload("res://scripts/rocket_model.gd")
+const JourneyScenery = preload("res://scripts/journey_scenery.gd")
+const OrbitMath = preload("res://scripts/orbit_math.gd")
 
 @onready var probe = $Probe
 @onready var target_planet = $Target
@@ -52,6 +54,22 @@ var trail_mesh: ImmediateMesh = null
 var trail_points = []
 var flying_to_final_event = false
 
+# The scenery along the way (planets passed, belts) and steering through the belts
+var scenery: Node3D = null
+var path_height = 4.0
+var steer = Vector2.ZERO          # how far the player has steered off the path (sideways, up)
+var rocks_hit = {}
+var next_sight = 0
+var belts_announced = {}
+var caption_label: Label
+var caption_seconds_left = 0.0
+var hit_flash: ColorRect
+const STEER_SPEED = 2.2
+const STEER_LIMIT = 1.4
+const BELT_CROSSING_SECONDS = 14.0   # belts are crossed slowly enough to steer
+const ROCK_STRIKE_SCIENCE = 2
+const MOST_ROCK_STRIKES = 5      # after this many, the probe has learned its lesson (no more science lost)
+
 # How long the whole trip takes on screen, whatever the destination
 const FAST_TRIP_SECONDS = 45.0
 const SLOW_TRIP_SECONDS = 180.0
@@ -73,6 +91,7 @@ func _ready():
 	total_flight_days = max(GameState.trip_years() * 365.25, 0.5)
 	set_up_cruise_extras()
 	build_flight_controls()
+	build_scenery()
 	start_liftoff()
 
 # ---------------------------------------------------------------------------
@@ -134,11 +153,17 @@ func _process(delta):
 		return
 
 	# A mission event pauses the simulation so the player can read it and make a decision.
+	var belt = scenery.belt_at(flight_progress) if scenery else {}
 	if not event_panel.visible:
+		var rate = time_rate_days_per_second
+		if not belt.is_empty() and rate > 0.0:
+			# Slow down through a belt so there's time to steer
+			rate = min(rate, (belt["end"] - belt["start"]) * total_flight_days / BELT_CROSSING_SECONDS)
 		elapsed_flight_days = min(
-			elapsed_flight_days + delta * time_rate_days_per_second,
+			elapsed_flight_days + delta * rate,
 			total_flight_days
 		)
+		steer_through_belt(delta, belt)
 		var new_progress = clamp(elapsed_flight_days / max(total_flight_days, 0.001), 0.0, 1.0)
 		set_flight_progress(new_progress)
 
@@ -151,6 +176,8 @@ func _process(delta):
 				_show_event()
 
 	update_flight_hud()
+	announce_sights()
+	update_caption(delta)
 	place_chase_camera(1.0 - exp(-3.0 * delta))
 
 	# The engine plume is shown during departure and final approach burns.
@@ -165,7 +192,7 @@ func _process(delta):
 
 func flight_direction(progress):
 	var direction = flight_end - FLIGHT_START
-	direction.y = cos(progress * PI) * 4.0 * PI
+	direction.y = cos(progress * PI) * path_height * PI
 	return direction.normalized()
 
 # The camera rides behind and a little to the side of the probe, looking ahead toward the destination
@@ -174,6 +201,8 @@ func place_chase_camera(blend):
 		return
 	var direction = flight_direction(flight_progress)
 	var wanted = probe.position - direction * 2.8 + Vector3(0, 1.0, 1.6)
+	if scenery and not scenery.belt_at(flight_progress).is_empty():
+		wanted = probe.position - direction * 2.4 + Vector3(0, 0.7, 0.5)   # right behind, to see the rocks coming
 	camera.position = camera.position.lerp(wanted, clamp(blend, 0.0, 1.0))
 	var look_point = probe.position.lerp(target_planet.position, 0.3)
 	if camera.position.distance_to(look_point) > 0.01:
@@ -221,8 +250,12 @@ func set_up_target_planet():
 	var sphere_radius = target_planet.mesh.radius if target_planet.mesh is SphereMesh else 1.0
 	target_planet.scale = data.get("shape", Vector3.ONE) * (planet_radius / sphere_radius)
 
-	# Big planets sit farther away so they don't swallow the screen
-	target_planet.position = Vector3(6 + planet_radius, 0, 0)
+	# Big planets sit farther away so they don't swallow the screen, and long trips get a longer path
+	# so there's room for everything you pass on the way
+	var distance_from_sun = GameState.DESTINATIONS.get(destination, {}).get("distance_from_sun_au", 1.0)
+	var extra_length = clamp(log(max(distance_from_sun, 1.0)) / log(2.0) * 8.0, 0.0, 40.0)
+	path_height = 4.0 + extra_length * 0.15
+	target_planet.position = Vector3(6 + planet_radius + extra_length, 0, 0)
 	flight_end = target_planet.position - Vector3(planet_radius + 1.0, 0, 0)
 
 	if destination == "Saturn":
@@ -275,11 +308,21 @@ func progress_at_event(index):
 		return 0.1 + 0.7 * float(index + 1) / float(cruise_count + 1)
 	return 1.0
 
+# A point on the drawn path, and the directions beside and above it
+func path_point(progress):
+	var point = FLIGHT_START.lerp(flight_end, progress)
+	point.y = sin(progress * PI) * path_height   # curved path
+	return point
+
+func path_frame(progress):
+	var forward = flight_direction(progress)
+	var side = forward.cross(Vector3.UP).normalized()
+	return {"forward": forward, "side": side, "up": side.cross(forward).normalized()}
+
 func set_flight_progress(new_progress):
 	flight_progress = new_progress
-	var probe_position = FLIGHT_START.lerp(flight_end, new_progress)
-	probe_position.y = sin(new_progress * PI) * 4.0   # curved path
-	probe.position = probe_position
+	var frame = path_frame(new_progress)
+	probe.position = path_point(new_progress) + frame["side"] * steer.x + frame["up"] * steer.y
 	# Point the rocket's nose the way it's flying (up at first, level at the top of the curve, then down)
 	probe.basis = Basis(Quaternion(Vector3.UP, flight_direction(new_progress)))
 
@@ -289,6 +332,104 @@ func fly_to(target_progress):
 	flying_to_final_event = target_progress >= 0.999   # heading for the arrival: the braking burn comes at the end
 	if target_progress <= flight_progress:
 		_show_event()
+
+# ---------------------------------------------------------------------------
+# Scenery: planets passed, belts to steer through
+# ---------------------------------------------------------------------------
+func build_scenery():
+	scenery = JourneyScenery.new()
+	scenery.name = "JourneyScenery"
+	add_child(scenery)
+	var launch_date = GameState.launch_date if GameState.launch_date > 0.0 else OrbitMath.julian_date_now()
+	scenery.set_up(GameState.destination, launch_date, total_flight_days, path_point, path_frame)
+	var layer = get_node_or_null("CanvasLayer")
+	if layer:
+		hit_flash = ColorRect.new()
+		hit_flash.color = Color(1.0, 0.3, 0.2, 0.0)
+		hit_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hit_flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+		layer.add_child(hit_flash)
+		layer.move_child(hit_flash, 0)
+		caption_label = Label.new()
+		caption_label.add_theme_font_size_override("font_size", 18)
+		caption_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+		caption_label.add_theme_constant_override("outline_size", 7)
+		caption_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		caption_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		caption_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+		caption_label.custom_minimum_size = Vector2(470, 0)
+		caption_label.offset_left = -235
+		caption_label.offset_right = 235
+		caption_label.offset_top = 16
+		layer.add_child(caption_label)
+
+func show_caption(text, seconds = 5.0):
+	if caption_label == null:
+		return
+	caption_label.text = text
+	caption_seconds_left = seconds
+
+func update_caption(delta):
+	if caption_label == null:
+		return
+	caption_seconds_left -= delta
+	caption_label.modulate.a = clamp(caption_seconds_left / 0.8, 0.0, 1.0)
+	if hit_flash:
+		hit_flash.color.a = max(0.0, hit_flash.color.a - delta * 1.5)
+
+# Tells you about each planet as you pass its orbit, and when you enter a belt
+func announce_sights():
+	if scenery == null:
+		return
+	while next_sight < scenery.sights.size() and flight_progress >= scenery.sights[next_sight]["progress"] - 0.04:
+		var sight = scenery.sights[next_sight]
+		var label = SolarSystemData.BODIES[sight["name"]]["label"]
+		if sight["near"]:
+			show_caption("Flying past %s, %s!" % [label, scenery.distance_text(sight["distance_au"])])
+		else:
+			show_caption("Crossing %s's orbit. %s itself is %s, so it looks small from here. Planets rarely line up, which is why launch dates matter." % [label, label, scenery.distance_text(sight["distance_au"])], 7.0)
+		next_sight += 1
+	var belt = scenery.belt_at(flight_progress)
+	if not belt.is_empty() and not belts_announced.has(belt["name"]):
+		belts_announced[belt["name"]] = true
+		if belt["name"] == "Asteroid belt":
+			show_caption("Entering the asteroid belt! Steer with WASD or the arrow keys to dodge the rocks.\n(Real asteroids are about a million km apart, so no probe has ever hit one. This belt is packed tight for the challenge.)", 8.0)
+		else:
+			show_caption("Entering the Kuiper belt: icy leftovers from when the planets formed, out past Neptune. Steer with WASD or the arrow keys!", 7.0)
+
+# Steering inside a belt, and checking for rock strikes. Outside a belt the probe drifts back onto its path.
+func steer_through_belt(delta, belt):
+	if belt.is_empty():
+		steer = steer.move_toward(Vector2.ZERO, delta * 1.5)
+		return
+	var push = Vector2.ZERO
+	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
+		push.x += 1.0
+	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
+		push.x -= 1.0
+	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
+		push.y += 1.0
+	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
+		push.y -= 1.0
+	steer += push * STEER_SPEED * delta
+	if steer.length() > STEER_LIMIT:
+		steer = steer.normalized() * STEER_LIMIT
+	for index in scenery.dodge_rocks.size():
+		if rocks_hit.has(index):
+			continue
+		var rock = scenery.dodge_rocks[index]
+		if probe.position.distance_to(rock[0]) < rock[1] * 1.3 + 0.12:
+			rocks_hit[index] = true
+			if rocks_hit.size() > MOST_ROCK_STRIKES:
+				show_caption("Another rock strike! Luckily it only scraped the probe.", 2.0)
+				if hit_flash:
+					hit_flash.color.a = 0.3
+				continue
+			GameState.science -= ROCK_STRIKE_SCIENCE
+			GameState.mission_log.append({"title": "Rock strike", "text": "A rock hit the probe in the %s. Lost %d science." % [belt["name"].to_lower(), ROCK_STRIKE_SCIENCE], "ok": false})
+			show_caption("Rock strike! Lost %d science." % ROCK_STRIKE_SCIENCE, 2.0)
+			if hit_flash:
+				hit_flash.color.a = 0.45
 
 # ---------------------------------------------------------------------------
 # Mission clock and time controls
@@ -413,6 +554,8 @@ func update_flight_hud():
 		mission_status_label.text += "\nPhase: Arrival / braking"
 
 	mission_progress_bar.value = flight_progress * 100.0
+	if scenery and not scenery.belt_at(flight_progress).is_empty():
+		mission_status_label.text += "\nIn the %s: steer with WASD / arrows" % scenery.belt_at(flight_progress)["name"].to_lower()
 
 
 func remove_choice_buttons():

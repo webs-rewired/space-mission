@@ -5,6 +5,8 @@ extends RefCounted
 # Same shapes and real sizes as the rocket builder (1 unit = 1 meter; tank heights come from how much fuel they hold).
 
 const RocketData = preload("res://scripts/rocket_data.gd")
+const GIANT_BOOSTER_SCENE = "res://scenes/parts/giant_booster.tscn"
+const SHUTTLE_BOOSTER_LENGTH = 45.24   # meters, nozzle to nose
 const FLAME_SHADER = """
 shader_type spatial;
 render_mode unshaded, blend_add, cull_disabled, depth_draw_never;
@@ -27,6 +29,26 @@ void fragment() {
 """
 
 static var flame_shader: Shader = null
+
+# NASA's Shuttle booster model, standing up with its nozzle at y = 0 and 1 unit = 1 meter.
+# Uses scenes/parts/giant_booster.tscn, or finds solid_rocket_booster.glb anywhere in the project. Null if it's missing.
+static func load_giant_booster():
+	if ResourceLoader.exists(GIANT_BOOSTER_SCENE):
+		var booster_scene = load(GIANT_BOOSTER_SCENE)
+		if booster_scene is PackedScene:
+			var booster = booster_scene.instantiate()
+			if booster.get_child_count() > 0:
+				return booster
+			booster.free()
+	var path = preload("res://scripts/spacecraft.gd").find_model("solid_rocket_booster.glb")
+	if path == "" or not load(path) is PackedScene:
+		return null
+	var holder = Node3D.new()
+	var model = load(path).instantiate()
+	# The model lies along x in inches: stand it up and turn inches into meters
+	model.transform = Transform3D(Basis(Vector3(0, 0, 1), PI / 2.0).scaled(Vector3.ONE * 0.0254), Vector3(0, SHUTTLE_BOOSTER_LENGTH / 2.0, 0))
+	holder.add_child(model)
+	return holder
 
 static func make_material(color, metallic = 0.0, roughness = 0.55):
 	var material = StandardMaterial3D.new()
@@ -80,6 +102,16 @@ static func add_engines(parent, count, tank_radius, bottom_y, bell_height):
 	var spots = []
 	if count == 1:
 		spots.append(Vector2.ZERO)
+	elif count >= 13:
+		# Super Heavy style: 3 in the middle, 10 in an inner ring, the rest around the edge
+		bell_radius = clamp(tank_radius * 3.1 / count, 0.3, 1.3)
+		for index in 3:
+			spots.append(Vector2(cos(TAU * index / 3.0), sin(TAU * index / 3.0)) * tank_radius * 0.12)
+		for index in 10:
+			spots.append(Vector2(cos(TAU * index / 10.0), sin(TAU * index / 10.0)) * tank_radius * 0.45)
+		var outer = count - 13
+		for index in outer:
+			spots.append(Vector2(cos(TAU * index / outer), sin(TAU * index / outer)) * tank_radius * 0.85)
 	else:
 		var ring = count
 		if count >= 7:
@@ -180,17 +212,24 @@ static func build(rocket):
 	var booster = RocketData.BOOSTERS[rocket["boosters"]]
 	pieces["booster_count"] = booster["count"]
 	for index in booster["count"]:
-		var angle = TAU * index / booster["count"] + PI / 4.0
+		# Two boosters sit on opposite sides (like SLS, lined up with the launch tower's hold-down posts); four go diagonally
+		var angle = TAU * index / booster["count"] + (PI / 2.0 if booster["count"] == 2 else PI / 4.0)
 		var distance_from_center = bottom_radius + booster["radius"] + 0.15
 		var holder = Node3D.new()
 		holder.name = "Booster%d" % (index + 1)
 		holder.position = Vector3(cos(angle) * distance_from_center, 0, sin(angle) * distance_from_center)
 		root.add_child(holder)
 		var booster_height = booster["height"]
-		add_cylinder(holder, booster["radius"], booster["radius"], booster_height, Vector3(0, 3.0 + booster_height / 2.0, 0), white)
-		add_cylinder(holder, booster["radius"] + 0.04, booster["radius"] + 0.04, 0.5, Vector3(0, 3.0 + booster_height * 0.7, 0), dark)
-		add_ogive(holder, booster["radius"], booster["radius"] * 3.0, 3.0 + booster_height, Vector3.ZERO, white)
-		add_cylinder(holder, booster["radius"] * 0.5, booster["radius"] * 0.9, 2.2, Vector3(0, 1.9, 0), make_material(Color(0.3, 0.3, 0.32), 0.9, 0.35))
+		var real_booster = load_giant_booster() if rocket["boosters"] == "giant_boosters_2" else null
+		if real_booster != null:
+			# NASA's 3D model of the Space Shuttle booster (45.2 m), stretched to SLS's 5-segment length
+			real_booster.scale = Vector3(1.0, booster_height / SHUTTLE_BOOSTER_LENGTH, 1.0)
+			holder.add_child(real_booster)
+		else:
+			add_cylinder(holder, booster["radius"], booster["radius"], booster_height, Vector3(0, 3.0 + booster_height / 2.0, 0), white)
+			add_cylinder(holder, booster["radius"] + 0.04, booster["radius"] + 0.04, 0.5, Vector3(0, 3.0 + booster_height * 0.7, 0), dark)
+			add_ogive(holder, booster["radius"], booster["radius"] * 3.0, 3.0 + booster_height, Vector3.ZERO, white)
+			add_cylinder(holder, booster["radius"] * 0.5, booster["radius"] * 0.9, 2.2, Vector3(0, 1.9, 0), make_material(Color(0.3, 0.3, 0.32), 0.9, 0.35))
 		var flame = make_flame()
 		flame.position = Vector3(0, 0.8, 0)
 		flame.scale = Vector3(booster["radius"] * 0.95, 18.0, booster["radius"] * 0.95)

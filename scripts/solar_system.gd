@@ -178,4 +178,7 @@ func fit_panel():
 
 func _on_mission_pressed():
 	GameState.destination = selected_planet
+	# Launch on the date showing in the solar system: the planets' real positions then decide what you fly past
+	if bodies_node and "julian_date" in bodies_node:
+		GameState.launch_date = bodies_node.julian_date
 	get_tree().change_scene_to_file(PROBE_BUILDER_SCENE)

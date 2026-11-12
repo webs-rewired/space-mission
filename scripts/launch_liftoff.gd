@@ -51,7 +51,9 @@ var smoke: CPUParticles3D
 
 var timeline = []              # [real mission seconds, event name], in order
 var next_event = 0
-var mission_seconds = -3.0     # real mission time: starts at T-3 for the countdown
+var mission_seconds = -10.0    # real mission time: starts at T-10 for the countdown
+const COUNTDOWN_TIME_SPEED = 2.0 # the countdown runs twice as fast as real time
+const IGNITION_SECONDS = -3.0    # engines light 3 seconds before liftoff (like a Falcon 9)
 var compression = 18.0
 var in_high_shot = false
 var flames_on = {"booster": false, "bottom": false, "top": false}
@@ -69,6 +71,13 @@ var final_speed = 11.0
 var liftoff_acceleration = 4.0
 var finished_sent = false
 var travel_angle = 0.0
+var tower: Node3D
+var tower_arm: Node3D
+var engine_light: OmniLight3D
+var shake = 0.0                # camera shake strength
+var reusable_booster = false   # Falcon 9 and Starship boosters fly back to land
+var booster_flip: Node3D = null
+var booster_flip_seconds = 0.0
 
 var caption: Label
 var caption_seconds_left = 0.0
@@ -127,7 +136,12 @@ func work_out_timeline():
 	liftoff_acceleration = GRAVITY * (clamp(report["liftoff_thrust_to_weight"], 1.15, 3.0) - 1.0)
 	compression = max(12.0, (escape_end_seconds + 3.0 - PAD_SHOT_SECONDS) / HIGH_SHOT_GAME_SECONDS)
 
-	timeline = [[0.0, "liftoff"]]
+	reusable_booster = rocket["bottom_engine"] in ["merlin", "raptor"]
+	# Mach 1 comes first, then Max-Q a few seconds later (Falcon 9: about T+1:02 and T+1:12)
+	var mach_one_seconds = time_when_speed_reaches(0.3)
+	timeline = [[0.0, "liftoff"], [mach_one_seconds, "mach1"], [max(time_when_altitude_reaches(12.0), mach_one_seconds + 8.0), "maxq"]]
+	if reusable_booster:
+		timeline.append([main_engine_cutoff_seconds + 20.0, "boostback"])
 	if booster_seconds > 0.0:
 		timeline.append([booster_seconds, "boosters"])
 	timeline.append([main_engine_cutoff_seconds, "cutoff"])
@@ -138,6 +152,19 @@ func work_out_timeline():
 	timeline.append([escape_start_seconds, "escape"])
 	timeline.append([escape_end_seconds, "probe"])
 	timeline.sort_custom(func(first, second): return first[0] < second[0])
+
+# When the shown speed (km/s) or altitude (km) first reaches a value, in mission seconds
+func time_when_speed_reaches(speed):
+	var seconds = 0.0
+	while seconds < main_engine_cutoff_seconds and shown_speed(seconds) < speed:
+		seconds += 1.0
+	return seconds
+
+func time_when_altitude_reaches(altitude):
+	var seconds = 0.0
+	while seconds < main_engine_cutoff_seconds and shown_altitude(seconds) < altitude:
+		seconds += 1.0
+	return seconds
 
 # ---------------------------------------------------------------------------
 # Building the two views
@@ -181,6 +208,13 @@ func build_pad_world():
 	sun.rotation_degrees = Vector3(-40, 35, 0)
 	sun.light_energy = 1.3
 	add_child(sun)
+
+	# The engines' glow lights up the pad and the clouds of steam
+	engine_light = OmniLight3D.new()
+	engine_light.light_color = Color(1.0, 0.65, 0.3)
+	engine_light.light_energy = 0.0
+	engine_light.omni_range = 120.0
+	add_child(engine_light)
 
 	# Clouds of exhaust and steam billowing out from the pad
 	smoke = CPUParticles3D.new()
@@ -269,9 +303,83 @@ func build_rocket():
 	rocket_root = Node3D.new()
 	add_child(rocket_root)
 	rocket_root.add_child(pieces["root"])
+	build_tower()
 	set_flames("booster", false)
 	set_flames("bottom", false)
 	set_flames("top", false)
+
+# The launch tower beside the rocket, with an access arm that swings away before liftoff
+func build_tower():
+	tower = Node3D.new()
+	pad_world.add_child(tower)
+	var steel = RocketModel.make_material(Color(0.55, 0.3, 0.22), 0.6, 0.5)
+	var height = pieces["height"] * 1.05
+	var side = -(pieces["width"] * 0.5 + 9.0)
+	for corner_x in [-2.0, 2.0]:
+		for corner_z in [-2.0, 2.0]:
+			var post = MeshInstance3D.new()
+			var post_mesh = BoxMesh.new()
+			post_mesh.size = Vector3(0.5, height, 0.5)
+			post.mesh = post_mesh
+			post.material_override = steel
+			post.position = Vector3(side + corner_x, height / 2.0, corner_z)
+			tower.add_child(post)
+	var level = 8.0
+	while level < height:
+		var floor_box = MeshInstance3D.new()
+		var floor_mesh = BoxMesh.new()
+		floor_mesh.size = Vector3(4.6, 0.35, 4.6)
+		floor_box.mesh = floor_mesh
+		floor_box.material_override = steel
+		floor_box.position = Vector3(side, level, 0)
+		tower.add_child(floor_box)
+		level += 8.0
+	# The arm pivots at the tower, so it can swing away
+	tower_arm = Node3D.new()
+	tower_arm.position = Vector3(side + 2.0, height * 0.85, 0)
+	tower.add_child(tower_arm)
+	var arm_length = abs(side) - 2.0 - pieces["width"] * 0.45
+	var arm = MeshInstance3D.new()
+	var arm_mesh = BoxMesh.new()
+	arm_mesh.size = Vector3(arm_length, 1.2, 1.6)
+	arm.mesh = arm_mesh
+	arm.material_override = steel
+	arm.position = Vector3(arm_length / 2.0, 0, 0)
+	tower_arm.add_child(arm)
+
+# A quick white puff where pieces let go (small separation thrusters and springs)
+func separation_puff(place):
+	var puff = CPUParticles3D.new()
+	puff.one_shot = true
+	puff.explosiveness = 0.9
+	puff.amount = 40
+	puff.lifetime = 1.2
+	puff.spread = 180.0
+	puff.initial_velocity_min = ROCKET_SIZE_HIGH * 0.2
+	puff.initial_velocity_max = ROCKET_SIZE_HIGH * 0.5
+	puff.gravity = Vector3.ZERO
+	puff.damping_min = 2.0
+	puff.damping_max = 3.0
+	puff.scale_amount_min = ROCKET_SIZE_HIGH * 0.02
+	puff.scale_amount_max = ROCKET_SIZE_HIGH * 0.05
+	var dot = QuadMesh.new()
+	var dot_material = StandardMaterial3D.new()
+	dot_material.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	dot_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	dot_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dot_material.albedo_texture = soft_dot_texture()
+	dot_material.albedo_color = Color(1, 1, 1, 0.8)
+	dot_material.vertex_color_use_as_albedo = true
+	dot.material = dot_material
+	puff.mesh = dot
+	var fade_out = Gradient.new()
+	fade_out.set_color(0, Color(1, 1, 1, 0.9))
+	fade_out.set_color(1, Color(1, 1, 1, 0.0))
+	puff.color_ramp = fade_out
+	high_world.add_child(puff)
+	puff.global_position = place
+	puff.emitting = true
+	get_tree().create_timer(2.0).timeout.connect(puff.queue_free)
 
 func build_screen():
 	var layer = CanvasLayer.new()
@@ -287,9 +395,11 @@ func build_screen():
 	caption.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	caption.add_theme_constant_override("outline_size", 8)
 	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	caption.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	caption.position.y = 70
-	caption.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # long captions wrap instead of running off the screen
+	caption.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	caption.offset_left = 120
+	caption.offset_right = -120
+	caption.offset_top = 60
 	layer.add_child(caption)
 	telemetry = Label.new()
 	telemetry.add_theme_font_size_override("font_size", 18)
@@ -313,7 +423,7 @@ func build_screen():
 func _process(delta):
 	if finished_sent:
 		return
-	var time_speed = 1.0
+	var time_speed = COUNTDOWN_TIME_SPEED
 	if mission_seconds >= 0.0:
 		time_speed = PAD_SHOT_TIME_SPEED if mission_seconds < PAD_SHOT_SECONDS else compression
 	var before = mission_seconds
@@ -323,10 +433,20 @@ func _process(delta):
 		var count_now = ceil(-mission_seconds)
 		if count_now < count_before and count_now > 0:
 			show_caption(str(int(count_now)))
-		if before < -1.0 and mission_seconds >= -1.0:
-			set_flames("bottom", true)       # engines light just before liftoff
+		if before < -6.0 and mission_seconds >= -6.0:
+			show_caption("Access arm retracting")
+		if before < IGNITION_SECONDS and mission_seconds >= IGNITION_SECONDS:
+			show_caption("Ignition!")
+			set_flames("bottom", true)       # main engines light 3 seconds before liftoff
 			set_flames("booster", false)
 			smoke.emitting = true
+	if tower_arm:
+		tower_arm.rotation.y = -deg_to_rad(80.0) * smoothstep(-6.0, -4.0, mission_seconds)
+	if flames_on["bottom"] or flames_on["booster"]:
+		engine_light.light_energy = 6.0 * (1.0 + randf_range(-0.15, 0.15)) if not in_high_shot else 0.0
+		shake = max(shake, 0.6 if mission_seconds < 6.0 else 0.25)
+	else:
+		engine_light.light_energy = 0.0
 	while next_event < timeline.size() and mission_seconds >= timeline[next_event][0]:
 		run_event(timeline[next_event][1])
 		next_event += 1
@@ -337,13 +457,33 @@ func _process(delta):
 	else:
 		update_pad_shot()
 	update_falling_pieces(delta)
+	update_booster_flip(delta)
 	flicker_flames()
+	apply_shake(delta)
 	update_screen(delta)
 	if mission_seconds >= escape_end_seconds + 2.5 * compression:
 		finish()
 
+# The camera rumbles while the engines roar, most of all at liftoff and at Max-Q
+func apply_shake(delta):
+	if shake > 0.0:
+		camera.h_offset = randf_range(-1.0, 1.0) * shake * 0.04
+		camera.v_offset = randf_range(-1.0, 1.0) * shake * 0.04
+		shake = max(0.0, shake - delta * 0.8)
+	else:
+		camera.h_offset = 0.0
+		camera.v_offset = 0.0
+
+# A Falcon 9 (or Starship) booster flips around and fires its engines to fly back and land
+func update_booster_flip(delta):
+	if booster_flip == null or not is_instance_valid(booster_flip):
+		return
+	booster_flip_seconds += delta
+	booster_flip.rotate_z(delta * 1.6 if booster_flip_seconds < 1.8 else 0.0)
+
 func update_pad_shot():
 	var seconds = max(mission_seconds, 0.0)
+	engine_light.position = rocket_root.position + Vector3(0, 2.0, 0)
 	# Climbing faster and faster as it burns fuel and gets lighter
 	var height = 0.5 * liftoff_acceleration * seconds * seconds * (1.0 + seconds / 60.0)
 	rocket_root.position = Vector3(0, height, 0)
@@ -352,6 +492,10 @@ func update_pad_shot():
 	var distance = rocket_height * 1.6 + 60.0
 	camera.position = Vector3(-distance * 0.8, 3.0, distance * 0.6)
 	var look_point = rocket_root.position + Vector3(0, rocket_height * 0.45, 0)
+	if mission_seconds < 2.0:
+		# Close-up of the engines lighting, then cut to the wide shot as it clears the tower
+		camera.position = Vector3(pieces["width"] * 2.5 + 8.0, 2.5, pieces["width"] * 3.0 + 14.0)
+		look_point = rocket_root.position + Vector3(0, rocket_height * 0.18, 0)
 	camera.look_at(look_point, Vector3.UP)
 	var away = camera.position.distance_to(look_point)
 	camera.fov = clamp(rad_to_deg(2.0 * atan(rocket_height * 0.9 / away)), 3.0, 55.0)
@@ -388,11 +532,24 @@ func update_high_shot(delta, mission_delta):
 func run_event(event_name):
 	match event_name:
 		"liftoff":
-			show_caption("Liftoff!")
+			show_caption("Liftoff! The rocket has cleared the tower.")
 			set_flames("booster", true)
+		"mach1":
+			show_caption("Mach 1: faster than the speed of sound")
+		"maxq":
+			show_caption("Max-Q: the moment the air pushes hardest on the rocket")
+			shake = max(shake, 0.5)
+		"boostback":
+			if booster_flip and is_instance_valid(booster_flip):
+				show_caption("Boostback: the booster flips around to fly home and land")
+				for flame in pieces.get("bottom_flames", []):
+					if is_instance_valid(flame):
+						flame.visible = true
 		"boosters":
 			show_caption("Booster separation")
 			set_flames("booster", false)
+			for booster in pieces["boosters"]:
+				separation_puff(booster.global_position + Vector3(0, ROCKET_SIZE_HIGH * 0.3, 0))
 			for booster in pieces["boosters"]:
 				var outward = Vector3(booster.position.x, 0, booster.position.z).normalized()
 				drop_piece(booster, outward * 1.2 + Vector3(-1.5, -0.6, 0), Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)) * 0.6)
@@ -402,12 +559,17 @@ func run_event(event_name):
 			set_flames("booster", false)
 		"separation":
 			show_caption("Stage separation")
+			separation_puff(pieces["top"].global_position)
 			drop_piece(pieces["bottom"], Vector3(-2.5, -0.8, 0), Vector3(0, 0, 0.35))
+			if reusable_booster:
+				booster_flip = pieces["bottom"]
+				booster_flip_seconds = 0.0
 		"top_ignition":
 			show_caption("Top stage ignition")
 			set_flames("top", true)
 		"fairing":
 			show_caption("Fairing separation: there's your probe!")
+			separation_puff(pieces["payload"].global_position)
 			for half_index in pieces["fairing"].size():
 				var side = 1.0 if half_index == 0 else -1.0
 				drop_piece(pieces["fairing"][half_index], Vector3(-1.0, -0.2, side * 2.0), Vector3(side * 0.8, 0, 0))

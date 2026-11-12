@@ -112,6 +112,7 @@ const TANKS = {
 	"hydrogen_900": {"name": "Hydrogen tank, 900 t (like SLS's core)", "fuel": "hydrogen", "propellant": 900000, "empty_mass": 85000, "cost": 200, "radius": 4.2},
 	"methane_150": {"name": "Methane tank, 150 t", "fuel": "methane", "propellant": 150000, "empty_mass": 9000, "cost": 10, "radius": 4.5},
 	"methane_1200": {"name": "Methane tank, 1,200 t (like Starship)", "fuel": "methane", "propellant": 1200000, "empty_mass": 80000, "cost": 40, "radius": 4.5},
+	"methane_3400": {"name": "Methane tank, 3,400 t (like Super Heavy)", "fuel": "methane", "propellant": 3400000, "empty_mass": 200000, "cost": 60, "radius": 4.5},
 }
 
 # Solid boosters burn alongside the bottom stage and drop off when empty
@@ -137,6 +138,85 @@ const STARTING_ROCKETS = {
 		"top_engine": "merlin_vacuum", "top_engine_count": 1, "top_tank": "kerosene_100", "kick_stage": "none"},
 	"atlas5": {"bottom_engine": "rd180", "bottom_engine_count": 1, "bottom_tank": "kerosene_250", "boosters": "small_boosters_4",
 		"top_engine": "rl10", "top_engine_count": 1, "top_tank": "hydrogen_21", "kick_stage": "none"},
+	"atlas5_star48": {"bottom_engine": "rd180", "bottom_engine_count": 1, "bottom_tank": "kerosene_250", "boosters": "small_boosters_4",
+		"top_engine": "rl10", "top_engine_count": 1, "top_tank": "hydrogen_21", "kick_stage": "star48"},
 	"sls": {"bottom_engine": "rs25", "bottom_engine_count": 4, "bottom_tank": "hydrogen_900", "boosters": "giant_boosters_2",
 		"top_engine": "rl10", "top_engine_count": 1, "top_tank": "hydrogen_21", "kick_stage": "none"},
+	"starship": {"bottom_engine": "raptor", "bottom_engine_count": 33, "bottom_tank": "methane_3400", "boosters": "none",
+		"top_engine": "raptor_vacuum", "top_engine_count": 3, "top_tank": "methane_1200", "kick_stage": "none"},
 }
+
+# The real rockets behind the starting points, for the briefing and the 3D view.
+# "model" is a 3D model file anywhere in the project (shown when your design matches); "height" is the real height in meters.
+const REAL_ROCKETS = {
+	"falcon9": {"name": "Falcon 9", "menu": "Falcon 9 (SpaceX)", "height": 70.0, "model": "falcon9.glb",
+		"facts": "SpaceX's workhorse, flying since 2010 and now launching every few days. Its first stage flies back and lands on a ship or at Cape Canaveral, and some boosters have flown more than 25 times. It launched NASA's DART asteroid mission and carries astronauts to the Space Station."},
+	"atlas5": {"name": "Atlas V 541", "menu": "Atlas V 541 (Curiosity, Perseverance)", "height": 58.3, "model": "atlas_v.glb",
+		"facts": "United Launch Alliance's Atlas V, flying since 2002 and one of the most reliable rockets ever built. This version, with 4 solid boosters, sent the Curiosity and Perseverance rovers to Mars. Other Atlas Vs launched Juno, OSIRIS-REx and Lucy."},
+	"atlas5_star48": {"name": "Atlas V 551 + Star 48B", "menu": "Atlas V + Star 48B kick stage (New Horizons)", "height": 62.2, "model": "atlas_v.glb",
+		"facts": "In January 2006 an Atlas V with 5 solid boosters (you get 4 here) and a Star 48B kick stage threw New Horizons off Earth at 16.26 km/s, the fastest launch ever at the time. It crossed the Moon's orbit in 9 hours and reached Pluto in 2015."},
+	"sls": {"name": "SLS Block 1", "menu": "SLS (NASA's Moon rocket)", "height": 98.0, "model": "sls.glb", "turn_degrees": 90.0,
+		"facts": "NASA's Space Launch System, the rocket of the Artemis Moon missions. Its orange core stage carries 4 RS-25 engines that flew on the Space Shuttle, and its two 5-segment boosters are stretched Shuttle boosters. Artemis I in November 2022 sent an uncrewed Orion around the Moon. Each SLS is thrown away after one flight."},
+	"starship": {"name": "Starship", "menu": "Starship (SpaceX)", "height": 121.0, "model": "starship.glb",
+		"facts": "The biggest and most powerful rocket ever flown, first launched in 2023. The Super Heavy booster has 33 Raptor engines and is caught by the launch tower's giant arms when it comes back. The ship on top has 6 Raptors (3 made for space, which you get here). Both halves are built to fly again and again."},
+}
+
+# Real-world facts shown under each choice: "like" is where it flies for real, "about" is the detail in plain words
+const PART_FACTS = {
+	"merlin": {"like": "Falcon 9's first stage uses 9", "about": "SpaceX's kerosene engine. Cheap, and it relights in flight so the booster can fly itself back and land. 845 kN each, about the push of 3 jumbo jet engines."},
+	"rd180": {"like": "Atlas V's first stage uses 1", "about": "Built in Russia, with two combustion chambers fed by one huge pump. 3,830 kN from a single engine, but no backup if it fails."},
+	"rs25": {"like": "SLS uses 4, the Space Shuttle used 3", "about": "Burns liquid hydrogen, the most efficient fuel for a big engine (452 s in space). Most of the engines flying on SLS today flew on the Space Shuttle first. Very expensive."},
+	"raptor": {"like": "Starship's Super Heavy booster uses 33", "about": "Burns methane, which could one day be made on Mars from water and carbon dioxide. Strong, cheap and reusable."},
+	"merlin_vacuum": {"like": "Falcon 9's top stage uses 1", "about": "A Merlin with a giant 3.3 m nozzle that only works in the vacuum of space. 981 kN. Thrown away after every flight."},
+	"rl10": {"like": "Centaur (Atlas V, Vulcan) and SLS's top stage", "about": "First flew in the early 1960s and still flying. Burns hydrogen, so it gets the most speed out of its fuel (465 s), but it's gentle: 110 kN, about the weight of 11 tonnes."},
+	"raptor_vacuum": {"like": "Starship's ship uses 3", "about": "A Raptor with a big nozzle made for space. 2,500 kN and 378 s: powerful and efficient, but it needs huge methane tanks."},
+	"kerosene_30": {"like": "A small first or top stage", "about": "30 t of kerosene and liquid oxygen. Kerosene is dense, so the tank stays short and light."},
+	"kerosene_100": {"like": "Falcon 9's top stage holds about 110 t", "about": "Kerosene is basically very pure jet fuel. It stays liquid at room temperature, so it's easy to handle."},
+	"kerosene_250": {"like": "Atlas V's core holds about 284 t", "about": "A big kerosene core, 32.5 m tall on Atlas V. Bigger tanks mean more speed, but more weight to lift off the pad."},
+	"kerosene_400": {"like": "Falcon 9's first stage holds about 410 t", "about": "Falcon 9 chills its propellant extra cold so more fits in the tank."},
+	"hydrogen_21": {"like": "Centaur holds about 21 t", "about": "Centaur's tank walls are so thin that it has to stay pressurized or it would collapse, like a balloon."},
+	"hydrogen_60": {"like": "A large hydrogen top stage", "about": "Liquid hydrogen is −253 °C and so light that a tonne of it fills 14 cubic meters, so hydrogen tanks are huge."},
+	"hydrogen_900": {"like": "SLS's core stage holds about 990 t", "about": "65 m tall. The orange color is bare spray-on foam that keeps the −253 °C hydrogen from boiling away. Hydrogen leaks delayed Artemis I for months."},
+	"methane_150": {"like": "A mid-size methane stage", "about": "Methane is −162 °C as a liquid: much easier to keep cold than hydrogen, and it burns cleaner than kerosene."},
+	"methane_1200": {"like": "Starship's ship holds about 1,200 t", "about": "Built from shiny stainless steel instead of carbon fiber or aluminum: cheap, and it gets stronger when it's super cold."},
+	"methane_3400": {"like": "Super Heavy holds about 3,400 t", "about": "71 m tall and 9 m wide, the biggest rocket stage ever flown."},
+	"none": {"like": "Falcon 9 and Starship fly without them", "about": "Simpler and cheaper, but all the liftoff push has to come from the bottom stage's engines."},
+	"small_boosters_2": {"like": "GEM 63 boosters on Atlas V", "about": "Northrop Grumman solid rockets, 1,660 kN each. They burn for about 94 seconds, then drop into the ocean. A solid rocket can't be turned off once lit."},
+	"small_boosters_4": {"like": "Atlas V 541 used 4 (Curiosity, Perseverance)", "about": "Four solid boosters for a much stronger liftoff. Each burns about 94 seconds, then falls away."},
+	"giant_boosters_2": {"like": "SLS's two 5-segment boosters", "about": "Space Shuttle boosters with one extra segment, the most powerful boosters ever flown. 16,000 kN each, as much push as 16 jumbo jets. They burn for about 2 minutes and fall into the Atlantic."},
+	"no_kick": {"like": "Most missions to the Moon, Mars and Venus", "about": "The top stage alone gives the final push."},
+	"star48": {"like": "New Horizons, and Parker Solar Probe used a Star 48BV", "about": "A 2 m long solid motor on top of the top stage. It fires for about 85 seconds and gives a light probe a big extra kick toward faraway worlds."},
+}
+
+# The order the dropdowns list the starting rockets in
+const STARTING_ROCKET_ORDER = ["falcon9", "atlas5", "atlas5_star48", "sls", "starship"]
+
+# When each part of the climb happens, in seconds after liftoff (same math as the launch scene)
+static func flight_plan(rocket, report):
+	var bottom_engine = ENGINES[rocket["bottom_engine"]]
+	var bottom_tank = TANKS[rocket["bottom_tank"]]
+	var top_engine = ENGINES[rocket["top_engine"]]
+	var top_tank = TANKS[rocket["top_tank"]]
+	var booster = BOOSTERS[rocket["boosters"]]
+	# Fuel used per second = thrust / (Isp × g)
+	var core_isp = (bottom_engine["isp_sea_level"] + bottom_engine["isp_vacuum"]) / 2.0
+	var core_fuel_per_second = bottom_engine["thrust_sea_level"] * 1000.0 * rocket["bottom_engine_count"] / (core_isp * GRAVITY)
+	var plan = {"booster_burnout": 0.0}
+	plan["main_engine_cutoff"] = clamp(bottom_tank["propellant"] / core_fuel_per_second, 60.0, 600.0)
+	if booster["count"] > 0:
+		var booster_fuel_per_second = booster["thrust_each"] * 1000.0 / (booster["isp"] * GRAVITY)
+		plan["booster_burnout"] = min(booster["propellant_each"] / booster_fuel_per_second, plan["main_engine_cutoff"] - 8.0)
+	var top_fuel_per_second = top_engine["thrust_vacuum"] * 1000.0 * rocket["top_engine_count"] / (top_engine["isp_vacuum"] * GRAVITY)
+	var top_burn_seconds = top_tank["propellant"] / top_fuel_per_second
+	var still_needed = max(9400.0 - report["bottom_stage_speed"], 300.0)
+	var share_to_orbit = clamp(still_needed / max(report["top_stage_speed"], 1.0), 0.1, 0.9)
+	plan["top_ignition"] = plan["main_engine_cutoff"] + 7.0
+	plan["orbit"] = plan["main_engine_cutoff"] + 8.0 + max(30.0, top_burn_seconds * share_to_orbit)
+	plan["fairing"] = min(clamp(plan["main_engine_cutoff"] + 40.0, 150.0, 230.0), plan["orbit"] - 10.0)
+	plan["escape_start"] = plan["orbit"] + 60.0
+	plan["escape_end"] = plan["escape_start"] + clamp(top_burn_seconds * (1.0 - share_to_orbit), 40.0, 400.0)
+	var kick = KICK_STAGES[rocket["kick_stage"]]
+	plan["kick_end"] = plan["escape_end"]
+	if kick.has("propellant"):
+		plan["kick_end"] = plan["escape_end"] + 30.0 + 85.0   # spin up, then a Star 48B burns about 85 seconds
+	return plan

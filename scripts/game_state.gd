@@ -29,6 +29,9 @@ var choices = {
 	"thermal": "thermal_heaters",
 }
 var instruments = ["instrument_camera"]
+# The date the mission launches (a Julian date), taken from the solar system's clock when you press
+# "Send a mission". 0 means "today". The planets' real positions on that date decide what you fly past.
+var launch_date: float = 0.0
 
 # ---------------------------------------------------------------------------
 # Game data: real spacecraft parts and numbers (see each part's "like" for the real mission it comes from)
