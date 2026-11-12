@@ -746,7 +746,7 @@ func run_event(event_name):
 				drop_piece(pieces["fairing"][0], Vector3(2.5, 1.2, 0.4), Vector3(0, 0, 0.6))
 			else:
 				show_caption(pieces.get("fairing_caption", "Fairing separation: there's your probe!"))
-				separation_puff(pieces["payload"].global_position)
+				pieces["payload"].visible = true   # (no puff here: it would hide the probe)
 				for half_index in pieces["fairing"].size():
 					# The two halves split apart like a clamshell (sideways from the rocket, across the view) and fall behind
 					var side = -1.0 if half_index == 0 else 1.0
@@ -802,16 +802,17 @@ func set_flames(group, on):
 		if is_instance_valid(flame):
 			flame.visible = on
 
-# Flames flicker, and spread out wide in the near-vacuum of space
+# Flames flicker, and spread out wide and faint as the air thins (fully by about 70 km up)
 func flicker_flames():
-	var spread = 2.2 if in_high_shot else 1.0
+	var thin_air = smoothstep(12.0, 70.0, shown_altitude(mission_seconds)) if in_high_shot else 0.0
 	for group in ["booster", "bottom", "top"]:
 		for flame in pieces.get(group + "_flames", []):
 			if is_instance_valid(flame) and flame.visible:
 				var base = flame.get_meta("base_scale", flame.scale)
 				flame.set_meta("base_scale", base)
 				var wobble = 1.0 + randf_range(-0.06, 0.06)
-				flame.scale = Vector3(base.x * spread, base.y * wobble * (1.3 if in_high_shot else 1.0), base.z * spread)
+				flame.scale = Vector3(base.x, base.y * wobble * (1.0 + thin_air * 0.4), base.z)
+				RocketModel.set_flame_vacuum(flame, thin_air)
 
 # What the screen shows: the altitude and speed follow a typical climb shaped by your rocket's design
 func shown_altitude(seconds):

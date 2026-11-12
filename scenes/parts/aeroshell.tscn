@@ -1,0 +1,60 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="heat_shield_material"]
+albedo_color = Color(0.12, 0.09, 0.07, 1)
+roughness = 0.95
+
+[sub_resource type="StandardMaterial3D" id="backshell_material"]
+albedo_color = Color(0.86, 0.86, 0.84, 1)
+metallic = 0.35
+roughness = 0.45
+
+[sub_resource type="StandardMaterial3D" id="cruise_stage_material"]
+albedo_color = Color(0.08, 0.1, 0.2, 1)
+metallic = 0.6
+roughness = 0.3
+
+[sub_resource type="CylinderMesh" id="heat_shield_mesh"]
+top_radius = 2.25
+bottom_radius = 0.35
+height = 0.85
+radial_segments = 64
+
+[sub_resource type="CylinderMesh" id="backshell_mesh"]
+top_radius = 1.05
+bottom_radius = 2.25
+height = 1.7
+radial_segments = 64
+
+[sub_resource type="CylinderMesh" id="parachute_cone_mesh"]
+top_radius = 0.55
+bottom_radius = 1.05
+height = 0.45
+radial_segments = 48
+
+[sub_resource type="CylinderMesh" id="cruise_stage_mesh"]
+top_radius = 2.0
+bottom_radius = 2.0
+height = 0.35
+radial_segments = 64
+
+[node name="Aeroshell" type="Node3D"]
+
+[node name="HeatShield" type="MeshInstance3D" parent="."]
+mesh = SubResource("heat_shield_mesh")
+surface_material_override/0 = SubResource("heat_shield_material")
+
+[node name="Backshell" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.275, 0)
+mesh = SubResource("backshell_mesh")
+surface_material_override/0 = SubResource("backshell_material")
+
+[node name="ParachuteCone" type="MeshInstance3D" parent="Backshell"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.075, 0)
+mesh = SubResource("parachute_cone_mesh")
+surface_material_override/0 = SubResource("backshell_material")
+
+[node name="CruiseStage" type="MeshInstance3D" parent="Backshell"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.475, 0)
+mesh = SubResource("cruise_stage_mesh")
+surface_material_override/0 = SubResource("cruise_stage_material")

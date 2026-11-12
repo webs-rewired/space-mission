@@ -1,0 +1,64 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="airbag_material"]
+albedo_color = Color(0.86, 0.82, 0.7, 1)
+roughness = 0.9
+
+[sub_resource type="SphereMesh" id="airbag_mesh"]
+radius = 0.95
+height = 1.9
+radial_segments = 32
+rings = 16
+
+[node name="Airbags" type="Node3D"]
+
+[node name="Airbag1" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.150, 1.950, 0.000)
+mesh = SubResource("airbag_mesh")
+surface_material_override/0 = SubResource("airbag_material")
+
+[node name="Airbag2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.813, 0.650, 0.813)
+mesh = SubResource("airbag_mesh")
+surface_material_override/0 = SubResource("airbag_material")
+
+[node name="Airbag3" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.000, 1.950, 1.150)
+mesh = SubResource("airbag_mesh")
+surface_material_override/0 = SubResource("airbag_material")
+
+[node name="Airbag4" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.813, 0.650, 0.813)
+mesh = SubResource("airbag_mesh")
+surface_material_override/0 = SubResource("airbag_material")
+
+[node name="Airbag5" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.150, 1.950, 0.000)
+mesh = SubResource("airbag_mesh")
+surface_material_override/0 = SubResource("airbag_material")
+
+[node name="Airbag6" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.813, 0.650, -0.813)
+mesh = SubResource("airbag_mesh")
+surface_material_override/0 = SubResource("airbag_material")
+
+[node name="Airbag7" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.000, 1.950, -1.150)
+mesh = SubResource("airbag_mesh")
+surface_material_override/0 = SubResource("airbag_material")
+
+[node name="Airbag8" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.813, 0.650, -0.813)
+mesh = SubResource("airbag_mesh")
+surface_material_override/0 = SubResource("airbag_material")
+
+[node name="Airbag9" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.000, 2.450, 0.000)
+mesh = SubResource("airbag_mesh")
+surface_material_override/0 = SubResource("airbag_material")
+
+[node name="Airbag10" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.000, 0.050, 0.000)
+mesh = SubResource("airbag_mesh")
+surface_material_override/0 = SubResource("airbag_material")
+

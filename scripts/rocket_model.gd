@@ -183,6 +183,14 @@ static func make_flame(fuel = "kerosene"):
 	flame.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return holder
 
+# 0 = thick air, 1 = space: the plume spreads out wide and turns faint
+static func set_flame_vacuum(flame, amount):
+	if flame == null or not is_instance_valid(flame) or flame.get_child_count() == 0:
+		return
+	var material = flame.get_child(0).material_override
+	if material is ShaderMaterial:
+		material.set_shader_parameter("vacuum", clamp(amount, 0.0, 1.0))
+
 # Half of a surface of revolution (the fairing is split down the middle)
 static func half_shell(profile, from_angle, material):
 	var surface = SurfaceTool.new()

@@ -229,9 +229,11 @@ static func build(rocket):
 	top.add_child(payload)
 	var fairing_width = max(top_box.size.x, top_box.size.z)
 	if stack.get("show_probe", true):   # (Starship's cargo bay and SLS's Orion hide it)
-		var probe = SpacecraftLookalike.load_model(SpacecraftLookalike.closest(), fairing_width * 0.7)
+		# NASA's models have their solar panels and booms unfolded, so the probe is shown big, and only once the fairing opens
+		var probe = SpacecraftLookalike.load_model(SpacecraftLookalike.closest(), fairing_width * 1.3)
 		if probe:
 			payload.add_child(probe)
+			payload.visible = false
 	pieces["payload"] = payload
 	for index in stack["fairing"].size():
 		var half = parts["fairing_%d" % index]

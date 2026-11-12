@@ -1,0 +1,192 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/surface_view.gd" id="1_script"]
+[ext_resource type="Shader" path="res://shaders/terrain.gdshader" id="2_terrain"]
+
+[sub_resource type="Environment" id="environment"]
+background_mode = 1
+tonemap_mode = 3
+glow_enabled = true
+glow_hdr_threshold = 2.0
+
+[sub_resource type="FastNoiseLite" id="hills"]
+frequency = 0.008
+fractal_octaves = 5
+
+[sub_resource type="NoiseTexture2D" id="hills_texture"]
+width = 512
+height = 512
+seamless = true
+noise = SubResource("hills")
+
+[sub_resource type="FastNoiseLite" id="patches"]
+frequency = 0.03
+fractal_octaves = 4
+
+[sub_resource type="NoiseTexture2D" id="patches_texture"]
+width = 512
+height = 512
+seamless = true
+noise = SubResource("patches")
+
+[sub_resource type="ShaderMaterial" id="ground_material"]
+shader = ExtResource("2_terrain")
+shader_parameter/height_noise = SubResource("hills_texture")
+shader_parameter/detail_noise = SubResource("patches_texture")
+shader_parameter/light_ground = Color(0.55, 0.32, 0.18, 1)
+shader_parameter/dark_ground = Color(0.32, 0.18, 0.1, 1)
+shader_parameter/hill_height = 14.0
+shader_parameter/flat_radius = 30.0
+
+[sub_resource type="PlaneMesh" id="ground_mesh"]
+material = SubResource("ground_material")
+size = Vector2(1200, 1200)
+subdivide_width = 240
+subdivide_depth = 240
+
+[sub_resource type="StyleBoxFlat" id="panel_style"]
+content_margin_left = 12.0
+content_margin_top = 10.0
+content_margin_right = 12.0
+content_margin_bottom = 10.0
+bg_color = Color(0.07, 0.09, 0.13, 0.88)
+
+[node name="SurfaceView" type="Node3D"]
+script = ExtResource("1_script")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("environment")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.766044, -0.413176, 0.492404, 0, 0.766044, 0.642788, -0.642788, -0.492404, 0.586824, 0, 50, 0)
+shadow_enabled = true
+directional_shadow_max_distance = 250.0
+
+[node name="Ground" type="MeshInstance3D" parent="."]
+mesh = SubResource("ground_mesh")
+
+[node name="LanderHolder" type="Node3D" parent="."]
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 6, 20)
+fov = 50.0
+far = 20000.0
+
+[node name="DriveScreen" type="CanvasLayer" parent="."]
+layer = 3
+visible = false
+
+[node name="DrivePanel" type="PanelContainer" parent="DriveScreen"]
+custom_minimum_size = Vector2(300, 0)
+offset_left = 12.0
+offset_top = 12.0
+offset_right = 312.0
+offset_bottom = 300.0
+theme_override_styles/panel = SubResource("panel_style")
+
+[node name="Column" type="VBoxContainer" parent="DriveScreen/DrivePanel"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="DriveTitle" type="Label" parent="DriveScreen/DrivePanel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "ROVER"
+autowrap_mode = 3
+
+[node name="BatteryLabel" type="Label" parent="DriveScreen/DrivePanel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.84, 0.9, 1)
+theme_override_font_sizes/font_size = 12
+text = "Battery"
+autowrap_mode = 3
+
+[node name="BatteryBar" type="ProgressBar" parent="DriveScreen/DrivePanel/Column"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+max_value = 100.0
+value = 100.0
+show_percentage = false
+
+[node name="HeatLabel" type="Label" parent="DriveScreen/DrivePanel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.84, 0.9, 1)
+theme_override_font_sizes/font_size = 12
+text = "Heat"
+autowrap_mode = 3
+
+[node name="HeatBar" type="ProgressBar" parent="DriveScreen/DrivePanel/Column"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+max_value = 100.0
+value = 100.0
+show_percentage = false
+
+[node name="RadiationLabel" type="Label" parent="DriveScreen/DrivePanel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.84, 0.9, 1)
+theme_override_font_sizes/font_size = 12
+text = "Radiation"
+autowrap_mode = 3
+
+[node name="RadiationBar" type="ProgressBar" parent="DriveScreen/DrivePanel/Column"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+max_value = 100.0
+value = 100.0
+show_percentage = false
+
+[node name="DamageLabel" type="Label" parent="DriveScreen/DrivePanel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.84, 0.9, 1)
+theme_override_font_sizes/font_size = 12
+text = "Wheel damage"
+autowrap_mode = 3
+
+[node name="DamageBar" type="ProgressBar" parent="DriveScreen/DrivePanel/Column"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+max_value = 100.0
+value = 100.0
+show_percentage = false
+
+[node name="StatusLabel" type="Label" parent="DriveScreen/DrivePanel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = ""
+autowrap_mode = 3
+
+[node name="HelpLabel" type="Label" parent="DriveScreen/DrivePanel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.64, 0.7, 1)
+theme_override_font_sizes/font_size = 11
+text = "W/S or arrows: drive   A/D: steer\nE: study a glowing science target"
+autowrap_mode = 3
+
+[node name="DoneButton" type="Button" parent="DriveScreen/DrivePanel/Column"]
+layout_mode = 2
+focus_mode = 0
+text = "Done driving"
+
+[node name="DriveMessage" type="Label" parent="DriveScreen"]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -330.0
+offset_top = -110.0
+offset_right = 330.0
+offset_bottom = -24.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+vertical_alignment = 2
+autowrap_mode = 3
+
+[connection signal="pressed" from="DriveScreen/DrivePanel/Column/DoneButton" to="." method="_on_done_driving"]

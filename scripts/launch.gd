@@ -21,6 +21,12 @@ const LaunchLiftoff = preload("res://scripts/launch_liftoff.gd")
 const RocketModel = preload("res://scripts/rocket_model.gd")
 const JourneyScenery = preload("res://scripts/journey_scenery.gd")
 const OrbitMath = preload("res://scripts/orbit_math.gd")
+const Spacecraft = preload("res://scripts/spacecraft.gd")
+const SpacecraftLookalike = preload("res://scripts/spacecraft_lookalike.gd")
+const AEROSHELL_SCENE = preload("res://scenes/parts/aeroshell.tscn")
+const SURFACE_SCENE = preload("res://scenes/surface_view.tscn")
+const PROBE_SIZE = 0.9               # how big the spacecraft is drawn on the trip
+const ORBIT_ECCENTRICITY = 0.32      # captured orbits are stretched ovals: close to the world on one side, far on the other
 
 @onready var probe = $Probe
 @onready var target_planet = $Target
@@ -81,7 +87,14 @@ const DESCENT_SECONDS = 5.0
 const SPARKS_SCENE = preload("res://scenes/effects/sparks.tscn")
 const SOLAR_WIND_SCENE = preload("res://scenes/effects/solar_wind.tscn")
 const RADIO_WAVES_SCENE = preload("res://scenes/effects/radio_waves.tscn")
-var arrival_mode = ""             # "", "orbiting", "descending" or "landed"
+var arrival_mode = ""             # "", "orbiting", "descending", "landing" (on the ground view) or "landed"
+var surface_view: Node3D = null
+var hidden_for_surface = []
+var orbit_line: MeshInstance3D = null
+var orbit_seconds = 0.0
+var orbit_mean_anomaly = 0.0
+var orbit_semi_major_axis = 1.0
+var orbit_periapsis_angle = 0.0
 var orbit_angle = PI
 var orbit_radius = 1.0
 var descent_time = 0.0
@@ -107,11 +120,17 @@ var time_mode_label: Label
 
 func _ready():
 	event_panel.visible = false
+	# Event panels sit low on the screen, so the probe and its animations stay in view above them
+	event_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE, 24)
+	event_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	event_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	event_panel.custom_minimum_size.x = 520
 	continue_button.pressed.connect(_on_continue_pressed)
 	set_up_target_planet()
 	GameState.build_mission()
 	total_flight_days = max(GameState.trip_years() * 365.25, 0.5)
 	set_up_cruise_extras()
+	set_up_spacecraft_model()
 	build_flight_controls()
 	build_scenery()
 	start_liftoff()
@@ -169,6 +188,33 @@ func set_up_cruise_extras():
 	trail_material.vertex_color_use_as_albedo = true
 	trail.material_override = trail_material
 	add_child(trail)
+
+# The real NASA spacecraft closest to the design flies the trip. Landers headed for a world with air cross space
+# folded inside their entry capsule (heat shield, backshell and cruise stage), like Perseverance did.
+func set_up_spacecraft_model():
+	var model = null
+	var size = PROBE_SIZE
+	if has_lander() and not GameState.destination in GameState.AIRLESS_WORLDS and GameState.choices.get("shield", "") in ["shield_heat", "shield_venus"]:
+		var capsule = AEROSHELL_SCENE.instantiate()
+		capsule.scale = Vector3.ONE * (PROBE_SIZE / 4.5)
+		capsule.position.y = 0.425 * capsule.scale.y
+		model = Node3D.new()
+		model.add_child(capsule)
+	else:
+		model = SpacecraftLookalike.load_model(SpacecraftLookalike.closest(), size)
+	if model == null:
+		return   # model files missing: keep the old rocket
+	for child in probe.get_children():
+		if child is MeshInstance3D:
+			child.visible = false
+	model.name = "SpacecraftModel"
+	probe.add_child(model)
+	var box = Spacecraft.model_bounds(model, Transform3D.IDENTITY, null)
+	var model_height = box.size.y if box != null else size
+	model.position.y -= model_height * 0.5   # centered on the probe's point on the path
+	if probe_flame:
+		probe_flame.position = Vector3(0, -model_height * 0.5, 0)
+		RocketModel.set_flame_vacuum(probe_flame, 1.0)   # out in space
 
 func _process(delta):
 	if not cruising:
@@ -253,7 +299,17 @@ func place_chase_camera(blend):
 	apply_shake()
 
 func place_arrival_camera(blend):
+	if arrival_mode in ["landing", "landed"]:
+		return   # the landing site has its own camera
 	var center = target_planet.position
+	if arrival_mode == "orbiting" and orbit_seconds < 5.0:
+		# First a wide view of the whole orbit, then ride along with the probe
+		var apoapsis = orbit_semi_major_axis * (1.0 + ORBIT_ECCENTRICITY)
+		var wide = center + Vector3(-0.35, 0.55, 0.76).normalized() * apoapsis * 2.6
+		camera.position = camera.position.lerp(wide, clamp(blend, 0.0, 1.0))
+		camera.look_at(center, Vector3.UP)
+		apply_shake()
+		return
 	var outward = (probe.position - center).normalized()
 	var forward = -probe.basis.y if arrival_mode != "orbiting" else probe.basis.y
 	var side = outward.cross(Vector3.UP).normalized() if abs(outward.dot(Vector3.UP)) < 0.95 else Vector3.RIGHT
@@ -283,6 +339,8 @@ func apply_shake():
 
 # A fading line behind the probe showing the path it has flown
 func update_trail():
+	if arrival_mode in ["landing", "landed"]:
+		return
 	if trail_points.is_empty() or trail_points[trail_points.size() - 1].distance_to(probe.position) > 0.04:
 		trail_points.append(probe.position)
 		if trail_points.size() > TRAIL_POINTS:
@@ -654,6 +712,13 @@ func begin_orbit():
 	var center = target_planet.position
 	orbit_radius = max(probe.position.distance_to(center), target_radius() + 0.6)
 	orbit_angle = atan2(probe.position.z - center.z, probe.position.x - center.x)
+	# Arriving at the closest point of a stretched orbit, the way real orbit insertions work
+	orbit_semi_major_axis = orbit_radius / (1.0 - ORBIT_ECCENTRICITY)
+	orbit_periapsis_angle = orbit_angle
+	orbit_mean_anomaly = 0.0
+	orbit_seconds = 0.0
+	if not GameState.direct_entry():
+		draw_orbit_line()
 	flame_seconds_left = 2.5    # the braking burn that lets the world's gravity catch the probe
 	var label = world_name()
 	if GameState.direct_entry():
@@ -666,6 +731,8 @@ func begin_orbit():
 
 func begin_descent():
 	arrival_mode = "descending"
+	if orbit_line:
+		orbit_line.visible = false
 	descent_time = 0.0
 	descent_start = probe.position
 	# The worlds here are drawn small, so the probe shrinks on the way down to look the right size standing on one
@@ -686,14 +753,46 @@ func begin_descent():
 		flash(Color(1.0, 0.55, 0.15), 0.35)   # hitting the air: the heat shield glows
 		spawn_effect(SPARKS_SCENE, probe.position - outward * 0.3, Vector3.ZERO, Color(1.0, 0.6, 0.3), 0.6)
 
+# Where the probe is on its orbit (relative to the world's center), from Kepler's equation:
+# it sweeps out equal areas in equal times, so it races past the world and crawls along the far side.
+func orbit_point(mean_anomaly):
+	var eccentricity = ORBIT_ECCENTRICITY
+	var eccentric_anomaly = mean_anomaly
+	for iteration in 6:
+		eccentric_anomaly -= (eccentric_anomaly - eccentricity * sin(eccentric_anomaly) - mean_anomaly) / (1.0 - eccentricity * cos(eccentric_anomaly))
+	var true_anomaly = 2.0 * atan2(sqrt(1.0 + eccentricity) * sin(eccentric_anomaly * 0.5), sqrt(1.0 - eccentricity) * cos(eccentric_anomaly * 0.5))
+	var distance = orbit_semi_major_axis * (1.0 - eccentricity * cos(eccentric_anomaly))
+	var angle = orbit_periapsis_angle + true_anomaly
+	return Basis(Vector3(1, 0, 0), deg_to_rad(ORBIT_TILT_DEGREES)) * Vector3(cos(angle), 0.0, sin(angle)) * distance
+
+func draw_orbit_line():
+	var line_mesh = ImmediateMesh.new()
+	line_mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
+	for step in 181:
+		line_mesh.surface_add_vertex(orbit_point(TAU * step / 180.0))
+	line_mesh.surface_end()
+	orbit_line = MeshInstance3D.new()
+	orbit_line.name = "OrbitLine"
+	orbit_line.mesh = line_mesh
+	var line_material = StandardMaterial3D.new()
+	line_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	line_material.albedo_color = Color(0.55, 0.85, 1.0, 0.45)
+	line_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	orbit_line.material_override = line_material
+	orbit_line.position = target_planet.position
+	add_child(orbit_line)
+
 func update_arrival(delta):
 	var center = target_planet.position
 	var tilt = Basis(Vector3(1, 0, 0), deg_to_rad(ORBIT_TILT_DEGREES))
 	match arrival_mode:
 		"orbiting":
-			orbit_angle += delta * TAU / ORBIT_LAP_SECONDS
-			probe.position = center + tilt * Vector3(cos(orbit_angle), 0.0, sin(orbit_angle)) * orbit_radius
-			var forward = tilt * Vector3(-sin(orbit_angle), 0.0, cos(orbit_angle))
+			orbit_seconds += delta
+			target_planet.rotate_y(delta * 0.04)   # the world turning below
+			orbit_mean_anomaly += delta * TAU / ORBIT_LAP_SECONDS
+			var place = orbit_point(orbit_mean_anomaly)
+			probe.position = center + place
+			var forward = (orbit_point(orbit_mean_anomaly + 0.01) - place).normalized()
 			probe.basis = Basis(Quaternion(Vector3.UP, forward))
 		"descending":
 			descent_time += delta
@@ -704,15 +803,53 @@ func update_arrival(delta):
 			probe.basis = Basis(Quaternion(Vector3.UP, (probe.position - center).normalized())).scaled(Vector3.ONE * size)
 			flame_seconds_left = 0.1 if fraction < 0.97 else 0.0
 			if fraction >= 1.0:
-				arrival_mode = "landed"
 				if not GameState.destination in GameState.NO_SURFACE:
-					shake = 0.6
-					spawn_effect(SPARKS_SCENE, landing_spot, Vector3.ZERO, Color(0.7, 0.6, 0.5), landed_scale * 1.5)   # a puff of dust
-					show_caption("Touchdown! You're on the surface of %s." % world_name(), 4.0)
-					if trail:
-						trail.visible = false   # the long line back to Earth just gets in the way down here
+					open_surface_view()
 				else:
+					arrival_mode = "landed"
 					probe.visible = false
+					animation_seconds_left = min(animation_seconds_left, 1.0)
+
+# Cut to the landing site: the real lander comes down on that world's ground under its sky
+func open_surface_view():
+	arrival_mode = "landing"
+	surface_view = SURFACE_SCENE.instantiate()
+	add_child(surface_view)
+	surface_view.set_up(GameState.destination)
+	# Only one sky at a time: use the landing site's
+	var surface_sky = surface_view.get_node_or_null("WorldEnvironment")
+	for child in get_children():
+		if child is WorldEnvironment and surface_sky:
+			child.environment = surface_sky.environment
+		elif child is Node3D and child != surface_view and child.visible:
+			child.visible = false
+			hidden_for_surface.append(child)
+	if surface_sky:
+		surface_sky.queue_free()
+	surface_view.camera.current = true
+	surface_view.touched_down.connect(_on_touched_down)
+	if flight_controls:
+		flight_controls.visible = false
+
+func _on_touched_down():
+	arrival_mode = "landed"
+	show_caption("Touchdown! You're on the surface of %s." % world_name(), 5.0)
+	if surface_view.can_drive():
+		# A rover: drive it around before the mission carries on (the next event waits)
+		animation_seconds_left = 100000.0
+		await get_tree().create_timer(2.5).timeout
+		surface_view.driving_finished.connect(_on_driving_finished)
+		surface_view.start_driving()
+		show_caption("Your rover is down! Drive it to the glowing science targets.", 5.0)
+	else:
+		animation_seconds_left = min(animation_seconds_left, 2.0)
+
+func _on_driving_finished(summary):
+	var lost_rover = summary.begins_with("The ") or summary.begins_with("Too many") or summary.begins_with("Jupiter")
+	GameState.science += surface_view.science_found
+	GameState.mission_log.append({"title": "Rover drive", "text": summary, "ok": not lost_rover})
+	show_caption(summary, 7.0)
+	animation_seconds_left = 3.0
 
 # ---------------------------------------------------------------------------
 # Event animations: the general kinds of events get a short animation before their panel opens.
@@ -738,9 +875,9 @@ func event_animation_kind(event):
 func start_event_animation(event):
 	if arrival_mode == "orbiting" and event.get("phase", "") in ["descent", "surface"] and has_lander():
 		begin_descent()
-		return DESCENT_SECONDS + 1.2
+		return 60.0   # the panel opens once the lander touches down (see _on_touched_down)
 	if event.has("insertion_check"):
-		return DESCENT_SECONDS + 1.0 if arrival_mode == "descending" else 2.8   # let the braking burn (or the dive) play first
+		return 60.0 if arrival_mode == "descending" else 3.5   # let the braking burn (or the dive and landing) play first
 	match event_animation_kind(event):
 		"flare":
 			var sun_direction = Vector3(0, -0.7071, -0.7071)   # the way the scene's sunlight travels
@@ -847,7 +984,14 @@ func _on_continue_pressed():
 		if not GameState.lost and has_lander() and arrival_mode == "orbiting":
 			# No landing event came up, but a lander still goes down before the mission ends
 			begin_descent()
-			await get_tree().create_timer(DESCENT_SECONDS + 1.5).timeout
+			var waited = 0.0
+			while arrival_mode != "landed" and waited < 30.0:
+				waited += get_process_delta_time()
+				await get_tree().process_frame
+			await get_tree().create_timer(3.0).timeout
+			while surface_view and (surface_view.driving or animation_seconds_left > 50000.0):
+				await get_tree().process_frame   # driving the rover
+			await get_tree().create_timer(2.0).timeout
 		go_to_results()
 	else:
 		fly_to(progress_at_event(event_index))

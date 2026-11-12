@@ -1,0 +1,38 @@
+[gd_scene format=3]
+
+[ext_resource type="Shader" path="res://shaders/parachute.gdshader" id="1_canopy"]
+[ext_resource type="Shader" path="res://shaders/suspension_lines.gdshader" id="2_lines"]
+
+[sub_resource type="ShaderMaterial" id="canopy_material"]
+shader = ExtResource("1_canopy")
+
+[sub_resource type="ShaderMaterial" id="lines_material"]
+shader = ExtResource("2_lines")
+
+[sub_resource type="SphereMesh" id="canopy_mesh"]
+radius = 1.0
+height = 1.0
+radial_segments = 80
+rings = 16
+is_hemisphere = true
+
+[sub_resource type="CylinderMesh" id="lines_mesh"]
+top_radius = 1.0
+bottom_radius = 0.03
+height = 2.6
+radial_segments = 48
+rings = 1
+cap_top = false
+cap_bottom = false
+
+[node name="Parachute" type="Node3D"]
+
+[node name="Canopy" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.55, 0, 0, 0, 1, 0, 0, 0)
+mesh = SubResource("canopy_mesh")
+surface_material_override/0 = SubResource("canopy_material")
+
+[node name="Lines" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.3, 0)
+mesh = SubResource("lines_mesh")
+surface_material_override/0 = SubResource("lines_material")

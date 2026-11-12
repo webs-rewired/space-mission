@@ -1,0 +1,115 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="stage_material"]
+albedo_color = Color(0.3, 0.3, 0.32, 1)
+metallic = 0.7
+roughness = 0.4
+
+[sub_resource type="StandardMaterial3D" id="foil_material"]
+albedo_color = Color(0.8, 0.65, 0.3, 1)
+metallic = 0.85
+roughness = 0.3
+
+[sub_resource type="StandardMaterial3D" id="cable_material"]
+albedo_color = Color(0.9, 0.9, 0.88, 1)
+
+[sub_resource type="BoxMesh" id="stage_mesh"]
+size = Vector3(2.6, 0.7, 2.2)
+
+[sub_resource type="CylinderMesh" id="tank_mesh"]
+top_radius = 0.35
+bottom_radius = 0.35
+height = 0.7
+
+[sub_resource type="CylinderMesh" id="nozzle_mesh"]
+top_radius = 0.06
+bottom_radius = 0.16
+height = 0.35
+
+[sub_resource type="CylinderMesh" id="cable_mesh"]
+top_radius = 0.015
+bottom_radius = 0.015
+height = 7.5
+radial_segments = 6
+
+[node name="SkyCrane" type="Node3D"]
+
+[node name="DescentStage" type="MeshInstance3D" parent="."]
+mesh = SubResource("stage_mesh")
+surface_material_override/0 = SubResource("stage_material")
+
+[node name="Tank1" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.54, 0.45, -0.45)
+mesh = SubResource("tank_mesh")
+surface_material_override/0 = SubResource("foil_material")
+
+[node name="Tank2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.54, 0.45, -0.45)
+mesh = SubResource("tank_mesh")
+surface_material_override/0 = SubResource("foil_material")
+
+[node name="Tank3" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.54, 0.45, 0.45)
+mesh = SubResource("tank_mesh")
+surface_material_override/0 = SubResource("foil_material")
+
+[node name="Tank4" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.54, 0.45, 0.45)
+mesh = SubResource("tank_mesh")
+surface_material_override/0 = SubResource("foil_material")
+
+[node name="Engine1" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.45, -0.45, -1.20)
+mesh = SubResource("nozzle_mesh")
+surface_material_override/0 = SubResource("stage_material")
+
+[node name="Engine2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.45, -0.45, -1.20)
+mesh = SubResource("nozzle_mesh")
+surface_material_override/0 = SubResource("stage_material")
+
+[node name="Engine3" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.45, -0.45, 1.20)
+mesh = SubResource("nozzle_mesh")
+surface_material_override/0 = SubResource("stage_material")
+
+[node name="Engine4" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.45, -0.45, 1.20)
+mesh = SubResource("nozzle_mesh")
+surface_material_override/0 = SubResource("stage_material")
+
+[node name="Engine5" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.45, -0.45, -0.60)
+mesh = SubResource("nozzle_mesh")
+surface_material_override/0 = SubResource("stage_material")
+
+[node name="Engine6" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.45, -0.45, -0.60)
+mesh = SubResource("nozzle_mesh")
+surface_material_override/0 = SubResource("stage_material")
+
+[node name="Engine7" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.45, -0.45, 0.60)
+mesh = SubResource("nozzle_mesh")
+surface_material_override/0 = SubResource("stage_material")
+
+[node name="Engine8" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.45, -0.45, 0.60)
+mesh = SubResource("nozzle_mesh")
+surface_material_override/0 = SubResource("stage_material")
+
+[node name="Cable1" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.50, -3.75, -0.40)
+mesh = SubResource("cable_mesh")
+surface_material_override/0 = SubResource("cable_material")
+
+[node name="Cable2" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.50, -3.75, -0.40)
+mesh = SubResource("cable_mesh")
+surface_material_override/0 = SubResource("cable_material")
+
+[node name="Cable3" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.00, -3.75, 0.50)
+mesh = SubResource("cable_mesh")
+surface_material_override/0 = SubResource("cable_material")
+
