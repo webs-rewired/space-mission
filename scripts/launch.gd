@@ -83,6 +83,15 @@ const SLOW_TRIP_SECONDS = 180.0
 # Arriving: the probe swings into orbit around its target, and landers then go down to the surface
 const ORBIT_LAP_SECONDS = 14.0     # one trip around the target
 const ORBIT_TILT_DEGREES = 12.0
+const MAPPING_ORBIT_TILT_DEGREES = 86.0   # orbiters fly over the poles, so the world turns under them and every part gets mapped
+const ORBIT_SCIENCE_SCENE = preload("res://scenes/orbit_science.tscn")
+const FIRST_ORBIT_EVENT_SECONDS = 12.0
+const ORBIT_EVENT_SPACING_SECONDS = 25.0
+var orbit_tilt_degrees = ORBIT_TILT_DEGREES
+var orbit_science: Node3D = null    # science from orbit, for probes with no lander
+var next_orbit_event_seconds = FIRST_ORBIT_EVENT_SECONDS
+var orbit_wide_view = false
+var arrival_camera_offset = Vector3.ZERO   # where the camera sits compared with the spacecraft, kept from frame to frame
 const DESCENT_SECONDS = 5.0
 const SPARKS_SCENE = preload("res://scenes/effects/sparks.tscn")
 const SOLAR_WIND_SCENE = preload("res://scenes/effects/solar_wind.tscn")
@@ -349,12 +358,13 @@ func place_arrival_camera(blend):
 	if arrival_mode in ["landing", "landed"]:
 		return   # the landing site has its own camera
 	var center = target_planet.position
-	if arrival_mode == "orbiting" and orbit_seconds < 5.0:
+	if arrival_mode == "orbiting" and (orbit_seconds < 5.0 or orbit_wide_view):
 		# First a wide view of the whole orbit, then ride along with the probe
 		var apoapsis = orbit_semi_major_axis * (1.0 + ORBIT_ECCENTRICITY)
 		var wide = center + Vector3(-0.35, 0.55, 0.76).normalized() * apoapsis * 2.6
 		camera.position = camera.position.lerp(wide, clamp(blend, 0.0, 1.0))
 		camera.look_at(center, Vector3.UP)
+		arrival_camera_offset = camera.position - probe.position
 		apply_shake()
 		return
 	var outward = (probe.position - center).normalized()
@@ -367,7 +377,13 @@ func place_arrival_camera(blend):
 		# Following the lander down, with the ground coming up to meet it
 		wanted = probe.position + (outward * 1.4 + side * 2.6) * size * 2.0
 		look_point = probe.position + (center - probe.position).normalized() * size * 3.0
-	camera.position = camera.position.lerp(wanted, clamp(blend, 0.0, 1.0))
+	# Glide toward the wanted spot measured from the spacecraft (it moves fast in orbit, and the camera has to keep up)
+	arrival_camera_offset = arrival_camera_offset.lerp(wanted - probe.position, clamp(blend, 0.0, 1.0))
+	camera.position = probe.position + arrival_camera_offset
+	# Gliding in from the wide view could take the camera right through the world: jump instead
+	if camera.position.distance_to(center) < target_radius() * 1.03:
+		camera.position = wanted
+		arrival_camera_offset = wanted - probe.position
 	if camera.position.distance_to(look_point) > 0.000001:
 		camera.look_at(look_point, Vector3.UP if abs(outward.dot(Vector3.UP)) < 0.95 else Vector3.FORWARD)
 	apply_shake()
@@ -784,6 +800,8 @@ func begin_orbit():
 	orbit_periapsis_angle = orbit_angle
 	orbit_mean_anomaly = 0.0
 	orbit_seconds = 0.0
+	if not has_lander():
+		orbit_tilt_degrees = MAPPING_ORBIT_TILT_DEGREES
 	if not GameState.direct_entry():
 		draw_orbit_line()
 	flame_seconds_left = 2.5    # the braking burn that lets the world's gravity catch the probe
@@ -799,6 +817,8 @@ func begin_orbit():
 		return
 	show_caption(("Braking burn complete: %s's gravity has caught your probe. You're in orbit!" % label).replace(": the", ": The"), 5.0)
 	play_sound("thruster", -6.0)
+	if not has_lander():
+		start_orbit_science()   # an orbiter's real work starts now: mapping the world below
 	if audio() and GameState.destination in ["Jupiter", "Io", "Europa", "Ganymede", "Callisto"] and audio().has_sound("jupiter_radio"):
 		audio().play_ambience("jupiter_radio", -8.0)
 		await get_tree().create_timer(5.5).timeout
@@ -840,7 +860,7 @@ func orbit_point(mean_anomaly):
 	var true_anomaly = 2.0 * atan2(sqrt(1.0 + eccentricity) * sin(eccentric_anomaly * 0.5), sqrt(1.0 - eccentricity) * cos(eccentric_anomaly * 0.5))
 	var distance = orbit_semi_major_axis * (1.0 - eccentricity * cos(eccentric_anomaly))
 	var angle = orbit_periapsis_angle + true_anomaly
-	return Basis(Vector3(1, 0, 0), deg_to_rad(ORBIT_TILT_DEGREES)) * Vector3(cos(angle), 0.0, sin(angle)) * distance
+	return Basis(Vector3(1, 0, 0), deg_to_rad(orbit_tilt_degrees)) * Vector3(cos(angle), 0.0, sin(angle)) * distance
 
 func draw_orbit_line():
 	var line_mesh = ImmediateMesh.new()
@@ -861,7 +881,7 @@ func draw_orbit_line():
 
 func update_arrival(delta):
 	var center = target_planet.position
-	var tilt = Basis(Vector3(1, 0, 0), deg_to_rad(ORBIT_TILT_DEGREES))
+	var tilt = Basis(Vector3(1, 0, 0), deg_to_rad(orbit_tilt_degrees))
 	match arrival_mode:
 		"approaching":
 			# Coasting in toward the world, heat shield first
@@ -918,6 +938,30 @@ func open_surface_view():
 	if flight_controls:
 		flight_controls.visible = false
 
+# ---------------------------------------------------------------------------
+# Science from orbit (probes with no lander): mapping, pictures and data, until you end the orbit mission
+# ---------------------------------------------------------------------------
+func start_orbit_science():
+	if orbit_science:
+		return
+	orbit_science = ORBIT_SCIENCE_SCENE.instantiate()
+	add_child(orbit_science)
+	orbit_science.start(self)
+	orbit_science.finished.connect(_on_orbit_science_finished)
+	next_orbit_event_seconds = FIRST_ORBIT_EVENT_SECONDS
+
+func _on_orbit_science_finished(summary, points):
+	GameState.science += points
+	GameState.mission_log.append({"title": "Science from orbit", "text": summary, "ok": true})
+	show_caption(summary, 7.0)
+
+func orbit_science_running():
+	return orbit_science != null and is_instance_valid(orbit_science) and orbit_science.running
+
+func _unhandled_input(event):
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_C and orbit_science_running():
+		orbit_wide_view = not orbit_wide_view
+
 # A landing check that the design fails (like no heat shield at Mars) means the lander comes down too hard
 func landing_will_fail():
 	for index in range(event_index, GameState.events.size()):
@@ -963,6 +1007,8 @@ func next_event_ready(event):
 	var phase = event.get("phase", "cruise")
 	if arrival_mode == "":
 		return phase == "cruise" and flight_progress >= progress_at_event(event_index)
+	if phase == "orbit" and orbit_science_running():
+		return orbit_science.science_seconds >= next_orbit_event_seconds   # every so often while mapping
 	if phase in ["descent", "surface"] and has_lander():
 		if arrival_mode in ["orbiting", "approaching"]:
 			begin_descent()   # time to go down
@@ -1100,6 +1146,8 @@ func _show_event():
 	event_panel.visible = true
 	if surface_view:
 		surface_view.paused = true   # the landing (or the rover) waits for your decision
+	if orbit_science_running():
+		orbit_science.paused = true
 	if event.has("choices"):
 		event_title.text = "FLIGHT DECISION  |  " + event["title"]
 		event_text.text = event["text"]
@@ -1134,6 +1182,9 @@ func _on_continue_pressed():
 	event_panel.visible = false
 	event_index += 1
 	seconds_since_last_event = 0.0
+	if orbit_science_running():
+		orbit_science.paused = false
+		next_orbit_event_seconds = orbit_science.science_seconds + ORBIT_EVENT_SPACING_SECONDS
 	if surface_view:
 		surface_view.paused = false
 		if rover_state == "driving":
@@ -1164,8 +1215,8 @@ func finish_mission():
 	while has_lander() and arrival_mode != "landed" and waited < 60.0:
 		waited += get_process_delta_time()
 		await get_tree().process_frame
-	while rover_state in ["waiting", "driving"]:
-		await get_tree().process_frame
+	while rover_state in ["waiting", "driving"] or orbit_science_running():
+		await get_tree().process_frame   # driving the rover, or doing science from orbit
 	await get_tree().create_timer(2.5 if has_lander() else 0.5).timeout
 	go_to_results()
 
@@ -1182,6 +1233,8 @@ func go_to_results():
 	cruising = false
 	if surface_view and surface_view.driving:
 		surface_view.end_driving("")
+	if orbit_science_running() and not GameState.lost:
+		orbit_science.end_mission()
 	if audio():
 		audio().stop_engine(0.5)
 		audio().stop_ambience(1.5)

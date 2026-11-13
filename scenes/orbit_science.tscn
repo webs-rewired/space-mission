@@ -1,0 +1,127 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/orbit_science.gd" id="1_science"]
+
+[sub_resource type="StyleBoxFlat" id="panel_style"]
+content_margin_left = 12.0
+content_margin_top = 10.0
+content_margin_right = 12.0
+content_margin_bottom = 10.0
+bg_color = Color(0.07, 0.09, 0.13, 0.88)
+
+[node name="OrbitScience" type="Node3D"]
+script = ExtResource("1_science")
+
+[node name="Screen" type="CanvasLayer" parent="."]
+layer = 3
+visible = false
+
+[node name="Panel" type="PanelContainer" parent="Screen"]
+custom_minimum_size = Vector2(320, 0)
+offset_left = 12.0
+offset_top = 12.0
+offset_right = 332.0
+offset_bottom = 320.0
+theme_override_styles/panel = SubResource("panel_style")
+
+[node name="Column" type="VBoxContainer" parent="Screen/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Title" type="Label" parent="Screen/Panel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "IN ORBIT"
+autowrap_mode = 3
+
+[node name="OrbitLabel" type="Label" parent="Screen/Panel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.85, 1, 1)
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 3
+
+[node name="CoverageLabel" type="Label" parent="Screen/Panel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.84, 0.9, 1)
+theme_override_font_sizes/font_size = 12
+text = "Surface mapped"
+
+[node name="CoverageBar" type="ProgressBar" parent="Screen/Panel/Column"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+show_percentage = false
+
+[node name="DataLabel" type="Label" parent="Screen/Panel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.84, 0.9, 1)
+theme_override_font_sizes/font_size = 12
+text = "Recorder"
+autowrap_mode = 3
+
+[node name="DataBar" type="ProgressBar" parent="Screen/Panel/Column"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+show_percentage = false
+
+[node name="PowerLabel" type="Label" parent="Screen/Panel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.84, 0.9, 1)
+theme_override_font_sizes/font_size = 12
+text = "Battery"
+
+[node name="PowerBar" type="ProgressBar" parent="Screen/Panel/Column"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+value = 100.0
+show_percentage = false
+
+[node name="TargetsLabel" type="Label" parent="Screen/Panel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.4, 1)
+theme_override_font_sizes/font_size = 12
+text = "Pictures taken"
+
+[node name="HelpLabel" type="Label" parent="Screen/Panel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.64, 0.7, 1)
+theme_override_font_sizes/font_size = 11
+text = "SPACE: take a picture when a glowing ring passes below
+C: close-up or whole-world view
+The world turns under your orbit, so the map fills in"
+autowrap_mode = 3
+
+[node name="DoneButton" type="Button" parent="Screen/Panel/Column"]
+layout_mode = 2
+focus_mode = 0
+text = "End orbit mission"
+
+[node name="Message" type="Label" parent="Screen"]
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -330.0
+offset_top = -130.0
+offset_right = 330.0
+offset_bottom = -44.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+vertical_alignment = 2
+autowrap_mode = 3
+
+[node name="Flash" type="ColorRect" parent="Screen"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(1, 1, 1, 0)
+
+[connection signal="pressed" from="Screen/Panel/Column/DoneButton" to="." method="_on_done_pressed"]

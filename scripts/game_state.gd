@@ -563,9 +563,12 @@ func build_mission():
 
 	var cruise_events = []
 	var world_events = []
+	var orbiter = choices.get("landing", "landing_none") == "landing_none"
 	for event in EventsData.EVENTS:
 		if not all_requirements_met(event.get("when", [])):
 			continue
+		if orbiter and event.get("phase", "") in ["site", "descent", "surface"]:
+			continue   # an orbiter never lands, so nothing on the ground happens to it (like a dust storm at the landing site)
 		if event["world"] == "any":
 			cruise_events.append(event)
 		elif event["world"] == destination:

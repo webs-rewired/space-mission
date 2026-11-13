@@ -18,24 +18,13 @@ const ProbeModel = preload("res://scripts/probe_model.gd")
 const SolarSystemData = preload("res://scripts/solar_system_data.gd")
 const SolarSystemScript = preload("res://scripts/solar_system.gd")
 const Spacecraft = preload("res://scripts/spacecraft.gd")
+const SpacecraftLookalike = preload("res://scripts/spacecraft_lookalike.gd")
 
 # NASA's own 3D models of real spacecraft (in res://assets/models/). The clean room shows the real spacecraft
 # closest to your design; press "Show my parts" to see your exact parts instead.
 # "size" is the real spacecraft's biggest measurement in meters, so each one is shown at its real size.
-const LOOKALIKES = {
-	"perseverance": {"file": "perseverance.glb", "size": 3.0, "name": "Perseverance (Mars, 2021)", "why": "it lands with a heat shield, a parachute and a sky crane."},
-	"opportunity": {"file": "opportunity.glb", "size": 2.3, "name": "Opportunity (Mars, 2004)", "why": "it bounced to a stop on Mars inside a ball of airbags."},
-	"viking_lander": {"file": "viking_lander.glb", "size": 3.0, "name": "Viking 1 lander (Mars, 1976)", "why": "it landed on legs with braking rockets and ran on nuclear power (RTGs)."},
-	"insight": {"file": "insight.glb", "size": 6.0, "name": "InSight (Mars, 2018)", "why": "it landed on legs with braking thrusters and ran on solar panels."},
-	"dawn": {"file": "dawn.glb", "size": 19.7, "name": "Dawn (Vesta and Ceres, 2011-2018)", "why": "it used ion engines and huge solar wings to orbit two different worlds."},
-	"cassini_huygens": {"file": "cassini_huygens.glb", "size": 11.0, "name": "Cassini-Huygens (Saturn, 2004-2017)", "why": "it ran on three RTGs and carried the Huygens probe, which landed on Titan behind a heat shield."},
-	"cassini": {"file": "cassini.glb", "size": 11.0, "name": "Cassini (Saturn, 2004-2017)", "why": "it ran on three RTGs with a 4 m high-gain dish."},
-	"new_horizons": {"file": "new_horizons.glb", "size": 2.7, "name": "New Horizons (Pluto, 2015)", "why": "it ran on a single RTG and used its spare heat to stay warm."},
-	"juno": {"file": "juno.glb", "size": 20.1, "name": "Juno (Jupiter, since 2016)", "why": "it runs on three giant solar wings and keeps its electronics in a titanium vault."},
-	"messenger": {"file": "messenger.glb", "size": 6.1, "name": "MESSENGER (Mercury, 2011-2015)", "why": "it hid behind a ceramic sunshade to survive near the Sun."},
-	"magellan": {"file": "magellan.glb", "size": 9.0, "name": "Magellan (Venus, 1990-1994)", "why": "it mapped Venus with radar through the clouds."},
-	"mars_reconnaissance_orbiter": {"file": "mars_reconnaissance_orbiter.glb", "size": 13.6, "name": "Mars Reconnaissance Orbiter (since 2006)", "why": "it's a solar-powered orbiter with a big 3 m dish for sending lots of pictures."},
-}
+# The real spacecraft (their models, sizes and why your design is like them) are in spacecraft_lookalike.gd
+const LOOKALIKES = SpacecraftLookalike.LOOKALIKES
 
 const GO = Color(0.35, 0.85, 0.45)
 const WATCH = Color(1.0, 0.8, 0.3)
@@ -96,7 +85,7 @@ func build_clean_room():
 	add_child(fill_light)
 	# Shiny white floor and walls, like NASA's spacecraft clean rooms
 	var floor_mesh = PlaneMesh.new()
-	floor_mesh.size = Vector2(120, 120)
+	floor_mesh.size = Vector2(240, 240)   # big enough for Rosetta, whose solar wings span 32 m
 	var floor_node = MeshInstance3D.new()
 	floor_node.mesh = floor_mesh
 	floor_node.material_override = ProbeModel.material(Color(0.88, 0.89, 0.9), 0.1, 0.25)
@@ -105,11 +94,11 @@ func build_clean_room():
 	for wall_index in 3:
 		var wall = MeshInstance3D.new()
 		var wall_mesh = BoxMesh.new()
-		wall_mesh.size = Vector3(120, 40, 0.5)
+		wall_mesh.size = Vector3(240, 60, 0.5)
 		wall.mesh = wall_mesh
 		wall.material_override = ProbeModel.material(Color(0.78, 0.81, 0.85), 0.0, 0.8)
 		wall.rotation_degrees.y = wall_index * 90.0
-		wall.position = Vector3(0, 17, 0) + Vector3(0, 0, -40).rotated(Vector3.UP, deg_to_rad(wall_index * 90.0))
+		wall.position = Vector3(0, 27, 0) + Vector3(0, 0, -75).rotated(Vector3.UP, deg_to_rad(wall_index * 90.0))
 		add_child(wall)
 	# A low turntable on the floor, like the ones spacecraft are tested on
 	ProbeModel.cylinder(self, 4.0, 4.2, 0.3, Vector3(0, -2.85, 0), ProbeModel.material(Color(0.32, 0.34, 0.38), 0.6, 0.4), Vector3.ZERO, 64)
@@ -134,7 +123,7 @@ func rebuild_model():
 	if lookalike.is_empty():
 		lookalike_label.text = "No NASA spacecraft has been built like this one yet!"
 	else:
-		lookalike_label.text = "Closest real spacecraft: %s,\nbecause %s" % [lookalike["name"], lookalike["why"]]
+		lookalike_label.text = "Closest real spacecraft: %s %s,\nbecause %s" % [lookalike["name"], lookalike.get("mission", ""), lookalike["why"]]
 	if not show_my_parts and not lookalike.is_empty():
 		var real_model = load_real_model(lookalike)
 		if real_model:
@@ -158,28 +147,7 @@ func aim_camera(height, size):
 
 # Which real spacecraft your design is most like
 func closest_real_spacecraft():
-	var choices = GameState.choices
-	if choices["landing"] == "landing_skycrane":
-		return "perseverance"
-	if choices["landing"] == "landing_airbags":
-		return "opportunity"
-	if choices["landing"] == "landing_legs":
-		return "viking_lander" if choices["power"] in ["rtg", "rtg_triple"] else "insight"
-	if choices["shield"] == "shield_venus":
-		return ""
-	if choices["engine"] == "engine_ion":
-		return "dawn"
-	if choices["power"] == "rtg_triple":
-		return "cassini_huygens" if choices["shield"] == "shield_heat" else "cassini"
-	if choices["power"] == "rtg":
-		return "new_horizons"
-	if choices["power"] == "solar_large":
-		return "juno"
-	if choices["thermal"] == "thermal_radiators":
-		return "messenger"
-	if "instrument_radar" in GameState.instruments:
-		return "magellan"
-	return "mars_reconnaissance_orbiter"
+	return SpacecraftLookalike.closest()
 
 # Loads a NASA model, centers it and scales it to the real spacecraft's size. Returns null if the file is missing.
 func load_real_model(lookalike):
@@ -222,7 +190,7 @@ func _unhandled_input(event):
 		elif event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
 			wanted_distance = max(3.0, wanted_distance * 0.88)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
-			wanted_distance = min(80.0, wanted_distance * 1.14)
+			wanted_distance = min(70.0, wanted_distance * 1.14)   # stays inside the clean room walls
 	elif event is InputEventMouseMotion and dragging:
 		model_holder.rotation.y += event.relative.x * 0.008
 		camera_pivot.rotation.x = clamp(camera_pivot.rotation.x - event.relative.y * 0.005, deg_to_rad(-70), deg_to_rad(20))
