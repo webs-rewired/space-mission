@@ -61,11 +61,13 @@ func scatter(site):
 	for crater in site.crater_list:
 		if Vector2(crater.x, crater.y).length() < spread:
 			nearby_craters.append(crater)
+	# On Low and Medium graphics there are fewer pebbles and rocks (Settings > Graphics quality)
+	var detail = GameState.detail_share()
 	# Pebbles: lots, close by
-	var pebbles = place_rocks(site, pebble_count, pebble_size, Vector2(LANDING_CLEARANCE * 0.5, pebble_spread), nearby_craters, 0.3, false, [])
+	var pebbles = place_rocks(site, int(pebble_count * detail * detail), pebble_size, Vector2(LANDING_CLEARANCE * 0.5, pebble_spread), nearby_craters, 0.3, false, [])
 	add_chunked(pebbles, tiny_shapes, [[0.0, PEBBLE_VIEW_DISTANCE]], false)
 	# Rocks: a detailed model up close, a simple one farther off
-	var rocks = place_rocks(site, rock_count, rock_size, Vector2(LANDING_CLEARANCE, spread), nearby_craters, 0.25, false, [])
+	var rocks = place_rocks(site, int(rock_count * lerp(0.55, 1.0, detail)), rock_size, Vector2(LANDING_CLEARANCE, spread), nearby_craters, 0.25, false, [])
 	add_chunked(rocks, medium_shapes, [[0.0, ROCK_DETAIL_DISTANCE]], true)
 	add_chunked(rocks, small_shapes, [[ROCK_DETAIL_DISTANCE, ROCK_VIEW_DISTANCE]], true)
 	add_colliders(site, rocks, medium_shapes)

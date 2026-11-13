@@ -138,16 +138,33 @@ static func coast(position, velocity, seconds, gravity = SUN_GRAVITY_KM):
 		x = sign(seconds) * sqrt(-1.0 / alpha) * log(inside) if inside > 0.0 else root_gravity * seconds / distance
 	elif abs(alpha) <= 1e-12:
 		x = root_gravity * seconds / distance
-	for step in 100:
-		var z = alpha * x * x
-		var values = stumpff(z)
-		var c_value = values[0]
-		var s_value = values[1]
-		var time_error = distance * radial_speed / root_gravity * x * x * c_value + (1.0 - alpha * distance) * x * x * x * s_value + distance * x - root_gravity * seconds
-		var slope = distance * radial_speed / root_gravity * x * (1.0 - alpha * x * x * s_value) + (1.0 - alpha * distance) * x * x * c_value + distance
-		var change = time_error / slope
-		x -= change
-		if abs(change) < 1e-10 * max(1.0, abs(x)):
+	# Find x so the trip takes exactly "seconds". The time always grows with x, so the answer is trapped between a
+	# low and a high guess: Newton's method does the fast work, and whenever it would jump outside those two
+	# guesses (it can fly off on long, stretched orbits) the step is replaced by the halfway point.
+	var direction = 1.0 if seconds > 0.0 else -1.0
+	var target = root_gravity * seconds
+	var low = 0.0
+	var high = max(abs(x), 1e-6)
+	for step in 200:
+		if direction * coast_time(direction * high, alpha, distance, radial_speed, root_gravity)[0] >= abs(target):
+			break
+		low = high
+		high *= 2.0
+	if is_nan(x) or abs(x) <= low or abs(x) >= high or x * direction < 0.0:
+		x = direction * 0.5 * (low + high)
+	for step in 200:
+		var time_and_slope = coast_time(x, alpha, distance, radial_speed, root_gravity)
+		var time_error = time_and_slope[0] - target
+		if direction * time_error > 0.0:
+			high = abs(x)
+		else:
+			low = abs(x)
+		var better = x - time_error / time_and_slope[1] if time_and_slope[1] > 0.0 else NAN
+		if is_nan(better) or is_inf(better) or better * direction < 0.0 or abs(better) <= low or abs(better) >= high:
+			better = direction * 0.5 * (low + high)
+		var change = better - x
+		x = better
+		if abs(change) < 1e-11 * max(1.0, abs(x)) or high - low < 1e-11 * max(1.0, high):
 			break
 	var final_values = stumpff(alpha * x * x)
 	var f = 1.0 - x * x / distance * final_values[0]
@@ -158,6 +175,13 @@ static func coast(position, velocity, seconds, gravity = SUN_GRAVITY_KM):
 	var g_rate = 1.0 - x * x / new_distance * final_values[0]
 	var new_velocity = [f_rate * position[0] + g_rate * velocity[0], f_rate * position[1] + g_rate * velocity[1], f_rate * position[2] + g_rate * velocity[2]]
 	return [new_position, new_velocity]
+
+# For coast(): [how much time (times the square root of gravity) the universal variable x stands for, and how fast that grows]
+static func coast_time(x, alpha, distance, radial_speed, root_gravity):
+	var values = stumpff(alpha * x * x)
+	var time = distance * radial_speed / root_gravity * x * x * values[0] + (1.0 - alpha * distance) * x * x * x * values[1] + distance * x
+	var slope = distance * radial_speed / root_gravity * x * (1.0 - alpha * x * x * values[1]) + (1.0 - alpha * distance) * x * x * values[0] + distance
+	return [time, slope]
 
 # Lambert's problem: the velocity needed at "start" to coast to "finish" in exactly "seconds",
 # going around the Sun the same way the planets do

@@ -1,5 +1,8 @@
 extends Control
 
+const RealRocket = preload("res://scripts/real_rocket.gd")
+const SpacecraftLookalike = preload("res://scripts/spacecraft_lookalike.gd")
+
 # Results: shows how the mission went, the score, what happened on the way and how NASA really did it.
 # The node names below must match the results scene.
 
@@ -14,7 +17,7 @@ extends Control
 func _ready():
 	outcome_label.text = GameState.outcome
 	score_label.text = "Score: %d / 100\n%s" % [GameState.score, GameState.ending]
-	var lines = []
+	var lines = [segments_review()]
 	for log_entry in GameState.mission_log:
 		var color = "green" if log_entry["ok"] else "red"
 		lines.append("[color=%s][b]%s[/b][/color]: %s" % [color, log_entry["title"], log_entry["text"]])
@@ -25,6 +28,22 @@ func _ready():
 	play_ending_sound()
 	try_again_button.pressed.connect(_on_try_again_pressed)
 	new_destination_button.pressed.connect(_on_new_destination_pressed)
+
+# The mission summed up the way NASA organizes every science mission: in four segments
+# (from NASA's "Design and Develop Science Missions" guide): launch, space, ground and user.
+func segments_review():
+	var rocket_stack = RealRocket.STACKS.get(RealRocket.closest_stack(GameState.rocket), {})
+	var lookalike = SpacecraftLookalike.LOOKALIKES.get(SpacecraftLookalike.closest(), {})
+	var rate = GameState.data_rate_kilobits()
+	var rate_text = "%.1f megabits per second" % (rate / 1000.0) if rate >= 1000.0 else ("%d kilobits per second" % int(rate) if rate >= 10.0 else "%.2f kilobits per second" % rate)
+	var delay = GameState.radio_delay_minutes()
+	var delay_text = "%.1f hours" % (delay / 60.0) if delay >= 90.0 else ("%d minutes" % int(round(delay)) if delay >= 1.5 else "%d seconds" % int(round(delay * 60.0)))
+	var review = "[color=#8fd4ff][b]YOUR MISSION IN NASA'S FOUR SEGMENTS[/b][/color]"
+	review += "\n[b]Launch segment[/b] (the rocket): a rocket like the %s. Mission cost: %s." % [rocket_stack.get("name", "one you designed"), GameState.money_text(GameState.total_cost())]
+	review += "\n[b]Space segment[/b] (the spacecraft): %d instrument%s on a spacecraft most like %s." % [GameState.instruments.size(), "" if GameState.instruments.size() == 1 else "s", lookalike.get("name", "your own design")]
+	review += "\n[b]Ground segment[/b] (the dishes on Earth): the Deep Space Network heard it at %s, with radio signals taking %s each way." % [rate_text, delay_text]
+	review += "\n[b]User segment[/b] (the scientists): %s" % ("the spacecraft was lost, so no data reached them." if GameState.lost else "%d %% of the data reached them, worth %d science points." % [int(GameState.data_share * 100.0), int(GameState.science)])
+	return review
 
 # A short jingle for how the mission went, then the menu music comes back
 func play_ending_sound():
@@ -39,7 +58,7 @@ func play_ending_sound():
 		sound.play_music("music_menu", 3.0)
 
 func _on_try_again_pressed():
-	get_tree().change_scene_to_file("res://scenes/probe_builder.tscn")
+	GameState.go_to_scene("res://scenes/probe_builder.tscn")
 
 func _on_new_destination_pressed():
-	get_tree().change_scene_to_file("res://scenes/solar_system.tscn")
+	GameState.go_to_scene("res://scenes/solar_system.tscn")

@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://s1kxo7jogepg"
-path="res://.godot/imported/saturn_v.glb-9a36a6052f733cc1d35f3bd165ed7499.scn"
+uid="uid://gv5350ehv82q"
+path="res://.godot/imported/saturn_v_stages.glb-4263842eab5175aa15b31e0bb58a36f3.scn"
 
 [deps]
 
-source_file="res://assets/textures/saturn_v.glb"
-dest_files=["res://.godot/imported/saturn_v.glb-9a36a6052f733cc1d35f3bd165ed7499.scn"]
+source_file="res://assets/saturn_v_stages.glb"
+dest_files=["res://.godot/imported/saturn_v_stages.glb-4263842eab5175aa15b31e0bb58a36f3.scn"]
 
 [params]
 

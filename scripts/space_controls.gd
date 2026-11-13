@@ -75,6 +75,7 @@ var globe_spin_speed := 0.35
 
 func _ready():
 	process_priority = 200   # after the planets and the camera have moved, so names line up exactly
+	add_to_group("space_controls")   # so the camera can show messages here (camera_pivot.gd)
 	scene_root = owner if owner else get_parent()
 	GameState.time_speed = SPEEDS[NORMAL_SPEED_STEP][0]
 	build_controls()

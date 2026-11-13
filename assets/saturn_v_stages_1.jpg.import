@@ -2,24 +2,23 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://n6bjt32sqfno"
-path.s3tc="res://.godot/imported/saturn_v_1.png-ece27dc47509b1a2ef0c6dc4ffc4a6af.s3tc.ctex"
+uid="uid://by0jq5wcawi6j"
+path="res://.godot/imported/saturn_v_stages_1.jpg-2efb5b81d50532bca5f0cbb0c0a3ade8.ctex"
 metadata={
-"imported_formats": ["s3tc_bptc"],
-"vram_texture": true
+"vram_texture": false
 }
 generator_parameters={
-"md5": "f1ebdf278b7ffebe67745c899fd22d40"
+"md5": "a7e1851c3e47b7620ff8aa7b4a0e703b"
 }
 
 [deps]
 
-source_file="res://assets/textures/saturn_v_1.png"
-dest_files=["res://.godot/imported/saturn_v_1.png-ece27dc47509b1a2ef0c6dc4ffc4a6af.s3tc.ctex"]
+source_file="res://assets/saturn_v_stages_1.jpg"
+dest_files=["res://.godot/imported/saturn_v_stages_1.jpg-2efb5b81d50532bca5f0cbb0c0a3ade8.ctex"]
 
 [params]
 
-compress/mode=2
+compress/mode=0
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -41,4 +40,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=0
+detect_3d/compress_to=1

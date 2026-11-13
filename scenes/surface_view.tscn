@@ -187,7 +187,9 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.64, 0.7, 1)
 theme_override_font_sizes/font_size = 11
 text = "W/S or arrows: drive   A/D: steer
-E: study a glowing science target"
+E: study a glowing science target
+Right mouse button + drag: look around
+Mouse wheel: closer or farther   V: view from behind"
 autowrap_mode = 3
 
 [node name="DoneButton" type="Button" parent="DriveScreen/DrivePanel/Column" unique_id=861291059]

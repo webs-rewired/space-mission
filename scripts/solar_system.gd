@@ -92,6 +92,7 @@ func show_planet_info(planet_name):
 	if not SolarSystemData.BODIES.has(planet_name):
 		return
 	selected_planet = planet_name
+	get_tree().call_group("camera_pivot", "planet_picked", planet_name)   # F follows a planet you just picked
 	refresh_planet_info()
 	info_panel.visible = true
 
@@ -181,4 +182,4 @@ func _on_mission_pressed():
 	# Launch on the date showing in the solar system: the planets' real positions then decide what you fly past
 	if bodies_node and "julian_date" in bodies_node:
 		GameState.launch_date = bodies_node.julian_date
-	get_tree().change_scene_to_file(PROBE_BUILDER_SCENE)
+	GameState.go_to_scene(PROBE_BUILDER_SCENE)

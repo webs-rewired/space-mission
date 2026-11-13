@@ -1,0 +1,90 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/loading_screen.gd" id="1_loading"]
+
+[sub_resource type="StyleBoxFlat" id="bar_back"]
+bg_color = Color(0.1, 0.13, 0.2, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="bar_fill"]
+bg_color = Color(0.45, 0.8, 1, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[node name="LoadingScreen" type="CanvasLayer"]
+layer = 120
+script = ExtResource("1_loading")
+
+[node name="Cover" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.015, 0.02, 0.045, 1)
+
+[node name="Center" type="CenterContainer" parent="Cover"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Column" type="VBoxContainer" parent="Cover/Center"]
+custom_minimum_size = Vector2(560, 0)
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Kicker" type="Label" parent="Cover/Center/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "ORBIT LAB   |   MISSION CONTROL"
+horizontal_alignment = 1
+
+[node name="Title" type="Label" parent="Cover/Center/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 40
+text = "SOLAR SYSTEM"
+horizontal_alignment = 1
+
+[node name="Progress" type="ProgressBar" parent="Cover/Center/Column"]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+theme_override_styles/background = SubResource("bar_back")
+theme_override_styles/fill = SubResource("bar_fill")
+show_percentage = false
+
+[node name="Status" type="Label" parent="Cover/Center/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.8, 0.88, 1)
+theme_override_font_sizes/font_size = 16
+text = "Loading assets..."
+horizontal_alignment = 1
+
+[node name="Spacer" type="Control" parent="Cover/Center/Column"]
+custom_minimum_size = Vector2(0, 26)
+layout_mode = 2
+
+[node name="FactHeading" type="Label" parent="Cover/Center/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.8, 0.35, 1)
+theme_override_font_sizes/font_size = 13
+text = "DID YOU KNOW?"
+horizontal_alignment = 1
+
+[node name="Fact" type="Label" parent="Cover/Center/Column"]
+custom_minimum_size = Vector2(560, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.86, 0.88, 0.92, 1)
+theme_override_font_sizes/font_size = 17
+text = "A launch window opens when the planets line up."
+horizontal_alignment = 1
+autowrap_mode = 3

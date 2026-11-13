@@ -22,6 +22,7 @@ const RECORDER_GIGABITS = 160.0       # Mars Reconnaissance Orbiter's recorder h
 const PHOTO_POINTS = 6
 const MAP_POINTS = 30                 # for mapping the whole world
 const MAP_SHADER = preload("res://shaders/orbit_map.gdshader")
+const SpaceTextures = preload("res://scripts/space_textures.gd")
 const SolarSystemData = preload("res://scripts/solar_system_data.gd")
 const SpacecraftLookalike = preload("res://scripts/spacecraft_lookalike.gd")
 
@@ -96,6 +97,12 @@ const GENERIC_TARGETS = [["A fresh crater", 25.0, 40.0, "Its bright rays show wh
 @onready var targets_label: Label = $Screen/Panel/Column/TargetsLabel
 @onready var message_label: Label = $Screen/Message
 @onready var flash: ColorRect = $Screen/Flash
+@onready var photo_prompt: Label = $Screen/PhotoPrompt
+@onready var map_title: Label = $Screen/MapPanel/Column/MapTitle
+@onready var map_world: TextureRect = $Screen/MapPanel/Column/Map/World
+@onready var map_backdrop: ColorRect = $Screen/MapPanel/Column/Map/Backdrop
+@onready var map_coverage: ColorRect = $Screen/MapPanel/Column/Map/Coverage
+@onready var map_marks: Control = $Screen/MapPanel/Column/Map/Marks
 
 var launch: Node3D            # the journey scene: its probe, target world and camera
 var world_id = ""
@@ -125,6 +132,8 @@ var message_seconds = 0.0
 var messages_shown = {}
 var map_refresh = 0.0
 var target_near = null
+var ground_track = []         # the last places the probe passed over (latitude, longitude), for the flat map
+var track_wait = 0.0
 
 func start(journey):
 	launch = journey
@@ -143,6 +152,7 @@ func start(journey):
 	add_map_overlay()
 	add_beam()
 	add_targets()
+	set_up_flat_map()
 	running = true
 	$Screen.visible = true
 	show_message("%s: %s %s" % [world_id, world_name_text(), orbit_fact_text()], 9.0)
@@ -183,25 +193,67 @@ func add_map_overlay():
 	overlay.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	planet().add_child(overlay)
 
+# A thin line from the spacecraft straight down to the ground it is looking at (its ring is drawn by the map shader)
 func add_beam():
 	beam = MeshInstance3D.new()
-	var cone = CylinderMesh.new()
-	cone.top_radius = 0.0
-	cone.bottom_radius = 1.0
-	cone.height = 1.0
-	cone.radial_segments = 32
-	cone.cap_bottom = false
-	cone.cap_top = false
-	beam.mesh = cone
+	var line = CylinderMesh.new()
+	line.top_radius = 1.0
+	line.bottom_radius = 1.0
+	line.height = 1.0
+	line.radial_segments = 8
+	line.cap_bottom = false
+	line.cap_top = false
+	beam.mesh = line
 	var glow = StandardMaterial3D.new()
 	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	glow.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	glow.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	glow.cull_mode = BaseMaterial3D.CULL_DISABLED
-	glow.albedo_color = Color(0.35, 0.85, 1.0, 0.12)
+	glow.albedo_color = Color(0.35, 0.85, 1.0, 0.45)
 	beam.material_override = glow
 	beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(beam)
+
+# The flat map in the corner: the world's real map, dark where it hasn't been mapped yet, with the places to
+# photograph and the probe's path drawn on top
+func set_up_flat_map():
+	var data = SolarSystemData.BODIES.get(world_id, {})
+	map_title.text = "MISSION MAP: %s" % data.get("label", world_id).to_upper()
+	var picture = SpaceTextures.find_texture(data.get("images", []))
+	map_world.texture = picture
+	map_world.visible = picture != null
+	map_backdrop.color = data.get("color", Color(0.4, 0.38, 0.36))
+	map_coverage.material.set_shader_parameter("coverage", coverage_texture)
+	var world = WORLDS.get(world_id, {})
+	if world.get("radar", false) and not "instrument_radar" in GameState.instruments:
+		# Only the cloud tops get mapped: that is drawn dimmer in the coverage picture (see map_strip)
+		map_coverage.material.set_shader_parameter("mapped_value", 0.4)
+		if map_material:
+			map_material.set_shader_parameter("mapped_value", 0.4)
+			map_material.set_shader_parameter("unmapped_dimming", 0.3)
+	map_marks.draw.connect(draw_map_marks)
+
+func map_spot(place):
+	# place = (latitude, longitude)
+	return Vector2((place.y + 180.0) / 360.0, (90.0 - place.x) / 180.0) * map_marks.size
+
+func draw_map_marks():
+	# The path the probe has flown over (broken where it wraps around the edge of the map)
+	for index in range(1, ground_track.size()):
+		var from = map_spot(ground_track[index - 1])
+		var to = map_spot(ground_track[index])
+		if abs(from.x - to.x) < map_marks.size.x * 0.3:
+			map_marks.draw_line(from, to, Color(0.45, 0.85, 1.0, 0.25 + 0.6 * index / ground_track.size()), 1.5)
+	for target in targets:
+		var spot = map_spot(latitude_longitude(target["point"]))
+		if target["done"]:
+			map_marks.draw_circle(spot, 4.0, Color(0.3, 1.0, 0.45))
+		else:
+			var near = target == target_near
+			map_marks.draw_arc(spot, 6.5 if near else 5.0, 0.0, TAU, 20, Color(1.0, 0.85, 0.3), 2.5 if near else 1.6)
+	if running:
+		var here = map_spot(latitude_longitude(point_below()))
+		map_marks.draw_circle(here, 4.5, Color(0.5, 0.9, 1.0))
+		map_marks.draw_arc(here, 8.0, 0.0, TAU, 20, Color(0.5, 0.9, 1.0, 0.7), 1.5)
 
 # Latitude and longitude to a point on the world's sphere (the same layout as the planet maps and Godot's sphere)
 func point_on_world(latitude, longitude):
@@ -244,6 +296,7 @@ func _process(delta):
 	if not running:
 		return
 	pulse_markers()
+	photo_prompt.visible = target_near != null and not paused and not safe_mode
 	if paused:
 		return
 	science_seconds += delta
@@ -256,8 +309,13 @@ func _process(delta):
 	send_data(delta)
 	look_for_targets(below)
 	update_screen()
-	message_seconds -= delta
-	message_label.modulate.a = clamp(message_seconds / 0.8, 0.0, 1.0)
+	track_wait -= delta
+	if track_wait <= 0.0:
+		track_wait = 0.12
+		ground_track.append(latitude_longitude(below))
+		if ground_track.size() > 220:
+			ground_track.pop_front()
+	map_marks.queue_redraw()
 	flash.color.a = max(0.0, flash.color.a - delta * 3.0)
 
 func _unhandled_input(event):
@@ -331,7 +389,8 @@ func update_beam(below):
 	beam.global_position = (probe_place + ground) * 0.5
 	var down = (ground - probe_place).normalized()
 	var side = down.cross(Vector3.UP).normalized() if abs(down.y) < 0.95 else Vector3.RIGHT
-	beam.global_basis = Basis(side, -down, side.cross(-down)).scaled(Vector3(footprint, length, footprint))
+	var thickness = max(footprint * 0.035, 0.00002)
+	beam.global_basis = Basis(side, -down, side.cross(-down)).scaled(Vector3(thickness, length, thickness))
 	if map_material:
 		map_material.set_shader_parameter("footprint_center", below)
 		map_material.set_shader_parameter("footprint_size", deg_to_rad(SWATH_DEGREES * 0.5))
@@ -381,7 +440,9 @@ func look_for_targets(below):
 			continue
 		if rad_to_deg(below.angle_to(target["point"])) < CAMERA_VIEW_DEGREES:
 			target_near = target
-			show_message_once("near_" + target["name"] + str(int(orbit_count)), "%s is below you: press SPACE to take a picture!" % target["name"], 3.0)
+			var has_camera = "instrument_camera" in GameState.instruments
+			photo_prompt.text = ("%s IS BELOW YOU\nPress SPACE to photograph it" if has_camera else "%s is below you\n(your probe has no camera to photograph it)") % target["name"].to_upper()
+			photo_prompt.modulate.a = 0.7 + 0.3 * sin(Time.get_ticks_msec() / 1000.0 * 7.0)
 			break
 
 func take_picture():
@@ -449,7 +510,13 @@ func format_number(value):
 		text = text.left(text.length() - 3)
 	return text + with_commas
 
+# Messages go in the journey's caption at the top of the screen, so there's one place to read
+# (and nothing sits on top of the decision panels at the bottom)
 func show_message(text, seconds):
+	if launch and launch.has_method("show_caption"):
+		launch.show_caption(text, seconds)
+		return
+	message_label.visible = true
 	message_label.text = text
 	message_seconds = seconds
 
@@ -470,6 +537,7 @@ func end_mission():
 		return
 	running = false
 	$Screen.visible = false
+	photo_prompt.visible = false
 	if beam:
 		beam.visible = false
 	var points = int(round(coverage_share * MAP_POINTS)) + photos.size() * PHOTO_POINTS
@@ -480,8 +548,8 @@ func end_mission():
 	# Data that never made it home doesn't count
 	if sent_gigabits + stored_gigabits > 0.0:
 		points = int(points * clamp((sent_gigabits + stored_gigabits * 0.5) / (sent_gigabits + stored_gigabits + lost_gigabits), 0.4, 1.0))
-	var summary = "Orbited %s %d times and mapped %d %% of it%s. Sent %d Gb of data home (+%d science)." % [
-		"the Moon" if world_id == "Moon" else world_id, int(orbit_count), int(coverage_share * 100.0),
+	var summary = "Orbited %s %d time%s and mapped %d %% of it%s. Sent %d Gb of data home (+%d science)." % [
+		"the Moon" if world_id == "Moon" else world_id, int(orbit_count), "" if int(orbit_count) == 1 else "s", int(coverage_share * 100.0),
 		(", photographing " + ", ".join(photos)) if not photos.is_empty() else "", int(sent_gigabits + stored_gigabits), points]
 	if lost_gigabits > 0.5:
 		summary += " %d Gb was lost when the recorder filled up." % int(lost_gigabits)

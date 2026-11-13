@@ -1,0 +1,28 @@
+[gd_scene format=3]
+
+[ext_resource type="Shader" path="res://shaders/methane_lake.gdshader" id="1_lake"]
+
+[sub_resource type="FastNoiseLite" id="ripples"]
+frequency = 0.05
+
+[sub_resource type="NoiseTexture2D" id="ripple_texture"]
+width = 256
+height = 256
+seamless = true
+as_normal_map = true
+bump_strength = 4.0
+noise = SubResource("ripples")
+
+[sub_resource type="ShaderMaterial" id="lake_material"]
+shader = ExtResource("1_lake")
+shader_parameter/liquid_color = Color(0.035, 0.028, 0.02, 1)
+shader_parameter/ripple_noise = SubResource("ripple_texture")
+
+[sub_resource type="PlaneMesh" id="lake_plane"]
+material = SubResource("lake_material")
+size = Vector2(1, 1)
+
+[node name="MethaneLake" type="MeshInstance3D"]
+transform = Transform3D(4000, 0, 0, 0, 1, 0, 0, 0, 4000, 0, 0, 0)
+cast_shadow = 0
+mesh = SubResource("lake_plane")

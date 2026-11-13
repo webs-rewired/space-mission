@@ -73,8 +73,22 @@ var hit_flash: ColorRect
 const STEER_SPEED = 2.2
 const STEER_LIMIT = 1.4
 const BELT_CROSSING_SECONDS = 14.0   # belts are crossed slowly enough to steer
+const ATMOSPHERE_SHADER = preload("res://shaders/atmosphere_glow.gdshader")
+const PROBE_MARKER = preload("res://assets/ui/probe_marker.png")
 const ROCK_STRIKE_SCIENCE = 2
 const MOST_ROCK_STRIKES = 5      # after this many, the probe has learned its lesson (no more science lost)
+const PROBE_HIT_RADIUS = 0.2     # how close a rock's edge has to come to the middle of the spacecraft to count as a hit
+const ROCK_HIT_SHARE = 0.55      # a rock's solid part, compared with its drawn size
+var control_banner: Label        # "MANUAL CONTROL" across the top while you're steering through a belt
+var belt_now = ""
+# While a mission event is waiting for you, the probe doesn't just freeze: it wobbles off its heading with an
+# amber caution light pulsing, and the screen gets a pulsing caution frame, like a master caution alarm.
+var alert_strength = 0.0
+var alert_steady_basis = Basis.IDENTITY
+var alert_light: OmniLight3D = null
+var alert_frame: Panel = null
+var abort_button: Button = null
+var abort_dialog: ConfirmationDialog = null
 
 # How long the whole trip takes on screen, whatever the destination
 const FAST_TRIP_SECONDS = 45.0
@@ -160,6 +174,7 @@ func _ready():
 	set_up_cruise_extras()
 	set_up_spacecraft_model()
 	build_flight_controls()
+	build_abort_button()
 	build_scenery()
 	start_liftoff()
 
@@ -210,15 +225,16 @@ func set_up_cruise_extras():
 	probe.add_child(probe_flame)
 	probe_marker = MeshInstance3D.new()
 	var dot = QuadMesh.new()
-	dot.size = Vector2(0.018, 0.018)
+	dot.size = Vector2(0.05, 0.05)
 	probe_marker.mesh = dot
 	var dot_material = StandardMaterial3D.new()
+	dot_material.albedo_texture = PROBE_MARKER   # a ring with a tiny spacecraft in it
 	dot_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	dot_material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 	dot_material.fixed_size = true          # the same size on screen however far away
 	dot_material.no_depth_test = true
 	dot_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	dot_material.albedo_color = Color(0.55, 0.9, 1.0, 0.85)
+	dot_material.albedo_color = Color(1.0, 1.0, 1.0, 0.95)
 	probe_marker.material_override = dot_material
 	probe_marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	probe_marker.visible = false
@@ -291,6 +307,7 @@ func _process(delta):
 				set_flight_progress(next_milestone)
 				elapsed_flight_days = total_flight_days * next_milestone
 			pending_event = true
+			alert_steady_basis = probe.basis.orthonormalized()
 			animation_seconds_left = start_event_animation(GameState.events[event_index])
 
 		# On the ground: the rover sets off once the touchdown checks are done
@@ -310,6 +327,7 @@ func _process(delta):
 		update_arrival(delta)
 	update_display_scale()
 	orient_probe(probe.basis)
+	update_alert(delta)
 	if probe_marker and camera:
 		probe_marker.visible = probe.visible and camera.global_position.distance_to(probe.global_position) > display_scale * 12.0
 	update_flight_hud()
@@ -330,6 +348,106 @@ func _process(delta):
 		if probe_flame.visible:
 			probe_flame.scale.y = 0.5 * (1.0 + randf_range(-0.08, 0.08))
 	update_trail()
+
+# The "something needs your attention" animation (see alert_strength above)
+func update_alert(delta):
+	var waiting_for_player = (pending_event or event_panel.visible) and surface_view == null
+	alert_strength = move_toward(alert_strength, 1.0 if waiting_for_player else 0.0, delta * (1.5 if waiting_for_player else 3.0))
+	var seconds = Time.get_ticks_msec() / 1000.0
+	var pulse = 0.5 + 0.5 * sin(seconds * 7.0)
+	if alert_frame:
+		alert_frame.visible = alert_strength > 0.01
+		alert_frame.modulate.a = alert_strength * (0.35 + 0.65 * pulse)
+	if alert_light == null:
+		alert_light = OmniLight3D.new()
+		alert_light.light_color = Color(1.0, 0.6, 0.15)
+		alert_light.shadow_enabled = false
+		add_child(alert_light)
+	alert_light.visible = alert_strength > 0.01 and probe.visible
+	if alert_strength <= 0.0:
+		return
+	alert_light.position = probe.position + (camera.global_position - probe.position).normalized() * display_scale * 0.9
+	alert_light.omni_range = display_scale * 4.0
+	alert_light.light_energy = alert_strength * pulse * 2.5
+	# The probe drifts off its heading: a slow roll and a nodding wobble
+	var steady = alert_steady_basis if arrival_mode == "" and waiting_for_player else probe.basis.orthonormalized()
+	var wobble = Basis(Vector3.UP, sin(seconds * 0.8) * 0.6 * alert_strength) * Basis(Vector3.RIGHT, sin(seconds * 1.4) * 0.22 * alert_strength) * Basis(Vector3.FORWARD, cos(seconds * 1.1) * 0.15 * alert_strength)
+	orient_probe(steady * wobble)
+
+# What a decision's result looks and sounds like: a calm green pulse, or a red jolt with sparks
+func show_result_feedback(went_well):
+	if went_well:
+		flash(Color(0.3, 1.0, 0.6), 0.22)
+		play_sound("confirm", -6.0)
+		return
+	flash(Color(1.0, 0.2, 0.15), 0.5)
+	play_sound("error", -2.0)
+	shake = max(shake, 0.7)
+	if surface_view:
+		surface_view.shake = max(surface_view.shake, 0.6)
+	elif probe.visible:
+		spawn_effect(SPARKS_SCENE, probe.position, Vector3.ZERO, Color(1.0, 0.7, 0.4), display_scale)
+
+# ---------------------------------------------------------------------------
+# Abort mission: a button in the corner of the screen from liftoff onward. It asks first, then goes back to the
+# solar system.
+# ---------------------------------------------------------------------------
+func build_abort_button():
+	var layer = get_node_or_null("CanvasLayer")
+	if layer == null:
+		return
+	alert_frame = Panel.new()
+	var frame_style = StyleBoxFlat.new()
+	frame_style.bg_color = Color(0, 0, 0, 0)
+	frame_style.border_color = Color(1.0, 0.62, 0.15, 0.9)
+	frame_style.set_border_width_all(7)
+	alert_frame.add_theme_stylebox_override("panel", frame_style)
+	alert_frame.set_anchors_preset(Control.PRESET_FULL_RECT)
+	alert_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	alert_frame.visible = false
+	layer.add_child(alert_frame)
+
+	var top_layer = CanvasLayer.new()
+	top_layer.name = "AbortLayer"
+	top_layer.layer = 20   # above the launch, landing and orbit screens
+	add_child(top_layer)
+	abort_button = Button.new()
+	abort_button.text = "Abort mission"
+	abort_button.focus_mode = Control.FOCUS_NONE
+	abort_button.tooltip_text = "End this mission and go back to the solar system"
+	abort_button.add_theme_color_override("font_color", Color(1.0, 0.55, 0.45))
+	abort_button.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_MINSIZE, 14)
+	abort_button.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	abort_button.pressed.connect(_on_abort_pressed)
+	top_layer.add_child(abort_button)
+	abort_dialog = ConfirmationDialog.new()
+	abort_dialog.title = "Abort mission?"
+	abort_dialog.dialog_text = "End this mission and go back to the solar system?\nThe spacecraft and its science will be lost."
+	abort_dialog.ok_button_text = "Abort mission"
+	abort_dialog.cancel_button_text = "Keep flying"
+	abort_dialog.confirmed.connect(abort_mission)
+	abort_dialog.canceled.connect(_on_abort_cancelled)
+	top_layer.add_child(abort_dialog)
+
+func _on_abort_pressed():
+	get_tree().paused = true   # everything waits while you decide
+	abort_dialog.process_mode = Node.PROCESS_MODE_ALWAYS
+	abort_dialog.popup_centered()
+
+func _on_abort_cancelled():
+	get_tree().paused = false
+
+func abort_mission():
+	get_tree().paused = false
+	cruising = false
+	if audio():
+		audio().cancel_delayed_sounds()
+		audio().stop_engine(0.3)
+		audio().stop_voice()
+		audio().stop_ambience(0.3)
+		audio().set_air(1.0)
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	GameState.go_to_scene("res://scenes/solar_system.tscn")
 
 func flight_direction(progress):
 	var direction = flight_end - FLIGHT_START
@@ -448,6 +566,7 @@ func set_up_target_planet():
 	target_planet.position = Vector3(6 + planet_radius + extra_length, 0, 0)
 	flight_end = target_planet.position - Vector3(planet_radius * 1.12, 0, 0)   # arriving at a low orbit's height
 
+	add_target_atmosphere(data, sphere_radius)
 	if destination == "Saturn":
 		add_saturn_rings(sphere_radius)
 	elif data.has("rings") and not is_moon_of_planet:
@@ -459,6 +578,29 @@ func set_up_target_planet():
 		target_planet.rotation_degrees.z = {"Uranus": 98.0, "Neptune": 28.0, "Jupiter": 3.0, "Haumea": 30.0}.get(destination, 10.0)
 	if is_moon_of_planet:
 		add_parent_planet(data["parent"], planet_radius)
+
+# Worlds with air get a glowing edge (the same colors as in the solar system view). Titan also gets the thin blue
+# haze layer that floats above its orange smog.
+func add_target_atmosphere(data, sphere_radius):
+	if not data.has("atmosphere"):
+		return
+	var shell_mesh = SphereMesh.new()
+	shell_mesh.radius = sphere_radius * 1.03
+	shell_mesh.height = sphere_radius * 2.06
+	var shell = MeshInstance3D.new()
+	shell.name = "Atmosphere"
+	shell.mesh = shell_mesh
+	var glow = ShaderMaterial.new()
+	glow.shader = ATMOSPHERE_SHADER
+	glow.set_shader_parameter("glow_color", data["atmosphere"][0])
+	glow.set_shader_parameter("strength", data["atmosphere"][1])
+	glow.set_shader_parameter("outer_amount", 0.5 if GameState.destination == "Titan" else 0.0)
+	var sun = get_node_or_null("DirectionalLight3D")
+	if sun:
+		glow.set_shader_parameter("sun_direction", sun.global_transform.basis.z)
+	shell.material_override = glow
+	shell.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	target_planet.add_child(shell)
 
 # For a moon mission, its planet hangs in the sky behind it, at its real size compared with Earth
 func add_parent_planet(parent_name, moon_radius):
@@ -574,6 +716,19 @@ func build_scenery():
 		caption_label.offset_right = 235
 		caption_label.offset_top = 16
 		layer.add_child(caption_label)
+		control_banner = Label.new()
+		control_banner.text = "MANUAL CONTROL\nSteer with WASD or the arrow keys to dodge the rocks"
+		control_banner.add_theme_font_size_override("font_size", 22)
+		control_banner.add_theme_color_override("font_color", Color(1.0, 0.82, 0.3))
+		control_banner.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+		control_banner.add_theme_constant_override("outline_size", 8)
+		control_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		control_banner.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+		control_banner.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		control_banner.grow_vertical = Control.GROW_DIRECTION_BEGIN
+		control_banner.offset_bottom = -36
+		control_banner.visible = false
+		layer.add_child(control_banner)
 
 func show_caption(text, seconds = 5.0):
 	if caption_label == null:
@@ -605,12 +760,25 @@ func announce_sights():
 	if not belt.is_empty() and not belts_announced.has(belt["name"]):
 		belts_announced[belt["name"]] = true
 		if belt["name"] == "Asteroid belt":
-			show_caption("Entering the asteroid belt! Steer with WASD or the arrow keys to dodge the rocks.\n(Real asteroids are about a million km apart, so no probe has ever hit one. This belt is packed tight for the challenge.)", 8.0)
+			show_caption("Entering the asteroid belt. You have control!\n(Real asteroids are about a million km apart, so no probe has ever hit one. A few are near your path here for the challenge.)", 8.0)
 		else:
-			show_caption("Entering the Kuiper belt: icy leftovers from when the planets formed, out past Neptune. Steer with WASD or the arrow keys!", 7.0)
+			show_caption("Entering the Kuiper belt: icy leftovers from when the planets formed, out past Neptune. You have control!", 7.0)
 
 # Steering inside a belt, and checking for rock strikes. Outside a belt the probe drifts back onto its path.
 func steer_through_belt(delta, belt):
+	var belt_name = belt.get("name", "")
+	if belt_name != belt_now:
+		# Going in or out of a belt: tell the player clearly who is flying
+		if belt_name != "":
+			play_sound("alarm", -8.0)
+		elif belt_now != "":
+			show_caption("%s cleared. The autopilot has the controls again." % belt_now, 4.0)
+			play_sound("confirm", -8.0)
+		belt_now = belt_name
+	scenery.probe_progress = flight_progress
+	if control_banner:
+		control_banner.visible = belt_name != "" and not event_panel.visible
+		control_banner.modulate.a = 0.75 + 0.25 * sin(Time.get_ticks_msec() / 1000.0 * 5.0)
 	if belt.is_empty():
 		steer = steer.move_toward(Vector2.ZERO, delta * 1.5)
 		return
@@ -630,8 +798,11 @@ func steer_through_belt(delta, belt):
 		if rocks_hit.has(index):
 			continue
 		var rock = scenery.dodge_rocks[index]
-		if probe.position.distance_to(rock[0]) < rock[1] * 1.3 + 0.12:
+		if probe.position.distance_to(rock[0]) < rock[1] * ROCK_HIT_SHARE + PROBE_HIT_RADIUS:
 			rocks_hit[index] = true
+			scenery.break_rock(index)
+			spawn_effect(SPARKS_SCENE, probe.position, (rock[0] - probe.position).normalized(), Color(1.0, 0.8, 0.5), 0.5)
+			shake = max(shake, 0.6)
 			if rocks_hit.size() > MOST_ROCK_STRIKES:
 				show_caption("Another rock strike! Luckily it only scraped the probe.", 2.0)
 				play_sound("impact", -8.0)
@@ -639,7 +810,7 @@ func steer_through_belt(delta, belt):
 					hit_flash.color.a = 0.3
 				continue
 			GameState.science -= ROCK_STRIKE_SCIENCE
-			GameState.mission_log.append({"title": "Rock strike", "text": "A rock hit the probe in the %s. Lost %d science." % [belt["name"].to_lower(), ROCK_STRIKE_SCIENCE], "ok": false})
+			GameState.mission_log.append({"title": "Rock strike", "text": "A rock hit the probe in the %s. Lost %d science." % [belt["name"].replace("Asteroid", "asteroid"), ROCK_STRIKE_SCIENCE], "ok": false})
 			show_caption("Rock strike! Lost %d science." % ROCK_STRIKE_SCIENCE, 2.0)
 			play_sound("impact", -2.0)
 			if hit_flash:
@@ -769,7 +940,7 @@ func update_flight_hud():
 
 	mission_progress_bar.value = flight_progress * 100.0
 	if scenery and not scenery.belt_at(flight_progress).is_empty():
-		mission_status_label.text += "\nIn the %s: steer with WASD / arrows" % scenery.belt_at(flight_progress)["name"].to_lower()
+		mission_status_label.text += "\nIn the %s: YOU have control" % scenery.belt_at(flight_progress)["name"].replace("Asteroid", "asteroid")
 
 
 # ---------------------------------------------------------------------------
@@ -1040,8 +1211,20 @@ const EVENT_ANIMATIONS = [
 	["dust", ["dust devil", "dust storm", "dust"]],
 ]
 
+# Extra animations that only happen at a landing site (checked first there)
+const SURFACE_EVENT_ANIMATIONS = [
+	["storm", ["dust storm"]],
+	["night", ["lunar night", "freezing night", "nightfall", "eclipse", "four-hour day"]],
+	["drill", ["drill", "sampling", "a sample", "scoop", "robotic arm"]],
+]
+
 func event_animation_kind(event):
 	var words = (event.get("title", "") + " " + event.get("text", "")).to_lower()
+	if surface_view:
+		for entry in SURFACE_EVENT_ANIMATIONS:
+			for keyword in entry[1]:
+				if words.contains(keyword):
+					return entry[0]
 	for entry in EVENT_ANIMATIONS:
 		for keyword in entry[1]:
 			if words.contains(keyword):
@@ -1099,7 +1282,9 @@ func start_event_animation(event):
 			# A real marsquake that NASA's InSight lander felt (sped up so we can hear it)
 			play_sound("marsquake" if GameState.destination == "Mars" else "thump", 0.0)
 			return 1.4
-	return 0.3
+	# Anything else: a caution tone while the probe starts to wobble (see update_alert)
+	play_sound("alarm", -10.0)
+	return 1.0
 
 # Adds a particle effect at a place, pointing its "up" along a direction, and removes it when it's done
 func spawn_effect(scene, place, direction, tint = Color.WHITE, size = 1.0):
@@ -1167,6 +1352,7 @@ func _show_event():
 		event_title.text = ("SYSTEMS NOMINAL  |  " if result["ok"] else "MISSION ALERT  |  ") + event["title"]
 		event_text.text = result["text"]
 		continue_button.visible = true
+		show_result_feedback(result["ok"])
 
 func _on_choice_pressed(choice_index):
 	var event = GameState.events[event_index]
@@ -1177,6 +1363,7 @@ func _on_choice_pressed(choice_index):
 	event_title.text = ("SYSTEMS NOMINAL  |  " if result["ok"] else "MISSION ALERT  |  ") + event["title"]
 	event_text.text = result["text"]
 	continue_button.visible = true
+	show_result_feedback(result["ok"])
 
 func _on_continue_pressed():
 	event_panel.visible = false
@@ -1244,4 +1431,4 @@ func go_to_results():
 	if flight_controls:
 		flight_controls.visible = false
 	GameState.finish_mission()
-	get_tree().change_scene_to_file(RESULTS_SCENE)
+	GameState.go_to_scene(RESULTS_SCENE)

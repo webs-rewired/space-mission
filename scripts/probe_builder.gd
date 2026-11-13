@@ -476,12 +476,22 @@ func update_review():
 	else:
 		rate_text = "%d bits per second" % int(round(rate * 1000.0))
 	var photo_text = ""
-	if photos >= 1.0:
+	if photos >= 1.5:
 		photo_text = "about %s high-resolution photos a day" % format_number(photos)
+	elif photos >= 0.75:
+		photo_text = "about 1 high-resolution photo a day"
 	elif photos > 0.0:
 		photo_text = "one photo every %s days" % format_number(1.0 / photos)
 	status = "go" if photos >= 10.0 else ("watch" if photos >= 1.0 else "no-go")
-	lines.append(line(status, "Data home: %s" % rate_text, "Radio signals take %s each way. Using an 8-hour contact a day with NASA's Deep Space Network dishes, that's %s." % [time_text(GameState.radio_delay_minutes()), photo_text]))
+	var best_antenna = GameState.choices["antenna"] == "antenna_large"
+	var data_advice = ""
+	if best_antenna and status != "go":
+		# The biggest dish is already fitted: a slow link this far out is normal, not something to fix
+		status = "go"
+		data_advice = " That's slow, but it's the best any probe can do from this far away: New Horizons sent Pluto's pictures home at 1 to 2 kilobits per second, and it took 15 months."
+	elif status != "go":
+		data_advice = " A high-gain dish would send about 2,000 times more."
+	lines.append(line(status, "Data home: %s" % rate_text, "Radio signals take %s each way. Using an 8-hour contact a day with NASA's Deep Space Network dishes, that's %s.%s" % [time_text(GameState.radio_delay_minutes()), photo_text, data_advice]))
 
 	# Braking into orbit
 	var can_do = GameState.probe_speed_change_km_s()
@@ -624,7 +634,7 @@ func update_briefing():
 func _on_next_pressed():
 	if next_button.disabled:
 		return
-	get_tree().change_scene_to_file(ROCKET_SCENE)
+	GameState.go_to_scene(ROCKET_SCENE)
 
 func _on_back_pressed():
-	get_tree().change_scene_to_file(SOLAR_SYSTEM_SCENE)
+	GameState.go_to_scene(SOLAR_SYSTEM_SCENE)

@@ -1,13 +1,67 @@
 extends Node
 
 const AUDIO_MANAGER_SCENE = "res://scenes/audio_manager.tscn"
+const LOADING_SCREEN_SCENE = "res://scenes/loading_screen.tscn"
+const GAME_SETTINGS_SCRIPT = "res://scripts/game_settings.gd"
+const REQUIRED_FILES_SCRIPT = "res://scripts/required_files.gd"
 
-# Starts the music and sound for the whole game (the audio manager stays alive across scenes)
+var settings: Node = null          # graphics quality, fullscreen and volumes (scripts/game_settings.gd)
+var loading_screen: Node = null    # the screen shown between scenes (scenes/loading_screen.tscn)
+
+# Starts the things that stay alive for the whole game, whatever scene is showing:
+# the settings, the music and sound, and the loading screen
 func _ready():
+	if ResourceLoader.exists(GAME_SETTINGS_SCRIPT) and get_tree().root.get_node_or_null("GameSettings") == null:
+		settings = load(GAME_SETTINGS_SCRIPT).new()
+		settings.name = "GameSettings"
+		settings.load_settings()   # right away, so the first scene already knows the graphics quality
+		get_tree().root.add_child.call_deferred(settings)
 	if ResourceLoader.exists(AUDIO_MANAGER_SCENE) and get_tree().root.get_node_or_null("AudioManager") == null:
 		var audio_manager = load(AUDIO_MANAGER_SCENE).instantiate()
 		audio_manager.name = "AudioManager"
 		get_tree().root.add_child.call_deferred(audio_manager)
+	if ResourceLoader.exists(LOADING_SCREEN_SCENE) and get_tree().root.get_node_or_null("LoadingScreen") == null:
+		loading_screen = load(LOADING_SCREEN_SCENE).instantiate()
+		loading_screen.name = "LoadingScreen"
+		get_tree().root.add_child.call_deferred(loading_screen)
+	check_game_files()
+
+# Checks that every file the game needs is in the project, and says so on screen if one isn't
+# (the list is in scripts/required_files.gd)
+func check_game_files():
+	if not ResourceLoader.exists(REQUIRED_FILES_SCRIPT):
+		return
+	var missing = []
+	for path in load(REQUIRED_FILES_SCRIPT).FILES:
+		if not ResourceLoader.exists(path) and not FileAccess.file_exists(path):
+			missing.append(path.trim_prefix("res://"))
+	if missing.is_empty():
+		return
+	push_error("Game files are missing: " + ", ".join(missing))
+	var layer = CanvasLayer.new()
+	layer.layer = 125
+	var warning = Label.new()
+	warning.text = "%d game file%s missing, so parts of the game will look or sound wrong:\n%s%s\nCopy the latest update into the project folder again (replace all files)." % [
+		missing.size(), " is" if missing.size() == 1 else "s are", "\n".join(missing.slice(0, 8)), "\n...and %d more" % (missing.size() - 8) if missing.size() > 8 else ""]
+	warning.add_theme_color_override("font_color", Color(1.0, 0.5, 0.4))
+	warning.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	warning.add_theme_constant_override("outline_size", 6)
+	warning.add_theme_font_size_override("font_size", 14)
+	warning.position = Vector2(12, 12)
+	layer.add_child(warning)
+	get_tree().root.add_child.call_deferred(layer)
+
+# Every scene change goes through here: the next scene loads behind a loading screen, so there's no frozen or
+# blank frame in between
+func go_to_scene(scene_path):
+	if loading_screen and is_instance_valid(loading_screen) and loading_screen.is_inside_tree():
+		loading_screen.go_to(scene_path)
+	else:
+		get_tree().change_scene_to_file(scene_path)
+
+# How much scattered detail to draw (rocks, pebbles): 1 on High graphics, less on Medium and Low
+func detail_share():
+	return settings.detail_share() if settings and is_instance_valid(settings) else 1.0
 
 # GameState remembers everything the player picks and does all the math.
 # It's an Autoload, so every scene can use it (Project > Project Settings > Globals).

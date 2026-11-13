@@ -1,6 +1,10 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/orbit_science.gd" id="1_science"]
+[ext_resource type="Shader" path="res://shaders/orbit_minimap.gdshader" id="2_minimap"]
+
+[sub_resource type="ShaderMaterial" id="minimap_material"]
+shader = ExtResource("2_minimap")
 
 [sub_resource type="StyleBoxFlat" id="panel_style"]
 content_margin_left = 12.0
@@ -86,9 +90,9 @@ text = "Pictures taken"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.64, 0.7, 1)
 theme_override_font_sizes/font_size = 11
-text = "SPACE: take a picture when a glowing ring passes below
-C: close-up or whole-world view
-The world turns under your orbit, so the map fills in"
+text = "Your probe circles from pole to pole while the world turns below, so each lap maps a new strip.
+SPACE: take a picture when a place to photograph is below you
+C: close-up or whole-world view"
 autowrap_mode = 3
 
 [node name="DoneButton" type="Button" parent="Screen/Panel/Column"]
@@ -96,23 +100,116 @@ layout_mode = 2
 focus_mode = 0
 text = "End orbit mission"
 
-[node name="Message" type="Label" parent="Screen"]
+[node name="MapPanel" type="PanelContainer" parent="Screen"]
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -312.0
+offset_top = -222.0
+offset_right = -12.0
+offset_bottom = -12.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_styles/panel = SubResource("panel_style")
+
+[node name="Column" type="VBoxContainer" parent="Screen/MapPanel"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="MapTitle" type="Label" parent="Screen/MapPanel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 13
+text = "MISSION MAP"
+
+[node name="Map" type="Control" parent="Screen/MapPanel/Column"]
+clip_contents = true
+custom_minimum_size = Vector2(276, 138)
+layout_mode = 2
+
+[node name="Backdrop" type="ColorRect" parent="Screen/MapPanel/Column/Map"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.35, 0.33, 0.3, 1)
+
+[node name="World" type="TextureRect" parent="Screen/MapPanel/Column/Map"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+
+[node name="Coverage" type="ColorRect" parent="Screen/MapPanel/Column/Map"]
+material = SubResource("minimap_material")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Marks" type="Control" parent="Screen/MapPanel/Column/Map"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="MapKey" type="Label" parent="Screen/MapPanel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.64, 0.7, 1)
+theme_override_font_sizes/font_size = 11
+text = "Blue: your probe and its path.   Yellow rings: places to photograph (green when done).   Dark: not mapped yet."
+autowrap_mode = 3
+
+[node name="PhotoPrompt" type="Label" parent="Screen"]
+visible = false
 anchors_preset = 7
 anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
 offset_left = -330.0
-offset_top = -130.0
+offset_top = -150.0
 offset_right = 330.0
-offset_bottom = -44.0
+offset_bottom = -70.0
 grow_horizontal = 2
 grow_vertical = 0
+theme_override_colors/font_color = Color(1, 0.85, 0.35, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1
+vertical_alignment = 2
+autowrap_mode = 3
+
+[node name="Message" type="Label" parent="Screen"]
+visible = false
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -330.0
+offset_top = 16.0
+offset_right = 330.0
+offset_bottom = 110.0
+grow_horizontal = 2
 theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
 theme_override_constants/outline_size = 6
 theme_override_font_sizes/font_size = 16
 horizontal_alignment = 1
-vertical_alignment = 2
 autowrap_mode = 3
 
 [node name="Flash" type="ColorRect" parent="Screen"]
