@@ -1,6 +1,17 @@
 [gd_scene format=3 uid="uid://bseaksf6ky0xf"]
 
 [ext_resource type="Script" uid="uid://ddkri56tkkxh" path="res://scripts/probe_builder.gd" id="1_5sdd5"]
+[ext_resource type="Texture2D" uid="uid://cqfyqlcegn0e6" path="res://scenes/download.jpg" id="2_cgsxa"]
+
+[sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_v2ho3"]
+panorama = ExtResource("2_cgsxa")
+
+[sub_resource type="Sky" id="Sky_y673g"]
+sky_material = SubResource("PanoramaSkyMaterial_v2ho3")
+
+[sub_resource type="Environment" id="Environment_86gfb"]
+background_mode = 2
+sky = SubResource("Sky_y673g")
 
 [node name="ProbeBuilder" type="Node3D" unique_id=1180071333]
 script = ExtResource("1_5sdd5")
@@ -47,3 +58,6 @@ text = "Back"
 [node name="LaunchButton" type="Button" parent="CanvasLayer/BuilderPanel/VBox" unique_id=1182455852]
 layout_mode = 2
 text = "Launch"
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=223889504]
+environment = SubResource("Environment_86gfb")
