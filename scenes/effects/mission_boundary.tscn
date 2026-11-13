@@ -1,0 +1,21 @@
+[gd_scene format=3]
+
+[ext_resource type="Shader" path="res://shaders/mission_boundary.gdshader" id="1_boundary"]
+
+[sub_resource type="ShaderMaterial" id="boundary_material"]
+render_priority = 1
+shader = ExtResource("1_boundary")
+
+[sub_resource type="CylinderMesh" id="boundary_mesh"]
+top_radius = 1.0
+bottom_radius = 1.0
+height = 1.0
+radial_segments = 128
+rings = 1
+cap_top = false
+cap_bottom = false
+
+[node name="MissionBoundary" type="MeshInstance3D"]
+cast_shadow = 0
+mesh = SubResource("boundary_mesh")
+surface_material_override/0 = SubResource("boundary_material")

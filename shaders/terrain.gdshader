@@ -231,8 +231,12 @@ void fragment() {
 	// The soil photo at two sizes, so its repeat doesn't show
 	float grain_near = texture(regolith_detail, place * 0.42).r;
 	float grain_far = texture(regolith_detail, place * 0.093 + 0.5).r;
-	float grain_fade = 1.0 - smoothstep(25.0, 300.0, distance(place, CAMERA_POSITION_WORLD.xz)) * 0.8;
-	color *= 1.0 + ((grain_near - 0.5) * 1.1 + (grain_far - 0.5) * 0.6) * grain_strength * grain_fade;
+	// The fine grain only shows close to the camera; farther away it would turn into a gritty shimmer, so it
+	// fades out and leaves the larger, softer pattern
+	float camera_distance = distance(place, CAMERA_POSITION_WORLD.xz);
+	float near_fade = 1.0 - smoothstep(10.0, 60.0, camera_distance);
+	float grain_fade = 1.0 - smoothstep(50.0, 350.0, camera_distance) * 0.85;
+	color *= 1.0 + ((grain_near - 0.5) * 0.6 * near_fade + (grain_far - 0.5) * 0.4 * grain_fade) * grain_strength;
 	color *= 1.0 + clamp(crater_tone, -1.0, 1.5) * 0.3;
 
 	if (groove_strength > 0.0) {
@@ -272,6 +276,6 @@ void fragment() {
 	vec3 normal_near = texture(regolith_normal, place * 0.42).rgb;
 	vec3 normal_far = texture(regolith_normal, place * 0.093 + 0.5).rgb;
 	vec3 normal_rock = texture(rock_normal, place * 0.06).rgb;
-	NORMAL_MAP = mix(mix(normal_near, normal_far, 0.35), normal_rock, steep);
-	NORMAL_MAP_DEPTH = 1.0 * grain_fade * grain_fade;
+	NORMAL_MAP = mix(mix(normal_far, normal_near, 0.65 * near_fade), normal_rock, steep);
+	NORMAL_MAP_DEPTH = 0.55 * grain_fade * mix(0.6, 1.0, near_fade);
 }

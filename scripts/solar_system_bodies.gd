@@ -180,6 +180,7 @@ var rocks_epoch = 0.0          # the date the rock lists were made
 
 func _ready():
 	process_priority = -100     # move the planets before the camera follows them, so the camera never lags
+	RenderingServer.frame_pre_draw.connect(size_all_spacecraft)   # after the camera has moved
 	add_to_group("solar_system_world")
 	scene_root = owner if owner else get_parent()
 	julian_date = OrbitMath.julian_date_now()
@@ -349,8 +350,7 @@ func dress_body(info):
 			if info["kind"] == "moon":
 				# Moons get a real map if you've added one (like 2k_moon.jpg), otherwise a detailed generated surface
 				body.material_override = MoonSurfaces.make_material(info["name"])
-				if data.get("plumes", false):
-					add_plumes(info)
+				# (Enceladus's geysers are far too faint and small to see from this far away: they show at its landing site.)
 			else:
 				body.material_override = make_surface_material(info, image)
 	if data.has("atmosphere"):
@@ -806,18 +806,35 @@ func update_spacecraft(info):
 		if direction.length() < 0.0000001:
 			direction = sun_direction
 		basis = Spacecraft.facing_basis(data["faces"], direction)
+	info["facing"] = basis
+	info["sun_direction"] = sun_direction.normalized()
+	size_spacecraft(info)
+
+# Keeps a spacecraft big enough to see: never smaller on screen than a set share of its distance from the camera.
+# This also runs once more just before each frame is drawn (see _ready), after the camera has moved. Without that,
+# at high time speeds a spacecraft jumps far along its orbit before the camera catches up, and for one frame
+# it was sized for the old, far-away camera, so it flashed huge.
+func size_spacecraft(info):
+	if not info.has("facing") or not info["marker"].visible:
+		return
+	var marker = info["marker"]
 	var drawn_radius = info["radius"]
 	var camera = get_viewport().get_camera_3d()
 	var toward_camera = Vector3.UP
 	if camera:
 		drawn_radius = max(drawn_radius, camera.global_position.distance_to(marker.global_position) * SPACECRAFT_SMALLEST_LOOK)
 		toward_camera = (camera.global_position - marker.global_position).normalized()
-	info["mesh"].transform = Transform3D(basis.scaled(Vector3.ONE * drawn_radius), Vector3.ZERO)
+	info["mesh"].transform = Transform3D(info["facing"].scaled(Vector3.ONE * drawn_radius), Vector3.ZERO)
 	var craft_light = info["craft_light"]
-	craft_light.position = sun_direction.normalized() * drawn_radius * 3.0
+	craft_light.position = info["sun_direction"] * drawn_radius * 3.0
 	craft_light.omni_range = drawn_radius * 6.0
 	info["fill_light"].position = toward_camera * drawn_radius * 3.0
 	info["fill_light"].omni_range = drawn_radius * 6.0
+
+func size_all_spacecraft():
+	for body_name in bodies:
+		if bodies[body_name]["kind"] == "spacecraft":
+			size_spacecraft(bodies[body_name])
 
 # How many days a moon's drawn path stays accurate before it needs redrawing (its orbit slowly turns)
 func moon_path_lifetime(info):

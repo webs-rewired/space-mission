@@ -1,0 +1,49 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/follow_camera.gd" id="1_follow"]
+[ext_resource type="Texture2D" path="res://assets/surface/textures/soft_puff.png" id="2_puff"]
+
+[sub_resource type="Gradient" id="fade"]
+offsets = PackedFloat32Array(0, 0.2, 0.8, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="fade_texture"]
+gradient = SubResource("fade")
+
+[sub_resource type="ParticleProcessMaterial" id="drift"]
+emission_shape = 3
+emission_box_extents = Vector3(40, 15, 40)
+direction = Vector3(1, 0, 0.3)
+spread = 30.0
+initial_velocity_min = 0.5
+initial_velocity_max = 2.0
+gravity = Vector3(0, -0.05, 0)
+turbulence_enabled = true
+turbulence_noise_strength = 0.4
+scale_min = 0.03
+scale_max = 0.09
+color = Color(0.8, 0.6, 0.45, 0.6)
+color_ramp = SubResource("fade_texture")
+
+[sub_resource type="StandardMaterial3D" id="mote_material"]
+transparency = 1
+vertex_color_use_as_albedo = true
+albedo_texture = ExtResource("2_puff")
+roughness = 1.0
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="mote_quad"]
+material = SubResource("mote_material")
+
+[node name="DriftingParticles" type="Node3D"]
+script = ExtResource("1_follow")
+
+[node name="Particles" type="GPUParticles3D" parent="."]
+amount = 600
+lifetime = 8.0
+preprocess = 8.0
+local_coords = false
+visibility_aabb = AABB(-60, -30, -60, 120, 60, 120)
+process_material = SubResource("drift")
+draw_pass_1 = SubResource("mote_quad")

@@ -41,6 +41,12 @@ const SOUNDS = {
 	"thruster": ["thrusterfire_000.ogg"],
 	"engine_loop": ["spaceenginelow_000.ogg"],
 	"laser": ["lasersmall_000.ogg"],
+	"servo": ["dooropen_000.ogg"],            # a motor moving something: arms, ramps, cables
+	"latch": ["doorclose_000.ogg"],           # something locking into place
+	"servo_loop": ["enginecircular_000.ogg"], # a motor running
+	"crash": ["explosioncrunch_000.ogg"],
+	"clank": ["impactmetal_002.ogg"],
+	"data": ["computernoise_001.ogg"],        # data being sent
 	"jingle_success": ["jingles_pizzi02.ogg"],
 	"jingle_failure": ["jingles_steel01.ogg"],
 }
@@ -51,7 +57,10 @@ const SCENE_MUSIC = {
 	"rocket_builder": "music_menu", "launch": "", "results": "",
 }
 
-const LOOPING = ["music_menu", "music_cruise", "launch_roar", "launch_atlas", "mars_wind", "mars_rover_drive", "jupiter_radio", "engine_loop"]
+const LOOPING = ["launch_roar", "launch_atlas", "mars_wind", "mars_rover_drive", "jupiter_radio", "engine_loop"]
+# Music loops by fading its ending into its own beginning (the files have silence at the ends, which made a gap)
+const MUSIC_OVERLAP_SECONDS = 5.0
+const MUSIC_QUIET_ENDING = {"music_cruise": 1.4}   # seconds of silence at the end of each music file
 const SPEED_OF_SOUND_EARTH = 343.0
 
 @onready var music_players = [$MusicA, $MusicB]
@@ -67,8 +76,11 @@ var music_player_index = 0
 var next_effect_player = 0
 var last_scene = ""
 var music_muted = false
+var delayed_sounds_round = 0    # goes up when waiting sounds are called off (see cancel_delayed_sounds)
+var fades = {}                  # the fade running on each player, so a new fade replaces the old one
 
 func _ready():
+	process_mode = Node.PROCESS_MODE_ALWAYS   # music keeps playing while the game is paused
 	find_sound_files("res://")
 	get_tree().node_added.connect(_on_node_added)
 
@@ -129,7 +141,7 @@ func play_music(sound_name, fade_seconds = 2.0):
 	if stream == null:
 		return
 	new_player.stream = stream
-	new_player.volume_db = -60.0
+	new_player.volume_linear = 0.0
 	new_player.play()
 	fade(new_player, 0.0, fade_seconds, false)
 
@@ -138,11 +150,35 @@ func stop_music(fade_seconds = 2.0):
 	for player in music_players:
 		fade(player, -60.0, fade_seconds, true)
 
+# Just before a music track ends, the same track starts again on the other player and the two cross over,
+# so the music never stops and restarts
+func loop_music():
+	if current_music == "":
+		return
+	var player = music_players[music_player_index]
+	if player.stream == null:
+		return
+	var seconds_left = player.stream.get_length() - MUSIC_QUIET_ENDING.get(current_music, 0.0) - player.get_playback_position()
+	if not player.playing or seconds_left <= MUSIC_OVERLAP_SECONDS:
+		var track = current_music
+		current_music = ""
+		play_music(track, MUSIC_OVERLAP_SECONDS if player.playing else 1.0)
+
+# Fades a player to a volume. The loudness changes evenly (not the decibels), so two tracks crossing over stay
+# at a steady level instead of dipping in the middle.
 func fade(player, volume_db, seconds, stop_after):
+	if fades.has(player) and fades[player].is_valid():
+		fades[player].kill()
 	var tween = create_tween()
-	tween.tween_property(player, "volume_db", volume_db, seconds)
+	fades[player] = tween
+	tween.tween_property(player, "volume_linear", 0.0 if volume_db <= -59.0 else db_to_linear(volume_db), max(seconds, 0.01))
 	if stop_after:
 		tween.tween_callback(player.stop)
+
+# Calls off every sound that is still waiting to start (a countdown, or a roar that hasn't arrived yet).
+# Used when the player skips ahead, so nothing from the skipped part plays late.
+func cancel_delayed_sounds():
+	delayed_sounds_round += 1
 
 # ---------------------------------------------------------------------------
 # Sounds
@@ -152,7 +188,10 @@ func play_effect(sound_name, volume_db = 0.0, pitch = 1.0, delay_seconds = 0.0):
 	if stream == null:
 		return
 	if delay_seconds > 0.0:
+		var asked_in_round = delayed_sounds_round
 		await get_tree().create_timer(delay_seconds).timeout
+		if asked_in_round != delayed_sounds_round:
+			return
 	var player = effect_players[next_effect_player]
 	next_effect_player = (next_effect_player + 1) % effect_players.size()
 	player.stream = stream
@@ -166,7 +205,10 @@ func play_voice(sound_name, volume_db = 0.0, delay_seconds = 0.0, from_seconds =
 	if stream == null:
 		return
 	if delay_seconds > 0.0:
+		var asked_in_round = delayed_sounds_round
 		await get_tree().create_timer(delay_seconds).timeout
+		if asked_in_round != delayed_sounds_round:
+			return
 	voice.stream = stream
 	voice.volume_db = volume_db
 	voice.play(from_seconds)
@@ -180,6 +222,8 @@ func play_ambience(sound_name, volume_db = 0.0, pitch = 1.0):
 	if stream == null:
 		ambience.stop()
 		return
+	if fades.has(ambience) and fades[ambience].is_valid():
+		fades[ambience].kill()   # an earlier "fade out and stop" must not stop the new sound
 	if ambience.stream != stream or not ambience.playing:
 		ambience.stream = stream
 		ambience.play()
@@ -195,7 +239,12 @@ func start_engine(sound_name, volume_db = 0.0, pitch = 1.0, delay_seconds = 0.0)
 	if stream == null:
 		return
 	if delay_seconds > 0.0:
+		var asked_in_round = delayed_sounds_round
 		await get_tree().create_timer(delay_seconds).timeout
+		if asked_in_round != delayed_sounds_round:
+			return
+	if fades.has(engine) and fades[engine].is_valid():
+		fades[engine].kill()   # an earlier "fade out and stop" must not stop the new sound
 	engine.stream = stream
 	engine.volume_db = volume_db
 	engine.pitch_scale = pitch
@@ -227,6 +276,7 @@ func sound_delay(distance_meters, speed_of_sound = SPEED_OF_SOUND_EARTH):
 # Every scene: its music, and a click for every button
 # ---------------------------------------------------------------------------
 func _process(_delta):
+	loop_music()
 	var scene = get_tree().current_scene
 	if scene == null:
 		return

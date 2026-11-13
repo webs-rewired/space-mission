@@ -1,0 +1,20 @@
+[gd_scene format=3]
+
+[ext_resource type="Shader" path="res://shaders/vapor_cone.gdshader" id="1_vapor"]
+
+[sub_resource type="ShaderMaterial" id="vapor_material"]
+shader = ExtResource("1_vapor")
+
+[sub_resource type="CylinderMesh" id="cone_mesh"]
+top_radius = 0.55
+bottom_radius = 1.0
+height = 0.4
+radial_segments = 48
+rings = 6
+cap_top = false
+cap_bottom = false
+
+[node name="VaporCone" type="MeshInstance3D"]
+cast_shadow = 0
+mesh = SubResource("cone_mesh")
+surface_material_override/0 = SubResource("vapor_material")

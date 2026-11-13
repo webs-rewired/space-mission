@@ -1,0 +1,71 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/wander.gd" id="1_wander"]
+[ext_resource type="Texture2D" path="res://assets/surface/textures/soft_puff.png" id="2_puff"]
+
+[sub_resource type="Gradient" id="fade"]
+offsets = PackedFloat32Array(0, 0.12, 0.6, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 0.75, 1, 1, 1, 0.45, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="fade_texture"]
+gradient = SubResource("fade")
+
+[sub_resource type="Curve" id="grow"]
+_data = [Vector2(0, 0.35), 0.0, 1.2, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="grow_texture"]
+curve = SubResource("grow")
+
+[sub_resource type="ParticleProcessMaterial" id="swirl"]
+emission_shape = 6
+emission_ring_axis = Vector3(0, 1, 0)
+emission_ring_height = 2.0
+emission_ring_radius = 4.0
+emission_ring_inner_radius = 1.5
+direction = Vector3(0, 1, 0)
+spread = 5.0
+initial_velocity_min = 16.0
+initial_velocity_max = 24.0
+orbit_velocity_min = 0.35
+orbit_velocity_max = 0.55
+radial_velocity_min = 0.6
+radial_velocity_max = 1.4
+gravity = Vector3(0, 0, 0)
+damping_min = 1.0
+damping_max = 2.0
+angle_min = -180.0
+angle_max = 180.0
+angular_velocity_min = -40.0
+angular_velocity_max = 40.0
+scale_min = 4.0
+scale_max = 9.0
+scale_curve = SubResource("grow_texture")
+color = Color(0.74, 0.52, 0.36, 1)
+color_ramp = SubResource("fade_texture")
+
+[sub_resource type="StandardMaterial3D" id="puff_material"]
+transparency = 1
+vertex_color_use_as_albedo = true
+albedo_texture = ExtResource("2_puff")
+roughness = 1.0
+billboard_mode = 3
+billboard_keep_scale = true
+particles_anim_h_frames = 1
+particles_anim_v_frames = 1
+
+[sub_resource type="QuadMesh" id="puff_quad"]
+material = SubResource("puff_material")
+
+[node name="DustDevil" type="Node3D"]
+script = ExtResource("1_wander")
+speed = 5.0
+wander_radius = 140.0
+
+[node name="Swirl" type="GPUParticles3D" parent="."]
+amount = 520
+lifetime = 9.0
+preprocess = 9.0
+visibility_aabb = AABB(-60, -5, -60, 120, 260, 120)
+process_material = SubResource("swirl")
+draw_pass_1 = SubResource("puff_quad")

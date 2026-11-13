@@ -43,8 +43,8 @@ const STACKS = {
 	# Three stages: the S-II drops away and the S-IVB third stage carries on to orbit and then out of Earth orbit.
 	"saturn5": {
 		"name": "Saturn V", "height": 110.6,
-		"bottom": "saturn_v.glb#S_IC", "top": "saturn_v.glb#S_II", "third": "saturn_v.glb#S_IVB",
-		"interstage": "saturn_v.glb#Interstage", "fairing": ["saturn_v.glb#EscapeTower"],
+		"bottom": "saturn_v_stages.glb#S_IC", "top": "saturn_v_stages.glb#S_II", "third": "saturn_v_stages.glb#S_IVB",
+		"interstage": "saturn_v_stages.glb#Interstage", "fairing": ["saturn_v_stages.glb#EscapeTower"],
 		"bottom_engines": [[1, 0.0, 0.0], [4, 3.6, 45.0]], "bottom_nozzle": 1.8,   # 5 F-1s: one in the middle, four around it
 		"top_engines": [[1, 0.0, 0.0], [4, 2.6, 45.0]], "top_nozzle": 1.0,         # 5 J-2s, the same pattern
 		"third_engines": [[1, 0.0, 0.0]], "third_nozzle": 1.0,                       # 1 J-2

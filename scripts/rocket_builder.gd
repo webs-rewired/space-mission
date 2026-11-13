@@ -218,10 +218,10 @@ func _on_view_pressed():
 	rebuild_model()
 
 func _on_back_pressed():
-	get_tree().change_scene_to_file(PROBE_SCENE)
+	GameState.go_to_scene(PROBE_SCENE)
 
 func _on_launch_pressed():
-	get_tree().change_scene_to_file(LAUNCH_SCENE)
+	GameState.go_to_scene(LAUNCH_SCENE)
 
 # ---------------------------------------------------------------------------
 # Keeping everything up to date

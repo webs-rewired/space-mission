@@ -217,6 +217,44 @@ static func half_shell(profile, from_angle, material):
 	shell.material_override = two_sided
 	return shell
 
+# The two halves of a real payload fairing (the Falcon 9's), sized to sit on a stage of this radius.
+# Returns [] if the models aren't in the project.
+const FAIRING_FILES = ["falcon9_fairing_1.glb", "falcon9_fairing_2.glb"]
+static func real_fairing_halves(base_y, radius, height):
+	var spacecraft_script = load("res://scripts/spacecraft.gd")
+	var models = []
+	var box = null
+	for file_name in FAIRING_FILES:
+		var path = spacecraft_script.find_model(file_name)
+		var scene = load(path) if path != "" else null
+		if not scene is PackedScene:
+			for model in models:
+				model.free()
+			return []
+		var model = scene.instantiate()
+		models.append(model)
+		var model_box = spacecraft_script.model_bounds(model, Transform3D.IDENTITY, null)
+		if model_box != null:
+			box = model_box if box == null else box.merge(model_box)
+	if box == null:
+		for model in models:
+			model.free()
+		return []
+	var across = max(box.size.x, box.size.z, 0.001)
+	var stretch = Vector3(radius * 2.0 / across, height / max(box.size.y, 0.001), radius * 2.0 / across)
+	var middle = box.get_center()
+	var halves = []
+	for index in models.size():
+		var model = models[index]
+		model.scale = model.scale * stretch
+		model.position = (model.position - Vector3(middle.x, box.position.y, middle.z)) * stretch
+		var half = Node3D.new()
+		half.name = "FairingHalf%d" % (index + 1)
+		half.position.y = base_y
+		half.add_child(model)
+		halves.append(half)
+	return halves
+
 # Builds the whole rocket. Returns its pieces and the places its flames attach.
 static func build(rocket):
 	var root = Node3D.new()
@@ -303,30 +341,52 @@ static func build(rocket):
 		var kick = RocketData.KICK_STAGES[rocket["kick_stage"]]
 		add_cylinder(payload, kick["radius"] * 0.6, kick["radius"], kick["height"], Vector3(0, payload_base + kick["height"] / 2.0, 0), make_material(Color(0.25, 0.25, 0.27), 0.6, 0.4))
 		payload_base += kick["height"]
+	# The real spacecraft your design is closest to (the same one that flies the mission) rides inside. If its
+	# model can't be found, a simple gold box stands in for it.
+	var fairing_radius = max(top_radius, 2.2)
+	var lookalike_script = load("res://scripts/spacecraft_lookalike.gd")
+	var real_probe = lookalike_script.load_model(lookalike_script.closest(), fairing_radius * 2.6) if lookalike_script else null
+	if real_probe:
+		real_probe.position.y = payload_base
+		payload.add_child(real_probe)
+		payload.visible = false   # (NASA's models have their panels unfolded, so it shows once the fairing opens)
 	var gold = make_material(Color(0.85, 0.65, 0.25), 0.7, 0.35)
 	var probe_body = MeshInstance3D.new()
+	probe_body.visible = real_probe == null
 	var probe_box = BoxMesh.new()
 	probe_box.size = Vector3(1.6, 1.4, 1.6)
 	probe_body.mesh = probe_box
 	probe_body.material_override = gold
 	probe_body.position = Vector3(0, payload_base + 0.7, 0)
 	payload.add_child(probe_body)
-	add_cylinder(payload, 1.3, 0.3, 0.4, Vector3(0, payload_base + 1.65, 0), make_material(Color(0.93, 0.93, 0.9)))
+	if real_probe == null:
+		add_cylinder(payload, 1.3, 0.3, 0.4, Vector3(0, payload_base + 1.65, 0), make_material(Color(0.93, 0.93, 0.9)))
 	pieces["payload"] = payload
 
-	# Fairing: two halves that split apart once the rocket is above the air
-	var fairing_radius = max(top_radius, 2.2)
+	# Fairing: two halves that split apart once the rocket is above the air.
+	# A real one (Falcon 9's two fairing halves, stretched to fit this rocket) when its models are in the project;
+	# otherwise a plain white shell.
 	var fairing_height = 6.0 + (2.0 if rocket["kick_stage"] != "none" else 0.0)
-	var profile = [Vector2(top_radius, y), Vector2(fairing_radius, y + 1.2), Vector2(fairing_radius, y + 1.2 + fairing_height)]
 	var nose_base = y + 1.2 + fairing_height
-	for step in range(1, 11):
-		var fraction = float(step) / 10.0
-		profile.append(Vector2(max(0.02, fairing_radius * pow(cos(fraction * PI / 2.0), 0.6)), nose_base + fairing_radius * 2.6 * fraction))
-	for half in 2:
-		var shell = half_shell(profile, PI * half, white)
-		shell.name = "FairingHalf%d" % (half + 1)
-		top.add_child(shell)
-		pieces["fairing"].append(shell)
+	var whole_height = nose_base + fairing_radius * 2.6 - y
+	var real_halves = real_fairing_halves(y, fairing_radius, whole_height)
+	if not real_halves.is_empty():
+		# A short adapter cone joins the stage to the wider fairing
+		if fairing_radius > top_radius + 0.05:
+			add_cylinder(top, fairing_radius, top_radius, 0.9, Vector3(0, y - 0.45, 0), white)
+		for half in real_halves:
+			top.add_child(half)
+			pieces["fairing"].append(half)
+	else:
+		var profile = [Vector2(top_radius, y), Vector2(fairing_radius, y + 1.2), Vector2(fairing_radius, y + 1.2 + fairing_height)]
+		for step in range(1, 11):
+			var fraction = float(step) / 10.0
+			profile.append(Vector2(max(0.02, fairing_radius * pow(cos(fraction * PI / 2.0), 0.6)), nose_base + fairing_radius * 2.6 * fraction))
+		for half in 2:
+			var shell = half_shell(profile, PI * half, white)
+			shell.name = "FairingHalf%d" % (half + 1)
+			top.add_child(shell)
+			pieces["fairing"].append(shell)
 	pieces["height"] = nose_base + fairing_radius * 2.6
 	pieces["width"] = max(bottom_radius, fairing_radius) * 2.0
 	return pieces

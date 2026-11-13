@@ -40,7 +40,27 @@ const TERRAIN_SPACING = 2.0                   # meters between the ground's coll
 const TERRAIN_POINTS = 241                    # 241 x 241 points: 480 m square
 const LOWEST_GRAVITY = 0.25                   # m/s^2: on Phobos (0.0057) a bump would launch the rover for minutes, so it's raised to this
 const SURFACE_GRIP = {"soil": 2.4, "sand": 0.7, "ice": 0.9, "rock": 4.0}
-const DRIVE_AREA_RADIUS = 225.0
+const DRIVE_AREA_RADIUS = 215.0               # meters from the landing spot: the edge of the mission's planned driving area
+const MISSION_BOUNDARY_SCENE = preload("res://scenes/effects/mission_boundary.tscn")
+const TARGET_ROCKS = [
+	preload("res://assets/surface/rocks/rock_angular_1.glb"), preload("res://assets/surface/rocks/rock_cobble.glb"),
+	preload("res://assets/surface/rocks/rock_slab.glb"), preload("res://assets/surface/rocks/rock_angular_2.glb"),
+	preload("res://assets/surface/rocks/rock_angular_3.glb"),
+]
+const BOUNDARY_MESSAGE = "MISSION BOUNDARY. The team on Earth planned this mission for the area around the landing site, and the rover's maps end here. Turn around."
+var looking_around = false          # right mouse button held: the mouse swings the view around the rover
+var look_yaw = 0.0
+var look_pitch = 0.0
+var look_zoom = 1.0
+const DUST_STORM_SCENE = preload("res://scenes/effects/dust_storm.tscn")
+var storm: Node3D = null
+var storm_seconds_left = 0.0
+var storm_seconds_total = 0.0
+var storm_has_dust = false
+var cables_started = false
+var study_laser: MeshInstance3D = null
+var boundary: MeshInstance3D = null
+var boundary_message_wait = 0.0
 
 # Ground colors (light, dark), sky colors (worlds with air), haze, how dim the sunlight is, and a planet hanging in the sky
 const WORLDS = {
@@ -121,6 +141,9 @@ var dust_timer = 0.0
 var shake = 0.0
 var camera_angle = 0.6
 var parachute_full_size = 10.0
+const CABLE_LENGTH = 7.5               # meters: Perseverance hung 6.4 m under its descent stage (a little longer here so it shows)
+const DIVERT = Vector3(16.0, 0.0, 11.0)   # the descent stage flies this far sideways to the landing spot, out from under the backshell and parachute
+var crane_stowed_height = 2.0          # how high the descent stage sits above the ground-level of the rover while they fly as one
 var platform: Node3D = null        # the legged lander that carries the rover
 var rover_ready = false            # the rover is on the ground and free to drive
 var legs_deployed = false
@@ -463,7 +486,9 @@ func deploy_legs():
 	var animation = platform.get_node_or_null("AnimationPlayer")
 	if animation:
 		animation.play("legs_out")
-	play_sound("thump", -12.0, 1.6)
+	play_sound("servo", -6.0, 1.2)    # the legs swing out and lock
+	if audio():
+		audio().play_effect("latch", -6.0 + air_loudness(), air_pitch(), 0.5)
 
 # After touchdown: the ramps fold down and the rover drives off the deck onto the ground
 func deploy_rover():
@@ -471,7 +496,9 @@ func deploy_rover():
 	await get_tree().create_timer(1.0).timeout
 	if animation:
 		animation.play("ramps_down")
-	play_sound("thump", -10.0, 1.3)
+	play_sound("servo", -4.0, 0.9)    # the ramps fold down
+	if audio():
+		audio().play_effect("clank", -6.0 + air_loudness(), air_pitch(), 0.9)
 	await get_tree().create_timer(2.2).timeout
 	var deck = lander.position.y
 	var ramp_length = platform.get_meta("ramp_length", 2.5)
@@ -520,7 +547,10 @@ func plan_landing():
 		if landing == "landing_skycrane":
 			crane = SKY_CRANE_SCENE.instantiate()
 			vehicle.add_child(crane)
-			crane.position.y = 7.5 + lander_size * 0.5
+			# The rover rides tucked right under the descent stage until the last 20 meters
+			crane_stowed_height = lander_size * 0.62 + 0.45
+			crane.position.y = crane_stowed_height
+			set_cables(0.0)
 			for engine in crane.get_children():
 				if engine.name.begins_with("Engine"):
 					var flame = RocketModel.make_flame("methane")
@@ -530,7 +560,9 @@ func plan_landing():
 					crane.add_child(flame)
 					crane_flames.append(flame)
 			crane.visible = false
-			phases.append(["sky_crane", 6.5, 95.0, 0.0])
+			# Real order: drop out of the backshell, fire the engines and fly sideways (so the backshell and parachute
+			# don't land on the rover), slow to a hover speed, then lower the rover on cables for the last 20 meters
+			phases = [["parachute", 4.5, 260.0, 110.0], ["release", 1.1, 110.0, 97.0], ["crane_powered", 5.5, 97.0, 21.0], ["sky_crane", 6.0, 21.0, 0.0]]
 		elif landing == "landing_airbags":
 			airbags = AIRBAGS_SCENE.instantiate()
 			airbags.scale = Vector3.ONE * (lander_size / 2.3)
@@ -561,6 +593,7 @@ func add_capsule():
 # Every frame
 # ---------------------------------------------------------------------------
 func _process(delta):
+	update_storm(delta)   # (weather keeps moving while a decision is on screen)
 	if paused:
 		return
 	if site and terrain_rows_done < TERRAIN_POINTS:
@@ -599,6 +632,10 @@ func update_vehicle(fraction):
 	var phase_name = phase[0]
 	var is_last_phase = phase_index >= phases.size() - 1
 	height = lerp(phase[2], phase[3], fraction if crash_landing and is_last_phase else eased(fraction))
+	if crane and phase_name in ["parachute", "release"]:
+		# A sky crane's capsule comes down off to one side; the descent stage then flies over to the landing spot
+		vehicle.position.x = -DIVERT.x
+		vehicle.position.z = -DIVERT.z
 	match phase_name:
 		"parachute":
 			# A moment of free fall (where the decisions on the way down happen), then the mortar fires
@@ -635,12 +672,33 @@ func update_vehicle(fraction):
 			kick_up_dust(fraction)
 			if fraction >= 0.3:
 				reached_decision_point = true
-		"sky_crane":
+		"crane_powered":
+			# Eight engines light; the descent stage carries the rover sideways, away from the backshell above
 			set_flames(crane_flames, true)
 			start_engine_sound()
-			lander.position.y = 0.0
-			if fraction > 0.92 and crane.get_parent() == vehicle:
-				fly_crane_away()
+			var across = smoothstep(0.0, 0.85, fraction)
+			vehicle.position.x = -DIVERT.x * (1.0 - across)
+			vehicle.position.z = -DIVERT.z * (1.0 - across)
+			vehicle.rotation.z = -sin(fraction * PI) * 0.16   # it leans the way it's flying
+			if fraction >= 0.3:
+				reached_decision_point = true
+		"sky_crane":
+			# The last 20 meters: a steady, slow descent while the rover is lowered on its cables
+			set_flames(crane_flames, true)
+			start_engine_sound()
+			height = lerp(phase[2], phase[3], fraction)   # steady speed (the real one came down at 0.75 m/s)
+			vehicle.position.x = 0.0
+			vehicle.position.z = 0.0
+			vehicle.rotation.z = 0.0
+			if not cables_started:
+				cables_started = true
+				play_sound("servo", -2.0, 0.8)     # the cable reels start to turn
+				if audio():
+					audio().play_effect("servo_loop", -6.0 + air_loudness(), air_pitch(), 0.3)
+			var lowered = smoothstep(0.05, 0.55, fraction)
+			crane.position.y = lerp(crane_stowed_height, crane_stowed_height + CABLE_LENGTH, lowered)
+			set_cables(lowered)
+			lander.rotation.z = sin(phase_time * 2.2) * 0.02 * (1.0 - fraction)   # a slight swing on the cables
 			kick_up_dust(fraction)
 		"airbags":
 			# Hit the ground at 70 % of the way, then bounce a few times (Opportunity bounced 26 times)
@@ -661,7 +719,8 @@ func finish_phase(phase_name):
 		vehicle.remove_child(capsule)
 		add_child(capsule)
 		capsule.global_transform = place
-		drifting.append({"node": capsule, "velocity": Vector3(4.0, -3.0, 2.0), "spin": Vector3(0, 0, 0.05)})
+		# It keeps coming down slowly under its parachute and the wind carries it off; the lander falls away below it
+		drifting.append({"node": capsule, "velocity": Vector3(-7.0, -6.5, -4.0), "spin": Vector3.ZERO, "lands": true, "sway": true})
 
 func drop_heat_shield():
 	var heat_shield = capsule.get_node("HeatShield")
@@ -669,29 +728,73 @@ func drop_heat_shield():
 	capsule.remove_child(heat_shield)
 	add_child(heat_shield)
 	heat_shield.global_transform = place
-	drifting.append({"node": heat_shield, "velocity": Vector3(0.5, -22.0, -0.3), "spin": Vector3(0.6, 0, 0.4)})
+	# It falls faster than everything else (nothing is slowing it) and hits the ground well away from the landing spot
+	drifting.append({"node": heat_shield, "velocity": Vector3(-6.0, -24.0, 7.0), "spin": Vector3(0.6, 0, 0.4), "lands": true})
 	play_sound("impact", -10.0, 0.8)
 
 func fly_crane_away():
-	# Cables cut: the sky crane flies off to crash a safe distance away, like Perseverance's did
+	# Cables cut: the descent stage throttles up and flies off to crash a safe distance away, like Perseverance's did
+	# (it came down about 700 m from the rover)
 	var place = crane.global_transform
 	vehicle.remove_child(crane)
 	add_child(crane)
 	crane.global_transform = place
-	drifting.append({"node": crane, "velocity": Vector3(14.0, 9.0, -6.0), "spin": Vector3(0, 0, -0.2)})
+	set_cables(0.0)
+	play_sound("clank", 0.0)   # the cable cutters fire
+	set_flames(crane_flames, true)
+	drifting.append({"node": crane, "velocity": Vector3(9.0, 13.0, -7.0), "spin": Vector3(0, 0, -0.12), "falls": true, "lands": true, "burn_seconds": 2.6, "crashes": true})
+	play_sound("thruster", -2.0, 0.8)
+
+# How far the rover's cables are let out (0 = stowed, 1 = all the way)
+func set_cables(share):
+	if crane == null:
+		return
 	for child in crane.get_children():
 		if child.name.begins_with("Cable"):
-			child.visible = false
+			child.visible = share > 0.01
+			child.scale.y = max(share, 0.01)
+			child.position.y = -CABLE_LENGTH * share / 2.0
 
+# Pieces that have been let go: they keep moving, and the ones that reach the ground land on it (with a puff of dust)
+# instead of sinking through
 func update_drifting(delta):
 	for piece in drifting.duplicate():
 		var node = piece["node"]
 		if not is_instance_valid(node):
 			drifting.erase(piece)
 			continue
+		if piece.get("falls", false):
+			piece["velocity"].y -= max(CONDITIONS.get(destination, [3.7])[0], 1.0) * delta
+		if piece.has("burn_seconds"):
+			piece["burn_seconds"] -= delta
+			if piece["burn_seconds"] <= 0.0:
+				set_flames(crane_flames, false)
+				piece.erase("burn_seconds")
 		node.global_position += piece["velocity"] * delta
 		node.rotation += piece["spin"] * delta
-		if node.global_position.y < -2.0 or node.global_position.length() > 600.0:
+		if piece.get("sway", false):
+			node.rotation.z = sin(Time.get_ticks_msec() / 1000.0 * 1.3) * 0.08
+		var ground = ground_height(Vector2(node.global_position.x, node.global_position.z))
+		if piece.get("lands", false) and node.global_position.y <= ground + 0.4 and piece["velocity"].y < 0.0:
+			# Down: it stays where it fell
+			node.global_position.y = ground + 0.3
+			spawn_dust(Vector3(node.global_position.x, ground + 0.3, node.global_position.z), 4.0)
+			var distance = node.global_position.distance_to(camera.global_position)
+			play_sound("thump", clamp(-4.0 - distance * 0.05, -30.0, -4.0), 0.9)
+			if piece.get("crashes", false):
+				play_sound("crash", clamp(2.0 - distance * 0.04, -24.0, 2.0), 0.8)
+				spawn_dust(Vector3(node.global_position.x, ground + 1.0, node.global_position.z), 9.0)
+				node.rotation = Vector3(0.5, node.rotation.y, 1.1)
+				set_flames(crane_flames, false)
+			elif node == capsule:
+				node.rotation = Vector3(0.0, node.rotation.y, 1.25)   # it tips onto its side
+				if parachute and is_instance_valid(parachute):
+					parachute.visible = false   # the canopy collapses
+			else:
+				node.rotation = Vector3(PI + 0.1, node.rotation.y, 0.12)   # the heat shield lies dish-up, like the real one photographed by Opportunity
+			drifting.erase(piece)
+			continue
+		if node.global_position.y < -200.0 or node.global_position.length() > 1500.0:
 			node.queue_free()
 			drifting.erase(piece)
 
@@ -705,7 +808,7 @@ func kick_up_dust(fraction):
 	dust_timer -= get_process_delta_time()
 	if height < 25.0 and dust_timer <= 0.0:
 		dust_timer = 0.15
-		spawn_dust(Vector3(vehicle.position.x, 0.3, vehicle.position.z), 2.5 + (25.0 - height) * 0.25)
+		spawn_dust(Vector3(vehicle.position.x, landing_ground + 0.3, vehicle.position.z), 2.5 + (25.0 - height) * 0.25)
 
 func spawn_dust(place, size):
 	var dust = DUST_SCENE.instantiate()
@@ -731,9 +834,13 @@ func touchdown():
 	if parachute and is_instance_valid(parachute):
 		parachute.visible = false   # the canopy collapses onto the ground
 	set_flames(lander_flames, false)
-	set_flames(crane_flames, false)
+	if crane and is_instance_valid(crane) and crane.get_parent() == vehicle:
+		lander.rotation.z = 0.0
+		fly_crane_away()   # wheels down: the cables are cut and the descent stage flies clear
+	else:
+		set_flames(crane_flames, false)
 	shake = 0.6
-	spawn_dust(Vector3(0, 0.3, 0), 6.0 + lander_size)
+	spawn_dust(Vector3(vehicle.position.x, landing_ground + 0.3, vehicle.position.z), 6.0 + lander_size)
 	stop_engine_sound()
 	play_sound("thump", 2.0, 0.8)
 	if destination == "Moon" and audio():
@@ -776,6 +883,21 @@ func play_event_effect(kind):
 			shake = 0.6
 			play_sound("impact", 0.0)
 			return 1.0
+		"storm":
+			start_storm(9.0)
+			return 2.5
+		"drill":
+			# The robotic arm goes to work: motor whirr, a puff of rock dust, the tool locking home
+			play_sound("servo", -4.0)
+			spawn_dust(vehicle.position + vehicle.global_transform.basis.z.normalized() * lander_size * 0.7 + Vector3(0, 0.2, 0), 0.8)
+			if audio():
+				audio().play_effect("servo_loop", -8.0 + air_loudness(), 1.3 * air_pitch(), 0.4)
+				audio().play_effect("latch", -4.0 + air_loudness(), air_pitch(), 2.2)
+			shake = 0.15
+			return 2.4
+		"night":
+			start_storm(0.0, 7.0)   # just the darkness, no dust
+			return 1.5
 		"dust":
 			var dust_devil = site.get_node_or_null("DustDevil1") if site else null
 			if dust_devil and dust_devil.has_method("pass_near"):
@@ -787,6 +909,60 @@ func play_event_effect(kind):
 				spawn_dust(vehicle.position + Vector3(0, 0.3, 0), 2.5)   # dust clinging and lifting off the rover
 			return 1.4
 	return 0.4
+
+# A dust storm rolls over the landing site: sheets of dust race past, the sky dims and turns the color of the
+# dust, and the wind howls (on Mars that's Perseverance's real wind recording, turned up). Then it clears.
+# With dust_seconds 0 only the darkening happens (nightfall, an eclipse).
+func start_storm(dust_seconds, dark_seconds = 0.0):
+	storm_seconds_left = max(dust_seconds, dark_seconds)
+	storm_seconds_total = storm_seconds_left
+	storm_has_dust = dust_seconds > 0.0 and has_air()
+	if storm_has_dust:
+		if storm == null:
+			storm = DUST_STORM_SCENE.instantiate()
+			add_child(storm)
+			for particles in storm.get_children():
+				particles.process_material = particles.process_material.duplicate()
+				particles.process_material.color = Color(dust_color.r, dust_color.g, dust_color.b, particles.process_material.color.a)
+		for particles in storm.get_children():
+			particles.emitting = true
+		if audio():
+			audio().play_effect("mars_wind", 8.0 + air_loudness(), 0.75 * air_pitch())
+			audio().play_effect("mars_wind", 6.0 + air_loudness(), 1.1 * air_pitch(), 1.5)
+
+func update_storm(delta):
+	if storm_seconds_total <= 0.0:
+		return
+	storm_seconds_left -= delta
+	# Builds up over the first second and a half, clears over the last two
+	var strength = clamp(min((storm_seconds_total - storm_seconds_left) / 1.5, storm_seconds_left / 2.0), 0.0, 1.0)
+	var world_environment = get_node_or_null("WorldEnvironment")
+	if world_environment and world_environment.environment:
+		var environment: Environment = world_environment.environment
+		if not has_meta("calm_weather"):
+			set_meta("calm_weather", [environment.fog_density, environment.fog_light_color, environment.ambient_light_energy, environment.fog_enabled])
+		var calm = get_meta("calm_weather")
+		if storm_has_dust:
+			environment.fog_enabled = true
+			environment.fog_density = lerp(calm[0] if calm[3] else 0.0, 0.035, strength)
+			environment.fog_light_color = calm[1].lerp(dust_color * 0.55, strength)
+		environment.ambient_light_energy = calm[2] * lerp(1.0, 0.35, strength)
+		if storm_seconds_left <= 0.0:
+			environment.fog_enabled = calm[3]
+			environment.fog_density = calm[0]
+			environment.fog_light_color = calm[1]
+			environment.ambient_light_energy = calm[2]
+	if sun:
+		if not sun.has_meta("calm_energy"):
+			sun.set_meta("calm_energy", sun.light_energy)
+		sun.light_energy = sun.get_meta("calm_energy") * lerp(1.0, 0.2, strength)
+	if storm_has_dust:
+		shake = max(shake, 0.12 * strength)
+	if storm_seconds_left <= 2.0 and storm:
+		for particles in storm.get_children():
+			particles.emitting = false
+	if storm_seconds_left <= 0.0:
+		storm_seconds_total = 0.0
 
 # ---------------------------------------------------------------------------
 # The camera: tracking the lander down, then slowly circling it on the ground
@@ -855,6 +1031,7 @@ func start_driving():
 	rover_heading = randf() * TAU
 	last_ground_height = ground_height(Vector2(vehicle.position.x, vehicle.position.z))
 	make_rover_body()
+	add_mission_boundary()
 	if audio():
 		audio().start_engine("mars_rover_drive", -60.0, air_pitch())
 	show_message(intro_message(), 9.0)
@@ -891,28 +1068,45 @@ func place_science_targets():
 		var angle = random.randf() * TAU
 		var place = Vector2(cos(angle), sin(angle)) * random.randf_range(14.0, 48.0)
 		var marker = Node3D.new()
+		# A thin beam of light so you can find it from far away...
 		var beam = MeshInstance3D.new()
 		var beam_mesh = CylinderMesh.new()
-		beam_mesh.top_radius = 0.15
-		beam_mesh.bottom_radius = 0.35
-		beam_mesh.height = 12.0
+		beam_mesh.top_radius = 0.03
+		beam_mesh.bottom_radius = 0.09
+		beam_mesh.height = 10.0
+		beam_mesh.radial_segments = 8
 		beam.mesh = beam_mesh
 		var glow = StandardMaterial3D.new()
 		glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		glow.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		glow.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-		glow.albedo_color = Color(0.3, 0.9, 1.0, 0.35)
+		glow.albedo_color = Color(0.3, 0.9, 1.0, 0.55)
 		beam.material_override = glow
-		beam.position.y = 6.0
+		beam.position.y = 5.6
 		beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		marker.add_child(beam)
-		var rock = MeshInstance3D.new()
-		rock.mesh = BeltBuilder.make_rock_mesh(index * 13 + 5, 0.45, false)
-		rock.scale = Vector3(0.9, 0.6, 0.8)
-		var rock_material = StandardMaterial3D.new()
-		var world = WORLDS.get(destination, WORLDS["Moon"])
-		rock_material.albedo_color = world["light"].lerp(Color(0.85, 0.85, 0.9), 0.25)
-		rock.material_override = rock_material
+		# ...a glowing ring on the ground around it...
+		var ring = MeshInstance3D.new()
+		var ring_mesh = TorusMesh.new()
+		ring_mesh.inner_radius = 1.25
+		ring_mesh.outer_radius = 1.4
+		ring_mesh.rings = 48
+		ring_mesh.ring_segments = 6
+		ring.mesh = ring_mesh
+		ring.material_override = glow
+		ring.scale.y = 0.25
+		ring.position.y = 0.12
+		ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		ring.name = "Ring"
+		marker.add_child(ring)
+		# ...and the thing to study: a real rock, painted like the other rocks at this site
+		var rock = TARGET_ROCKS[index % TARGET_ROCKS.size()].instantiate()
+		rock.scale = Vector3.ONE * random.randf_range(0.55, 0.8)
+		rock.rotation.y = random.randf() * TAU
+		var rock_field = get_tree().get_first_node_in_group("rock_field")
+		if rock_field and rock_field.rock_material:
+			for piece in rock.find_children("*", "MeshInstance3D", true, false):
+				piece.material_override = rock_field.rock_material
 		marker.add_child(rock)
 		add_child(marker)
 		marker.position = Vector3(place.x, ground_height(place), place.y)
@@ -1031,9 +1225,10 @@ func update_driving(delta):
 				next = vehicle.position
 				next_place = here
 				break
-		if next_place.length() > 220.0:
+		if next_place.length() > DRIVE_AREA_RADIUS:
 			next = vehicle.position
 			rover_speed = 0.0
+			show_message(BOUNDARY_MESSAGE, 6.0)
 		# Stay on the ground, or sail off the top of a bump in low gravity
 		var ground_here = ground_height(Vector2(next.x, next.z))
 		rover_vertical_speed -= gravity * delta
@@ -1128,9 +1323,13 @@ func update_science(delta):
 	if studying != null:
 		study_time += delta
 		rover_speed = 0.0
+		aim_study_laser(studying)
 		if study_time >= STUDY_SECONDS:
 			studying["studied"] = true
 			studying["node"].get_child(0).visible = false   # the beam goes out
+			studying["node"].get_node("Ring").visible = false
+			if study_laser:
+				study_laser.visible = false
 			var points = 3
 			if "instrument_drill" in GameState.instruments or "instrument_spectrometer" in GameState.instruments:
 				points += 2   # the right tools tell you much more
@@ -1150,6 +1349,38 @@ func update_science(delta):
 					if audio():
 						audio().play_effect("laser", -6.0 + air_loudness(), 1.0, zap * 0.35)
 				show_message("Studying the %s..." % target["name"].to_lower(), STUDY_SECONDS)
+
+# The laser the rover studies rocks with (Perseverance's SuperCam fires from the top of its mast and reads the
+# light of the spark): a flickering green line from the mast to the rock, with sparks where it hits
+func aim_study_laser(target):
+	if study_laser == null:
+		study_laser = MeshInstance3D.new()
+		var line = CylinderMesh.new()
+		line.top_radius = 0.012
+		line.bottom_radius = 0.012
+		line.height = 1.0
+		line.radial_segments = 6
+		study_laser.mesh = line
+		var glow = StandardMaterial3D.new()
+		glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		glow.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		glow.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		glow.albedo_color = Color(0.4, 1.0, 0.5, 0.9)
+		study_laser.material_override = glow
+		study_laser.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(study_laser)
+	var from = vehicle.global_position + vehicle.global_transform.basis.y.normalized() * lander_size * 0.72
+	var to = target["node"].global_position + Vector3(0, 0.3, 0)
+	var along = to - from
+	if along.length() < 0.01:
+		return
+	study_laser.visible = int(study_time * 14.0) % 3 != 0   # it fires in quick pulses
+	study_laser.global_position = (from + to) * 0.5
+	var up = along.normalized()
+	var side = up.cross(Vector3.UP).normalized() if abs(up.y) < 0.99 else Vector3.RIGHT
+	study_laser.global_basis = Basis(side, up, side.cross(up)).scaled(Vector3(1.0, along.length(), 1.0))
+	if study_laser.visible and randf() < 0.3:
+		spawn_dust(to, 0.25)
 
 func update_drive_screen():
 	var column = $DriveScreen/DrivePanel/Column
@@ -1180,13 +1411,44 @@ func show_message_once(key, text, seconds):
 	messages_shown[key] = true
 	show_message(text, seconds)
 
+# Looking around the rover: hold the right mouse button and drag. The view swings around the rover and stays
+# where you leave it, whether you're driving or parked; the mouse wheel moves it closer or farther.
+func _unhandled_input(event):
+	if not driving:
+		return
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_RIGHT:
+			looking_around = event.pressed
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if looking_around else Input.MOUSE_MODE_VISIBLE
+		elif event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
+			look_zoom = max(0.45, look_zoom * 0.9)
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
+			look_zoom = min(2.5, look_zoom * 1.1)
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_V:
+		look_yaw = 0.0     # V: back to the view from behind the rover
+		look_pitch = 0.0
+		look_zoom = 1.0
+
+func _input(event):
+	# Once you're looking around, every mouse movement counts, even with the hidden mouse over a panel
+	if looking_around and event is InputEventMouseMotion:
+		look_yaw -= event.relative.x * 0.005
+		look_pitch = clamp(look_pitch + event.relative.y * 0.004, -0.35, 1.1)
+	elif looking_around and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and not event.pressed:
+		looking_around = false
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
 func place_drive_camera(blend):
 	var forward = Vector3(sin(rover_heading), 0.0, cos(rover_heading))
 	var target = vehicle.global_position + Vector3(0, lander_size * 0.4, 0)
-	var wanted = target - forward * (lander_size * 3.0 + 4.0) + Vector3(0, lander_size * 1.2 + 1.5, 0)
+	# Behind the rover by default; look_yaw and look_pitch swing the view around it
+	var back = -forward.rotated(Vector3.UP, look_yaw)
+	var distance = (lander_size * 3.0 + 4.0) * look_zoom
+	var height_above = (lander_size * 1.2 + 1.5) * look_zoom
+	var wanted = target + (back * distance + Vector3(0, height_above, 0)).rotated(back.cross(Vector3.UP).normalized(), -look_pitch)
 	wanted.y = max(wanted.y, ground_height(Vector2(wanted.x, wanted.z)) + 1.0)
-	camera.global_position = camera.global_position.lerp(wanted, blend)
-	camera.look_at(target + forward * 2.0, Vector3.UP)
+	camera.global_position = camera.global_position.lerp(wanted, 1.0 if looking_around else blend)
+	camera.look_at(target + forward.rotated(Vector3.UP, look_yaw) * 2.0 * (1.0 - min(abs(look_pitch), 1.0)), Vector3.UP)
 	camera.h_offset = randf_range(-1.0, 1.0) * shake * 0.2 if shake > 0.0 else 0.0
 	camera.v_offset = randf_range(-1.0, 1.0) * shake * 0.2 if shake > 0.0 else 0.0
 
@@ -1335,12 +1597,21 @@ func drive_physics(delta, throttle, steering, in_sand, top_speed):
 		wheel.wheel_friction_slip = SURFACE_GRIP[surface]
 	if in_sand:
 		rover_body.apply_central_force(-rover_body.linear_velocity * ROVER_MASS * 0.8)   # sinking wheels drag
-	# The mission plan keeps the rover near the landing site
+	# The mission plan keeps the rover near the landing site: at the boundary it can't go any farther out
 	var flat_place = Vector2(rover_body.global_position.x, rover_body.global_position.z)
-	if flat_place.length() > DRIVE_AREA_RADIUS:
-		var back = -Vector3(flat_place.x, 0, flat_place.y).normalized()
-		rover_body.apply_central_force(back * ROVER_MASS * 3.0)
-		show_message_once("edge", "That's as far as the mission plan goes: the team on Earth wants you near the landing site.", 4.0)
+	boundary_message_wait -= delta
+	if flat_place.length() > DRIVE_AREA_RADIUS - 1.0:
+		var outward = Vector3(flat_place.x, 0, flat_place.y).normalized()
+		var outward_speed = rover_body.linear_velocity.dot(outward)
+		if outward_speed > 0.0:
+			rover_body.linear_velocity -= outward * outward_speed   # (all the speed away from the landing site is taken off)
+		rover_body.apply_central_force(-outward * ROVER_MASS * 2.0)
+		if boundary_message_wait <= 0.0:
+			boundary_message_wait = 7.0
+			show_message(BOUNDARY_MESSAGE, 6.0)
+			play_sound("error", -8.0)
+	if boundary and boundary.get_surface_override_material(0):
+		boundary.get_surface_override_material(0).set_shader_parameter("rover_position", rover_body.global_position)
 	# In the air (low gravity hops), or tipped over on a steep slope
 	airborne_seconds = airborne_seconds + delta if wheels_touching == 0 else 0.0
 	if airborne_seconds > 0.4:
@@ -1368,6 +1639,29 @@ func _on_rover_bumped(body):
 		shake = 0.4
 		play_sound("impact", 0.0)
 		show_message("Bang! You hit a rock. Curiosity's wheels got holes punched in them by sharp Mars rocks." if destination == "Mars" else "Bang! You hit a rock and damaged a wheel.", 3.0)
+
+# The edge of the driving area: a curtain of warning stripes you can see when you get near it, and a wall the
+# rover can't drive through (so it can never reach the place where the mapped ground ends)
+func add_mission_boundary():
+	if boundary:
+		return
+	boundary = MISSION_BOUNDARY_SCENE.instantiate()
+	boundary.scale = Vector3(DRIVE_AREA_RADIUS + 1.5, 400.0, DRIVE_AREA_RADIUS + 1.5)
+	add_child(boundary)
+	var wall = StaticBody3D.new()
+	wall.name = "MissionBoundaryWall"
+	var pieces = 72
+	var piece_length = TAU * (DRIVE_AREA_RADIUS + 3.0) / pieces * 1.1
+	for index in pieces:
+		var angle = TAU * index / pieces
+		var shape = BoxShape3D.new()
+		shape.size = Vector3(piece_length, 400.0, 3.0)
+		var piece = CollisionShape3D.new()
+		piece.shape = shape
+		piece.position = Vector3(cos(angle), 0.0, sin(angle)) * (DRIVE_AREA_RADIUS + 3.0)
+		piece.rotation.y = -angle + PI / 2.0
+		wall.add_child(piece)
+	add_child(wall)
 
 # Wheel tracks: two ribbons pressed into the ground behind the rover's wheels
 func start_tracks():
@@ -1431,6 +1725,8 @@ func end_driving(reason):
 		return
 	driving = false
 	failure = reason
+	looking_around = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	$DriveScreen.visible = false
 	for entry in rover_wheels:
 		entry[0].engine_force = 0.0

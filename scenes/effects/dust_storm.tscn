@@ -1,0 +1,74 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/follow_camera.gd" id="1_follow"]
+[ext_resource type="Texture2D" path="res://assets/surface/textures/soft_puff.png" id="2_puff"]
+
+[sub_resource type="Gradient" id="fade"]
+offsets = PackedFloat32Array(0, 0.15, 0.75, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="fade_texture"]
+gradient = SubResource("fade")
+
+[sub_resource type="ParticleProcessMaterial" id="blowing_sheets"]
+emission_shape = 3
+emission_box_extents = Vector3(45, 6, 45)
+direction = Vector3(1, 0.02, 0.25)
+spread = 12.0
+initial_velocity_min = 14.0
+initial_velocity_max = 26.0
+gravity = Vector3(0, 0.1, 0)
+turbulence_enabled = true
+turbulence_noise_strength = 1.5
+turbulence_noise_scale = 3.0
+scale_min = 6.0
+scale_max = 14.0
+color = Color(0.8, 0.55, 0.38, 0.3)
+color_ramp = SubResource("fade_texture")
+
+[sub_resource type="ParticleProcessMaterial" id="blowing_grit"]
+emission_shape = 3
+emission_box_extents = Vector3(35, 5, 35)
+direction = Vector3(1, 0, 0.25)
+spread = 8.0
+initial_velocity_min = 22.0
+initial_velocity_max = 38.0
+gravity = Vector3(0, -0.4, 0)
+turbulence_enabled = true
+turbulence_noise_strength = 0.8
+scale_min = 0.05
+scale_max = 0.16
+color = Color(0.9, 0.68, 0.5, 0.7)
+color_ramp = SubResource("fade_texture")
+
+[sub_resource type="StandardMaterial3D" id="dust_material"]
+transparency = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_texture = ExtResource("2_puff")
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="dust_quad"]
+material = SubResource("dust_material")
+
+[node name="DustStorm" type="Node3D"]
+script = ExtResource("1_follow")
+
+[node name="Sheets" type="GPUParticles3D" parent="."]
+emitting = false
+amount = 260
+lifetime = 4.0
+local_coords = false
+visibility_aabb = AABB(-120, -40, -120, 240, 80, 240)
+process_material = SubResource("blowing_sheets")
+draw_pass_1 = SubResource("dust_quad")
+
+[node name="Grit" type="GPUParticles3D" parent="."]
+emitting = false
+amount = 900
+lifetime = 2.5
+local_coords = false
+visibility_aabb = AABB(-120, -40, -120, 240, 80, 240)
+process_material = SubResource("blowing_grit")
+draw_pass_1 = SubResource("dust_quad")

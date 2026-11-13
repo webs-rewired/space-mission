@@ -18,6 +18,8 @@ const SpaceTextures = preload("res://scripts/space_textures.gd")
 const RealRocket = preload("res://scripts/real_rocket.gd")
 const Spacecraft = preload("res://scripts/spacecraft.gd")
 const SEPARATION_SCENE = preload("res://scenes/effects/separation_burst.tscn")
+const VAPOR_SCENE = preload("res://scenes/effects/vapor_cone.tscn")
+const ICE_SCENE = preload("res://scenes/effects/ice_shedding.tscn")
 const CLOUD_SHADER = preload("res://shaders/cloud_puff.gdshader")
 const SMOKE_SHADER = preload("res://shaders/smoke_puff.gdshader")
 const SKY_PHOTO = "kloofendal_48d_partly_cloudy_2k.hdr"   # Poly Haven (CC0): a real partly cloudy sky
@@ -590,9 +592,9 @@ func build_tower():
 	tower_arm.add_child(arm)
 
 # A quick, faint burst of vapor where pieces let go (separation springs, pushers and small thrusters)
-func separation_puff(place):
+func separation_puff(place, size_share = 1.0):
 	var burst = SEPARATION_SCENE.instantiate()
-	var size = ROCKET_SIZE_HIGH / 14.0 if in_high_shot else pieces["height"] / 40.0
+	var size = (ROCKET_SIZE_HIGH / 14.0 if in_high_shot else pieces["height"] / 40.0) * size_share
 	burst.scale_amount_min *= size
 	burst.scale_amount_max *= size
 	burst.initial_velocity_min *= size
@@ -686,6 +688,7 @@ func _process(delta):
 	else:
 		update_pad_shot()
 	update_roar(delta)
+	update_fairing(delta)
 	update_falling_pieces(delta)
 	update_booster_flip(delta)
 	flicker_flames()
@@ -794,8 +797,11 @@ func run_event(event_name):
 		"liftoff":
 			show_caption("Liftoff! The rocket has cleared the tower.")
 			set_flames("booster", true)
+			play_sound("clank", -6.0)   # the hold-down clamps let go
+			shed_ice()
 		"mach1":
 			show_caption("Mach 1: faster than the speed of sound")
+			show_vapor_cone()
 		"maxq":
 			show_caption("Max-Q: the moment the air pushes hardest on the rocket")
 			shake = max(shake, 0.5)
@@ -850,13 +856,10 @@ func run_event(event_name):
 				drop_piece(pieces["fairing"][0], Vector3(2.5, 1.2, 0.4), Vector3(0, 0, 0.6))
 			else:
 				show_caption(pieces.get("fairing_caption", "Fairing separation: there's your probe!"))
-				play_sound("thump", -6.0)
-				pieces["payload"].visible = true   # (no puff here: it would hide the probe)
-				for half_index in pieces["fairing"].size():
-					# The two halves split apart like a clamshell (sideways from the rocket, across the view) and fall behind
-					var side = -1.0 if half_index == 0 else 1.0
-					var apart = rocket_root.global_transform.basis.orthonormalized() * Vector3(side * 1.6, 0.2, 0.0)
-					drop_piece(pieces["fairing"][half_index], apart + Vector3(-0.8, -0.1, 0.0), Vector3(0, 0, side * 0.9))
+				play_sound("clank", -4.0)
+				play_sound("thump", -8.0)
+				pieces["payload"].visible = true   # (no big puff here: it would hide the probe)
+				open_fairing()
 		"interstage":
 			# Saturn V: the ring around the second stage's engines drops away once they're running steadily
 			show_caption("Interstage ring jettisoned")
@@ -900,6 +903,98 @@ func run_event(event_name):
 func play_sound(sound_name, volume_db = 0.0):
 	if audio():
 		audio().play_effect(sound_name, volume_db)
+
+# Frost and ice that built up on the cold fuel tanks shakes loose and rains down as the rocket lifts off
+func shed_ice():
+	var ice = ICE_SCENE.instantiate()
+	ice.process_material = ice.process_material.duplicate()
+	ice.process_material.emission_box_extents = Vector3(pieces["width"] * 0.55, pieces["height"] * 0.35, pieces["width"] * 0.55)
+	rocket_root.add_child(ice)
+	ice.position = Vector3(0, pieces["height"] * 0.5, 0)
+	ice.emitting = true
+	get_tree().create_timer(7.0).timeout.connect(func():
+		if is_instance_valid(ice):
+			ice.emitting = false)
+	get_tree().create_timer(12.0).timeout.connect(func():
+		if is_instance_valid(ice):
+			ice.queue_free())
+
+# Passing the speed of sound: a cone of mist flashes around the rocket and is gone a moment later
+func show_vapor_cone():
+	var cone = VAPOR_SCENE.instantiate()
+	rocket_root.add_child(cone)
+	var width = pieces["width"]
+	cone.position = Vector3(0, pieces["height"] * 0.62, 0)
+	cone.scale = Vector3(width * 1.1, width * 2.2, width * 1.1)
+	var material = cone.get_surface_override_material(0).duplicate()
+	cone.set_surface_override_material(0, material)
+	material.set_shader_parameter("amount", 0.0)
+	var tween = create_tween()
+	tween.tween_method(func(value): material.set_shader_parameter("amount", value), 0.0, 1.0, 0.25)
+	tween.parallel().tween_property(cone, "scale", Vector3(width * 2.6, width * 2.6, width * 2.6), 1.6)
+	tween.tween_method(func(value): material.set_shader_parameter("amount", value), 1.0, 0.0, 1.1)
+	tween.tween_callback(cone.queue_free)
+	play_sound("thump", -4.0)   # the sonic boom
+
+# Fairing separation, the way real ones work: latches along the seam let go, pushers swing the two halves open
+# like a clamshell (each hinged at its bottom edge), and once they are clear of the spacecraft they are released
+# and tumble away behind the rocket.
+const FAIRING_OPEN_SECONDS = 0.9
+const FAIRING_OPEN_ANGLE = 0.42     # radians each half swings before it lets go (about 24 degrees)
+var opening_halves = []             # {"pivot", "axis", "outward", "seconds"}
+
+func open_fairing():
+	var rocket_basis = rocket_root.global_transform.basis.orthonormalized()
+	var up = rocket_basis.y
+	for half_index in pieces["fairing"].size():
+		var half = pieces["fairing"][half_index]
+		if not is_instance_valid(half):
+			continue
+		var parent = half.get_parent()
+		# Which way is "out" for this half: from the rocket's centerline to the middle of the half
+		var box = RealRocket.solid_bounds(half, parent.global_transform, null)
+		var outward = rocket_basis.x * (-1.0 if half_index == 0 else 1.0)
+		var base = half.global_position
+		var radius = 1.0
+		if box != null:
+			var off_center = box.get_center() - rocket_root.global_position
+			off_center -= up * off_center.dot(up)
+			if off_center.length() > 0.001:
+				outward = off_center.normalized()
+			radius = max(box.size.x, box.size.z) * 0.5
+			var along = (box.get_center() - rocket_root.global_position).dot(up) - box.size.y * 0.5 * abs(up.y)
+			base = rocket_root.global_position + up * along
+		# The hinge: at the bottom of the half, on its outer edge
+		var pivot = Node3D.new()
+		parent.add_child(pivot)
+		pivot.global_position = base + outward * radius
+		var place = half.global_transform
+		parent.remove_child(half)
+		pivot.add_child(half)
+		half.global_transform = place
+		opening_halves.append({"pivot": pivot, "axis": up.cross(outward).normalized(), "outward": outward, "seconds": 0.0})
+		# A small puff of gas from the pushers at the seam (low down, so it doesn't hide the probe)
+		separation_puff(base + outward * radius * 0.5, 0.12)
+
+func update_fairing(delta):
+	for opening in opening_halves.duplicate():
+		var pivot = opening["pivot"]
+		if not is_instance_valid(pivot):
+			opening_halves.erase(opening)
+			continue
+		opening["seconds"] += delta
+		var share = clamp(opening["seconds"] / FAIRING_OPEN_SECONDS, 0.0, 1.0)
+		var eased = share * share * (3.0 - 2.0 * share)
+		var turn_so_far = pivot.get_meta("turned", 0.0)
+		var turn_now = FAIRING_OPEN_ANGLE * eased
+		pivot.global_rotate(opening["axis"], turn_now - turn_so_far)
+		pivot.set_meta("turned", turn_now)
+		if share >= 1.0:
+			# Released: it keeps swinging the same way and drifts off behind the rocket
+			opening_halves.erase(opening)
+			var rocket_basis = rocket_root.global_transform.basis.orthonormalized()
+			var local_axis = rocket_basis.inverse() * opening["axis"]
+			drop_piece(pivot, opening["outward"] * 1.5 + rocket_basis.y * 0.15 + Vector3(-0.8, -0.1, 0.0), Vector3(local_axis.x, 0.0, local_axis.z) * 0.7)
 
 # A stage, booster or fairing half lets go: it keeps its place in the world and drifts away tumbling
 func drop_piece(piece, velocity, spin):
@@ -1011,6 +1106,7 @@ func finish():
 		return
 	finished_sent = true
 	if audio():
+		audio().cancel_delayed_sounds()   # nothing from the skipped part of the launch plays late
 		audio().stop_engine(1.0)
 		audio().stop_voice()
 		audio().set_air(1.0)
