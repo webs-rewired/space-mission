@@ -48,12 +48,12 @@ theme_override_font_sizes/font_size = 20
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="Scroll" type="ScrollContainer" parent="CenterContainer/PanelContainer/VBox"]
+[node name="Scroll" type="ScrollContainer" parent="CenterContainer/PanelContainer/VBox" unique_id=721978134]
 custom_minimum_size = Vector2(0, 380)
 layout_mode = 2
 horizontal_scroll_mode = 0
 
-[node name="ScrollColumn" type="VBoxContainer" parent="CenterContainer/PanelContainer/VBox/Scroll"]
+[node name="ScrollColumn" type="VBoxContainer" parent="CenterContainer/PanelContainer/VBox/Scroll" unique_id=1168173626]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 12
