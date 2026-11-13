@@ -129,9 +129,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.02, 0)
 mesh = SubResource("trench_mesh")
 surface_material_override/0 = SubResource("trench")
 
-[node name="LaunchTower" parent="LaunchPad" unique_id=30008717]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
-
 [node name="RocketHolder" type="Node3D" parent="LaunchPad" unique_id=332830010]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 15.2, 0)
 
