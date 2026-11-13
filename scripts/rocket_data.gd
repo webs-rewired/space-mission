@@ -92,6 +92,8 @@ const ENGINES = {
 		"thrust_sea_level": 1860, "thrust_vacuum": 2280, "isp_sea_level": 366, "isp_vacuum": 452, "mass": 3527, "cost": 100},
 	"raptor": {"name": "Raptor (Starship)", "stage": "bottom", "fuel": "methane",
 		"thrust_sea_level": 2260, "thrust_vacuum": 2450, "isp_sea_level": 327, "isp_vacuum": 350, "mass": 1600, "cost": 2},
+	"f1": {"name": "F-1 (Saturn V)", "stage": "bottom", "fuel": "kerosene",
+		"thrust_sea_level": 6770, "thrust_vacuum": 7770, "isp_sea_level": 263, "isp_vacuum": 304, "mass": 8400, "cost": 60},
 	# Top-stage engines have huge nozzles that only work in space
 	"merlin_vacuum": {"name": "Merlin Vacuum (Falcon 9 top stage)", "stage": "top", "fuel": "kerosene",
 		"thrust_vacuum": 981, "isp_vacuum": 348, "mass": 490, "cost": 2},
@@ -99,6 +101,8 @@ const ENGINES = {
 		"thrust_vacuum": 110, "isp_vacuum": 465, "mass": 300, "cost": 17},
 	"raptor_vacuum": {"name": "Raptor Vacuum (Starship)", "stage": "top", "fuel": "methane",
 		"thrust_vacuum": 2500, "isp_vacuum": 378, "mass": 2000, "cost": 4},
+	"j2": {"name": "J-2 (Saturn V second and third stages)", "stage": "top", "fuel": "hydrogen",
+		"thrust_vacuum": 1033, "isp_vacuum": 421, "mass": 1788, "cost": 25},
 }
 
 # "propellant" is the fuel and oxygen inside. "empty_mass" is the tank and structure.
@@ -112,6 +116,8 @@ const TANKS = {
 	"hydrogen_900": {"name": "Hydrogen tank, 900 t (like SLS's core)", "fuel": "hydrogen", "propellant": 900000, "empty_mass": 85000, "cost": 200, "radius": 4.2},
 	"methane_150": {"name": "Methane tank, 150 t", "fuel": "methane", "propellant": 150000, "empty_mass": 9000, "cost": 10, "radius": 4.5},
 	"methane_1200": {"name": "Methane tank, 1,200 t (like Starship)", "fuel": "methane", "propellant": 1200000, "empty_mass": 80000, "cost": 40, "radius": 4.5},
+	"kerosene_2150": {"name": "Kerosene tank, 2,150 t (like Saturn V's S-IC)", "fuel": "kerosene", "propellant": 2150000, "empty_mass": 89000, "cost": 250, "radius": 5.05},
+	"hydrogen_450": {"name": "Hydrogen tank, 450 t (like Saturn V's S-II)", "fuel": "hydrogen", "propellant": 450000, "empty_mass": 27000, "cost": 180, "radius": 5.05},
 	"methane_3400": {"name": "Methane tank, 3,400 t (like Super Heavy)", "fuel": "methane", "propellant": 3400000, "empty_mass": 200000, "cost": 60, "radius": 4.5},
 }
 
@@ -131,6 +137,9 @@ const KICK_STAGES = {
 	"none": {"name": "No kick stage"},
 	"star48": {"name": "Star 48B solid kick stage (like New Horizons)", "propellant": 2010, "empty_mass": 124, "isp": 286, "cost": 15,
 		"radius": 0.62, "height": 2.0},
+	# Saturn V's third stage: one J-2 that fired twice, once to reach orbit and again to head for the Moon
+	"s_ivb": {"name": "S-IVB third stage (Saturn V, one J-2)", "propellant": 109500, "empty_mass": 13500, "isp": 421, "cost": 200,
+		"radius": 3.3, "height": 17.8, "burn_seconds": 350, "caption": "The S-IVB third stage relights for the push out of Earth orbit"},
 }
 
 const STARTING_ROCKETS = {
@@ -144,6 +153,8 @@ const STARTING_ROCKETS = {
 		"top_engine": "rl10", "top_engine_count": 1, "top_tank": "hydrogen_21", "kick_stage": "none"},
 	"starship": {"bottom_engine": "raptor", "bottom_engine_count": 33, "bottom_tank": "methane_3400", "boosters": "none",
 		"top_engine": "raptor_vacuum", "top_engine_count": 3, "top_tank": "methane_1200", "kick_stage": "none"},
+	"saturn5": {"bottom_engine": "f1", "bottom_engine_count": 5, "bottom_tank": "kerosene_2150", "boosters": "none",
+		"top_engine": "j2", "top_engine_count": 5, "top_tank": "hydrogen_450", "kick_stage": "s_ivb"},
 }
 
 # The real rockets behind the starting points, for the briefing and the 3D view.
@@ -155,8 +166,10 @@ const REAL_ROCKETS = {
 		"facts": "United Launch Alliance's Atlas V, flying since 2002 and one of the most reliable rockets ever built. This version, with 4 solid boosters, sent the Curiosity and Perseverance rovers to Mars. Other Atlas Vs launched Juno, OSIRIS-REx and Lucy."},
 	"atlas5_star48": {"name": "Atlas V 551 + Star 48B", "menu": "Atlas V + Star 48B kick stage (New Horizons)", "height": 62.2, "model": "atlas_v.glb",
 		"facts": "In January 2006 an Atlas V with 5 solid boosters (you get 4 here) and a Star 48B kick stage threw New Horizons off Earth at 16.26 km/s, the fastest launch ever at the time. It crossed the Moon's orbit in 9 hours and reached Pluto in 2015."},
-	"sls": {"name": "SLS Block 1", "menu": "SLS (NASA's Moon rocket)", "height": 98.0, "model": "sls.glb", "turn_degrees": 90.0,
+	"sls": {"name": "SLS Block 1", "menu": "SLS Block 1 (Artemis: NASA's Moon rocket)", "height": 98.0, "model": "sls.glb", "turn_degrees": 90.0,
 		"facts": "NASA's Space Launch System, the rocket of the Artemis Moon missions. Its orange core stage carries 4 RS-25 engines that flew on the Space Shuttle, and its two 5-segment boosters are stretched Shuttle boosters. Artemis I in November 2022 sent an uncrewed Orion around the Moon. Each SLS is thrown away after one flight."},
+	"saturn5": {"name": "Saturn V", "menu": "Saturn V (Apollo Moon rocket)", "height": 110.6, "model": "saturn_v.glb",
+		"facts": "The rocket that took 24 astronauts to the Moon between 1968 and 1972, still one of the most powerful ever flown. Its first stage burned 20 tonnes of kerosene and oxygen every second through 5 F-1 engines. The second stage had 5 J-2 hydrogen engines, and the third stage's single J-2 fired twice: once to reach orbit and again to head for the Moon. 13 launched and none was lost. Each cost about $185 million in 1969 money (about $1.4 billion today); the costs here are game estimates."},
 	"starship": {"name": "Starship", "menu": "Starship (SpaceX)", "height": 121.0, "model": "starship.glb",
 		"facts": "The biggest and most powerful rocket ever flown, first launched in 2023. The Super Heavy booster has 33 Raptor engines and is caught by the launch tower's giant arms when it comes back. The ship on top has 6 Raptors (3 made for space, which you get here). Both halves are built to fly again and again."},
 }
@@ -167,6 +180,11 @@ const PART_FACTS = {
 	"rd180": {"like": "Atlas V's first stage uses 1", "about": "Built in Russia, with two combustion chambers fed by one huge pump. 3,830 kN from a single engine, but no backup if it fails."},
 	"rs25": {"like": "SLS uses 4, the Space Shuttle used 3", "about": "Burns liquid hydrogen, the most efficient fuel for a big engine (452 s in space). Most of the engines flying on SLS today flew on the Space Shuttle first. Very expensive."},
 	"raptor": {"like": "Starship's Super Heavy booster uses 33", "about": "Burns methane, which could one day be made on Mars from water and carbon dioxide. Strong, cheap and reusable."},
+	"f1": {"like": "Saturn V's first stage used 5", "about": "The most powerful single-chamber liquid rocket engine ever flown: 6,770 kN, as much push as 30 jumbo jets. Each one gulped about 2.6 tonnes of propellant every second."},
+	"j2": {"like": "Saturn V's second stage used 5, its third stage 1", "about": "A hydrogen engine that could restart in space, which is how the third stage left Earth orbit for the Moon. 1,033 kN and 421 s."},
+	"kerosene_2150": {"like": "Saturn V's S-IC first stage held about 2,150 t", "about": "42 m tall and 10 m wide. It emptied in about 2 minutes 40 seconds, by which time the rocket was 68 km up and going 2.4 km/s."},
+	"hydrogen_450": {"like": "Saturn V's S-II second stage held about 450 t", "about": "Its hydrogen and oxygen tanks shared one wall (a common bulkhead) to save weight. It burned for about 6 minutes."},
+	"s_ivb": {"like": "Saturn V's third stage (and the Saturn IB's second)", "about": "109 t of hydrogen and oxygen and one restartable J-2. It burned about 2.5 minutes to reach orbit, then 6 minutes more to send Apollo to the Moon."},
 	"merlin_vacuum": {"like": "Falcon 9's top stage uses 1", "about": "A Merlin with a giant 3.3 m nozzle that only works in the vacuum of space. 981 kN. Thrown away after every flight."},
 	"rl10": {"like": "Centaur (Atlas V, Vulcan) and SLS's top stage", "about": "First flew in the early 1960s and still flying. Burns hydrogen, so it gets the most speed out of its fuel (465 s), but it's gentle: 110 kN, about the weight of 11 tonnes."},
 	"raptor_vacuum": {"like": "Starship's ship uses 3", "about": "A Raptor with a big nozzle made for space. 2,500 kN and 378 s: powerful and efficient, but it needs huge methane tanks."},
@@ -189,7 +207,7 @@ const PART_FACTS = {
 }
 
 # The order the dropdowns list the starting rockets in
-const STARTING_ROCKET_ORDER = ["falcon9", "atlas5", "atlas5_star48", "sls", "starship"]
+const STARTING_ROCKET_ORDER = ["falcon9", "atlas5", "atlas5_star48", "saturn5", "sls", "starship"]
 
 # When each part of the climb happens, in seconds after liftoff (same math as the launch scene)
 static func flight_plan(rocket, report):
@@ -218,5 +236,5 @@ static func flight_plan(rocket, report):
 	var kick = KICK_STAGES[rocket["kick_stage"]]
 	plan["kick_end"] = plan["escape_end"]
 	if kick.has("propellant"):
-		plan["kick_end"] = plan["escape_end"] + 30.0 + 85.0   # spin up, then a Star 48B burns about 85 seconds
+		plan["kick_end"] = plan["escape_end"] + 30.0 + kick.get("burn_seconds", 85.0)   # (a Star 48B burns about 85 seconds)
 	return plan

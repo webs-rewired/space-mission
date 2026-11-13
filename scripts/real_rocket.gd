@@ -39,6 +39,17 @@ const STACKS = {
 		"top_engines": [[1, 0.0, 0.0]], "top_nozzle": 1.0,
 		"fairing_caption": "Launch abort tower jettisoned", "show_probe": false,
 	},
+	# Saturn V: one model file (juli on Sketchfab, CC BY 4.0) split into its flying pieces ("file#piece").
+	# Three stages: the S-II drops away and the S-IVB third stage carries on to orbit and then out of Earth orbit.
+	"saturn5": {
+		"name": "Saturn V", "height": 110.6,
+		"bottom": "saturn_v.glb#S_IC", "top": "saturn_v.glb#S_II", "third": "saturn_v.glb#S_IVB",
+		"interstage": "saturn_v.glb#Interstage", "fairing": ["saturn_v.glb#EscapeTower"],
+		"bottom_engines": [[1, 0.0, 0.0], [4, 3.6, 45.0]], "bottom_nozzle": 1.8,   # 5 F-1s: one in the middle, four around it
+		"top_engines": [[1, 0.0, 0.0], [4, 2.6, 45.0]], "top_nozzle": 1.0,         # 5 J-2s, the same pattern
+		"third_engines": [[1, 0.0, 0.0]], "third_nozzle": 1.0,                       # 1 J-2
+		"fairing_caption": "Launch escape tower jettisoned", "show_probe": false,
+	},
 	"starship": {
 		"name": "Starship", "height": 121.0,
 		"bottom": "starship_super_heavy.glb", "top": "starship_ship.glb",
@@ -55,22 +66,45 @@ const GIANT_BOOSTER_NOZZLE = 1.9
 
 # The real rocket a design looks most like, picked by its bottom-stage engine
 static func closest_stack(rocket):
-	return {"merlin": "falcon9", "rd180": "atlas5", "rs25": "sls", "raptor": "starship"}.get(rocket["bottom_engine"], "falcon9")
+	return {"merlin": "falcon9", "rd180": "atlas5", "rs25": "sls", "raptor": "starship", "f1": "saturn5"}.get(rocket["bottom_engine"], "falcon9")
 
 static func stack_for_preset(preset):
-	return {"falcon9": "falcon9", "atlas5": "atlas5", "atlas5_star48": "atlas5", "sls": "sls", "starship": "starship"}.get(preset, "")
+	return {"falcon9": "falcon9", "atlas5": "atlas5", "atlas5_star48": "atlas5", "sls": "sls", "starship": "starship", "saturn5": "saturn5"}.get(preset, "")
 
+# A part's model. "file.glb#Piece" takes just one named piece out of a model file that holds several.
 static func load_part(file_name):
+	var piece_name = ""
+	if "#" in file_name:
+		piece_name = file_name.get_slice("#", 1)
+		file_name = file_name.get_slice("#", 0)
 	var path = Spacecraft.find_model(file_name)
 	if path == "":
 		return null
 	var scene = load(path)
-	return scene.instantiate() if scene is PackedScene else null
+	if not scene is PackedScene:
+		return null
+	var model = scene.instantiate()
+	if piece_name == "":
+		return model
+	var piece = model.find_child(piece_name, true, false)
+	if piece == null:
+		model.free()
+		return null
+	piece.get_parent().remove_child(piece)
+	model.free()
+	return piece
+
+static func part_files(stack_id):
+	var stack = STACKS[stack_id]
+	var files = [stack["bottom"], stack["top"]] + stack["fairing"] + stack.get("giant_boosters", [])
+	for extra in ["third", "interstage"]:
+		if stack.has(extra):
+			files.append(stack[extra])
+	return files
 
 static func has_all_parts(stack_id):
-	var stack = STACKS[stack_id]
-	for file_name in [stack["bottom"], stack["top"]] + stack["fairing"] + stack.get("giant_boosters", []):
-		if Spacecraft.find_model(file_name) == "":
+	for file_name in part_files(stack_id):
+		if Spacecraft.find_model(file_name.get_slice("#", 0)) == "":
 			return false
 	return true
 
@@ -85,6 +119,9 @@ static func load_stack(stack_id):
 		files["fairing_%d" % index] = stack["fairing"][index]
 	for index in stack.get("giant_boosters", []).size():
 		files["giant_booster_%d" % index] = stack["giant_boosters"][index]
+	for extra in ["third", "interstage"]:
+		if stack.has(extra):
+			files[extra] = stack[extra]
 	var models = {}
 	var box = null
 	for part_name in files:
@@ -222,6 +259,22 @@ static func build(rocket):
 	pieces["top"] = top
 	pieces["top_flames"] = add_flames(top, stack["top_engines"], stack["top_nozzle"], top_box.position.y + 0.2, stack["height"] * 0.2, RocketData.ENGINES[rocket["top_engine"]]["fuel"])
 
+	# A third stage (Saturn V's S-IVB) rides on the top stage until the top stage drops away; the ring between the
+	# bottom and top stages drops away soon after staging
+	var carrier = top
+	if parts.has("third"):
+		var third = parts["third"]
+		top.add_child(third)
+		var third_box = part_bounds(third)
+		pieces["third"] = third
+		pieces["third_flames"] = add_flames(third, stack["third_engines"], stack["third_nozzle"], third_box.position.y + 0.2, stack["height"] * 0.15, RocketData.ENGINES[rocket["top_engine"]]["fuel"])
+		for flame in pieces["third_flames"]:
+			flame.visible = false
+		carrier = third
+	if parts.has("interstage"):
+		top.add_child(parts["interstage"])
+		pieces["interstage"] = parts["interstage"]
+
 	# The probe rides on top of the top stage, inside the fairing
 	var payload = Node3D.new()
 	payload.name = "Payload"
@@ -237,7 +290,7 @@ static func build(rocket):
 	pieces["payload"] = payload
 	for index in stack["fairing"].size():
 		var half = parts["fairing_%d" % index]
-		top.add_child(half)
+		carrier.add_child(half)
 		pieces["fairing"].append(half)
 
 	# Side boosters: the model's own when they match the design, otherwise real booster models placed around the core

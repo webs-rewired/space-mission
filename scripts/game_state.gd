@@ -73,39 +73,47 @@ const ION_ENGINE_MINIMUM_WATTS = 500.0 # Dawn's ion engines could throttle down 
 const CHEMICAL_THRUST_NEWTONS = 645.0  # Juno's Leros-1b
 const ION_THRUST_NEWTONS = 0.092       # one of Dawn's NSTAR engines at full power
 
-# For each destination: average distance from the Sun, budget ($ millions), the share of data a low-gain
+# For each destination: average distance from the Sun, budget ($ millions; real flagship missions cost $2.5 to 5 billion,
+# like Perseverance at $2.7 billion and Europa Clipper at $5 billion, rocket included), the share of data a low-gain
 # antenna gets home, how long the trip takes (from real missions: Juno took 5 years, Cassini 6.7,
 # New Horizons 9.5) and how much the probe's own engine must slow it down to stay there
 # ("arrival_burn_km_s", from real missions: Juno 0.54 at Jupiter, Cassini 0.63 at Saturn, Mars Reconnaissance
 # Orbiter 1.0 at Mars; for worlds no one has orbited yet, from NASA mission studies).
 const DESTINATIONS = {
-	"Moon": {"distance_from_sun_au": 1.0, "budget": 500, "small_antenna_data_share": 1.0, "trip_years": 0.012, "arrival_burn_km_s": 0.85},
-	"Mars": {"distance_from_sun_au": 1.52, "budget": 800, "small_antenna_data_share": 0.7, "trip_years": 0.6, "arrival_burn_km_s": 1.0},
-	"Venus": {"distance_from_sun_au": 0.72, "budget": 700, "small_antenna_data_share": 0.8, "trip_years": 0.4, "arrival_burn_km_s": 1.25},
-	"Jupiter": {"distance_from_sun_au": 5.2, "budget": 1000, "small_antenna_data_share": 0.4, "trip_years": 5.0, "arrival_burn_km_s": 0.55},
-	"Saturn": {"distance_from_sun_au": 9.54, "budget": 1600, "small_antenna_data_share": 0.3, "trip_years": 6.7, "arrival_burn_km_s": 0.63},
+	"Moon": {"distance_from_sun_au": 1.0, "budget": 2500, "small_antenna_data_share": 1.0, "trip_years": 0.012, "arrival_burn_km_s": 0.85},
+	"Mars": {"distance_from_sun_au": 1.52, "budget": 3000, "small_antenna_data_share": 0.7, "trip_years": 0.6, "arrival_burn_km_s": 1.0},
+	"Venus": {"distance_from_sun_au": 0.72, "budget": 2500, "small_antenna_data_share": 0.8, "trip_years": 0.4, "arrival_burn_km_s": 1.25},
+	"Jupiter": {"distance_from_sun_au": 5.2, "budget": 4500, "small_antenna_data_share": 0.4, "trip_years": 5.0, "arrival_burn_km_s": 0.55},
+	"Saturn": {"distance_from_sun_au": 9.54, "budget": 5000, "small_antenna_data_share": 0.3, "trip_years": 6.7, "arrival_burn_km_s": 0.63},
 	# Moons: sunlight and radio distance are the same as for their planet
-	"Phobos": {"distance_from_sun_au": 1.52, "budget": 800, "small_antenna_data_share": 0.7, "trip_years": 1.0, "arrival_burn_km_s": 1.4},
-	"Deimos": {"distance_from_sun_au": 1.52, "budget": 750, "small_antenna_data_share": 0.7, "trip_years": 1.0, "arrival_burn_km_s": 1.3},
-	"Io": {"distance_from_sun_au": 5.2, "budget": 1100, "small_antenna_data_share": 0.4, "trip_years": 6.0, "arrival_burn_km_s": 1.6},
-	"Europa": {"distance_from_sun_au": 5.2, "budget": 1100, "small_antenna_data_share": 0.4, "trip_years": 6.0, "arrival_burn_km_s": 1.8},
-	"Ganymede": {"distance_from_sun_au": 5.2, "budget": 1050, "small_antenna_data_share": 0.4, "trip_years": 7.5, "arrival_burn_km_s": 2.0},
-	"Callisto": {"distance_from_sun_au": 5.2, "budget": 1000, "small_antenna_data_share": 0.4, "trip_years": 6.0, "arrival_burn_km_s": 1.6},
-	"Enceladus": {"distance_from_sun_au": 9.54, "budget": 1600, "small_antenna_data_share": 0.3, "trip_years": 7.0, "arrival_burn_km_s": 3.0},
-	"Titan": {"distance_from_sun_au": 9.54, "budget": 1700, "small_antenna_data_share": 0.3, "trip_years": 7.0, "arrival_burn_km_s": 0.65},
-	"Titania": {"distance_from_sun_au": 19.2, "budget": 1900, "small_antenna_data_share": 0.2, "trip_years": 12.0, "arrival_burn_km_s": 2.6},
-	"Triton": {"distance_from_sun_au": 30.1, "budget": 2000, "small_antenna_data_share": 0.15, "trip_years": 14.0, "arrival_burn_km_s": 3.2},
-	"Charon": {"distance_from_sun_au": 39.5, "budget": 2000, "small_antenna_data_share": 0.12, "trip_years": 10.0, "arrival_burn_km_s": 4.6},
+	"Phobos": {"distance_from_sun_au": 1.52, "budget": 2500, "small_antenna_data_share": 0.7, "trip_years": 1.0, "arrival_burn_km_s": 1.4},
+	"Deimos": {"distance_from_sun_au": 1.52, "budget": 2500, "small_antenna_data_share": 0.7, "trip_years": 1.0, "arrival_burn_km_s": 1.3},
+	"Io": {"distance_from_sun_au": 5.2, "budget": 5000, "small_antenna_data_share": 0.4, "trip_years": 6.0, "arrival_burn_km_s": 1.6},
+	"Europa": {"distance_from_sun_au": 5.2, "budget": 5000, "small_antenna_data_share": 0.4, "trip_years": 6.0, "arrival_burn_km_s": 1.8},
+	"Ganymede": {"distance_from_sun_au": 5.2, "budget": 5000, "small_antenna_data_share": 0.4, "trip_years": 7.5, "arrival_burn_km_s": 2.0},
+	"Callisto": {"distance_from_sun_au": 5.2, "budget": 4500, "small_antenna_data_share": 0.4, "trip_years": 6.0, "arrival_burn_km_s": 1.6},
+	"Enceladus": {"distance_from_sun_au": 9.54, "budget": 5500, "small_antenna_data_share": 0.3, "trip_years": 7.0, "arrival_burn_km_s": 3.0},
+	"Titan": {"distance_from_sun_au": 9.54, "budget": 5500, "small_antenna_data_share": 0.3, "trip_years": 7.0, "arrival_burn_km_s": 0.65},
+	"Titania": {"distance_from_sun_au": 19.2, "budget": 6000, "small_antenna_data_share": 0.2, "trip_years": 12.0, "arrival_burn_km_s": 2.6},
+	"Triton": {"distance_from_sun_au": 30.1, "budget": 6500, "small_antenna_data_share": 0.15, "trip_years": 14.0, "arrival_burn_km_s": 3.2},
+	"Charon": {"distance_from_sun_au": 39.5, "budget": 6000, "small_antenna_data_share": 0.12, "trip_years": 10.0, "arrival_burn_km_s": 4.6},
 	# More planets and the dwarf planets (distances are their average distance from the Sun)
-	"Mercury": {"distance_from_sun_au": 0.39, "budget": 900, "small_antenna_data_share": 0.8, "trip_years": 6.6, "arrival_burn_km_s": 2.3},
-	"Uranus": {"distance_from_sun_au": 19.2, "budget": 1900, "small_antenna_data_share": 0.2, "trip_years": 12.0, "arrival_burn_km_s": 2.0},
-	"Neptune": {"distance_from_sun_au": 30.1, "budget": 2000, "small_antenna_data_share": 0.15, "trip_years": 14.0, "arrival_burn_km_s": 2.5},
-	"Ceres": {"distance_from_sun_au": 2.77, "budget": 900, "small_antenna_data_share": 0.5, "trip_years": 4.0, "arrival_burn_km_s": 4.5},
-	"Pluto": {"distance_from_sun_au": 39.5, "budget": 2000, "small_antenna_data_share": 0.12, "trip_years": 10.0, "arrival_burn_km_s": 4.5},
-	"Haumea": {"distance_from_sun_au": 43.1, "budget": 2100, "small_antenna_data_share": 0.1, "trip_years": 12.0, "arrival_burn_km_s": 4.5},
-	"Makemake": {"distance_from_sun_au": 45.5, "budget": 2100, "small_antenna_data_share": 0.1, "trip_years": 13.0, "arrival_burn_km_s": 4.5},
-	"Eris": {"distance_from_sun_au": 68.0, "budget": 2300, "small_antenna_data_share": 0.08, "trip_years": 18.0, "arrival_burn_km_s": 5.0},
+	"Mercury": {"distance_from_sun_au": 0.39, "budget": 3000, "small_antenna_data_share": 0.8, "trip_years": 6.6, "arrival_burn_km_s": 2.3},
+	"Uranus": {"distance_from_sun_au": 19.2, "budget": 6000, "small_antenna_data_share": 0.2, "trip_years": 12.0, "arrival_burn_km_s": 2.0},
+	"Neptune": {"distance_from_sun_au": 30.1, "budget": 6500, "small_antenna_data_share": 0.15, "trip_years": 14.0, "arrival_burn_km_s": 2.5},
+	"Ceres": {"distance_from_sun_au": 2.77, "budget": 2500, "small_antenna_data_share": 0.5, "trip_years": 4.0, "arrival_burn_km_s": 4.5},
+	"Pluto": {"distance_from_sun_au": 39.5, "budget": 6000, "small_antenna_data_share": 0.12, "trip_years": 10.0, "arrival_burn_km_s": 4.5},
+	"Haumea": {"distance_from_sun_au": 43.1, "budget": 6500, "small_antenna_data_share": 0.1, "trip_years": 12.0, "arrival_burn_km_s": 4.5},
+	"Makemake": {"distance_from_sun_au": 45.5, "budget": 6500, "small_antenna_data_share": 0.1, "trip_years": 13.0, "arrival_burn_km_s": 4.5},
+	"Eris": {"distance_from_sun_au": 68.0, "budget": 7500, "small_antenna_data_share": 0.08, "trip_years": 18.0, "arrival_burn_km_s": 5.0},
 }
+
+# Money in US dollars, from a number of millions: "$450 million", or "$1.2 billion" from a billion up
+func money_text(millions):
+	if millions >= 1000.0:
+		var billions = millions / 1000.0
+		return "$%s billion" % str(snapped(billions, 0.1 if billions < 10.0 else 1.0)).trim_suffix(".0")
+	return "$%s million" % str(int(round(millions)))
 
 # Worlds with no air (or far too little): parachutes, airbags and sky cranes can't work there,
 # so landers need legs and thrusters
@@ -470,7 +478,7 @@ func rocket_report():
 		problems.append("Bottom stage fuel mismatch: this engine burns %s, the tank holds %s." % [bottom_engine["fuel"], bottom_tank["fuel"]])
 	if top_engine["fuel"] != top_tank["fuel"]:
 		problems.append("Top stage fuel mismatch: this engine burns %s, the tank holds %s." % [top_engine["fuel"], top_tank["fuel"]])
-	if liftoff_thrust_to_weight < 1.2:
+	if liftoff_thrust_to_weight < 1.15:   # (Saturn V lifted off at about 1.17)
 		problems.append("Too heavy to lift off. Add engines or boosters, or use a smaller tank.")
 	if top_thrust_to_weight < 0.4:
 		problems.append("The top stage is too weak to reach orbit. Add an engine or use a smaller tank.")

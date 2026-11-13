@@ -69,7 +69,7 @@ const COUNTDOWN_VOICE_LIFTOFF_AT = {"countdown_apollo": 14.6, "countdown_artemis
 const IGNITION_SECONDS = -3.0    # engines light 3 seconds before liftoff (like a Falcon 9)
 var compression = 18.0
 var in_high_shot = false
-var flames_on = {"booster": false, "bottom": false, "top": false}
+var flames_on = {"booster": false, "bottom": false, "top": false, "third": false}
 var falling_pieces = []        # {"node", "velocity", "spin", "age"}
 var report = {}
 var booster_seconds = -1.0
@@ -91,6 +91,7 @@ var shake = 0.0                # camera shake strength
 var camera_target = Vector3.ZERO   # the high view's camera follows the stage that's still flying
 var camera_distance = 15.0
 var stage_separated = false
+var third_separated = false      # a three-stage rocket (Saturn V) has dropped its second stage
 var deck_height = 0.0          # how high the rocket's base sits on the pad (on the Mobile Launcher's deck if it's there)
 var reusable_booster = false   # Falcon 9 and Starship boosters fly back to land
 var booster_flip: Node3D = null
@@ -169,7 +170,7 @@ func update_roar(delta):
 		var air = exp(-shown_altitude(mission_seconds) / 8.5)
 		sound.set_air(air)
 		var volume = -6.0 + 20.0 * log(max(air, 0.0005)) / log(10.0)
-		sound.set_engine(volume if (flames_on["bottom"] or flames_on["booster"] or flames_on["top"]) else -60.0, 0.7)
+		sound.set_engine(volume if (flames_on["bottom"] or flames_on["booster"] or flames_on["top"] or flames_on["third"]) else -60.0, 0.7)
 		if not silence_announced and air < 0.004 and caption_seconds_left <= 0.0:
 			silence_announced = true
 			show_caption("Silence: up here there's almost no air left to carry sound")
@@ -207,6 +208,16 @@ func work_out_timeline():
 	fairing_seconds = min(fairing_seconds, orbit_seconds - 10.0)
 	escape_start_seconds = orbit_seconds + 60.0
 	escape_end_seconds = escape_start_seconds + clamp(top_burn_seconds * (1.0 - share_to_orbit), 40.0, 400.0)
+	# A three-stage rocket (Saturn V): the second stage burns all its fuel and drops away, the third stage finishes the
+	# climb to orbit (about 2.5 minutes), then relights later to leave Earth orbit (about 6 minutes for Apollo)
+	var second_cutoff_seconds = 0.0
+	var three_stages = has_third_stage()
+	if three_stages:
+		second_cutoff_seconds = main_engine_cutoff_seconds + 7.0 + top_burn_seconds
+		orbit_seconds = second_cutoff_seconds + 4.0 + 150.0
+		fairing_seconds = main_engine_cutoff_seconds + 36.0   # Apollo's escape tower went 36 seconds after staging
+		escape_start_seconds = orbit_seconds + 60.0
+		escape_end_seconds = escape_start_seconds + RocketData.KICK_STAGES[rocket["kick_stage"]].get("burn_seconds", 350.0)
 	# What the clock, altimeter and speedometer show along the way
 	var bottom_share = clamp(report["bottom_stage_speed"] / 9400.0, 0.2, 0.95)
 	cutoff_speed = ORBIT_SPEED * pow(bottom_share, 1.6)
@@ -230,7 +241,17 @@ func work_out_timeline():
 	timeline.append([orbit_seconds, "orbit"])
 	timeline.append([escape_start_seconds, "escape"])
 	timeline.append([escape_end_seconds, "probe"])
+	if three_stages:
+		timeline.append([main_engine_cutoff_seconds + 30.0, "interstage"])
+		timeline.append([second_cutoff_seconds, "second_cutoff"])
+		timeline.append([second_cutoff_seconds + 1.5, "third_separation"])
+		timeline.append([second_cutoff_seconds + 4.0, "third_ignition"])
 	timeline.sort_custom(func(first, second): return first[0] < second[0])
+
+# A three-stage rocket (the real model it's drawn as has a third stage, like Saturn V)
+func has_third_stage():
+	var stack_id = RealRocket.closest_stack(GameState.rocket)
+	return RealRocket.STACKS[stack_id].has("third") and RealRocket.has_all_parts(stack_id)
 
 # When the shown speed (km/s) or altitude (km) first reaches a value, in mission seconds
 func time_when_speed_reaches(speed):
@@ -743,7 +764,11 @@ func update_high_shot(delta, mission_delta):
 	var turn = smoothstep(PAD_SHOT_SECONDS, orbit_seconds, mission_seconds)
 	rocket_root.rotation.z = -deg_to_rad(lerp(30.0, 86.0, turn))
 	# Follow whatever is still flying: the whole rocket, then just the top stage once the bottom stage drops away
-	var flying = pieces["top"] if stage_separated else pieces["root"]
+	var flying = pieces["root"]
+	if third_separated:
+		flying = pieces["third"]
+	elif stage_separated:
+		flying = pieces["top"]
 	var flying_length = part_length(flying) * rocket_root.scale.y
 	var blend = min(1.0, delta * 2.0)
 	camera_target = camera_target.lerp(part_point(flying, 0.55), blend)
@@ -832,17 +857,44 @@ func run_event(event_name):
 					var side = -1.0 if half_index == 0 else 1.0
 					var apart = rocket_root.global_transform.basis.orthonormalized() * Vector3(side * 1.6, 0.2, 0.0)
 					drop_piece(pieces["fairing"][half_index], apart + Vector3(-0.8, -0.1, 0.0), Vector3(0, 0, side * 0.9))
+		"interstage":
+			# Saturn V: the ring around the second stage's engines drops away once they're running steadily
+			show_caption("Interstage ring jettisoned")
+			separation_puff(part_point(pieces["interstage"], 0.5))
+			drop_piece(pieces["interstage"], Vector3(-2.2, -0.6, 0), Vector3(0, 0, 0.25))
+		"second_cutoff":
+			show_caption("Second stage cutoff")
+			set_flames("top", false)
+		"third_separation":
+			show_caption("Second stage separation")
+			play_sound("thump", -4.0)
+			# The third stage was riding on the second; it carries on while the second stage falls away
+			var third = pieces["third"]
+			var place = third.global_transform
+			third.get_parent().remove_child(third)
+			pieces["root"].add_child(third)
+			third.global_transform = place
+			third_separated = true
+			separation_puff(part_point(third, 0.0))
+			drop_piece(pieces["top"], Vector3(-2.0, -0.8, 0), Vector3(0, 0, 0.3))
+		"third_ignition":
+			show_caption("Third stage (S-IVB) ignition")
+			play_sound("thruster", -12.0)
+			set_flames("third", true)
 		"orbit":
 			show_caption("In orbit around Earth!")
 			play_sound("confirm", -6.0)
 			set_flames("top", false)
+			set_flames("third", false)
 		"escape":
 			show_caption("Escape burn: heading for %s" % GameState.destination)
-			set_flames("top", true)
+			set_flames("third" if pieces.has("third") else "top", true)
 		"probe":
 			set_flames("top", false)
+			set_flames("third", false)
 			play_sound("thump", -8.0)
-			var kick = GameState.rocket["kick_stage"] != "none"
+			# (Saturn V's third stage already made the escape burn, so there's no separate kick stage to fire)
+			var kick = GameState.rocket["kick_stage"] != "none" and not pieces.has("third")
 			show_caption("Probe separation. Kick stage fires: on to %s!" % GameState.destination if kick else "Probe separation: on to %s!" % GameState.destination)
 
 func play_sound(sound_name, volume_db = 0.0):
@@ -891,7 +943,7 @@ func set_flames(group, on):
 # Flames flicker, and spread out wide and faint as the air thins (fully by about 70 km up)
 func flicker_flames():
 	var thin_air = smoothstep(12.0, 70.0, shown_altitude(mission_seconds)) if in_high_shot else 0.0
-	for group in ["booster", "bottom", "top"]:
+	for group in ["booster", "bottom", "top", "third"]:
 		for flame in pieces.get(group + "_flames", []):
 			if is_instance_valid(flame) and flame.visible:
 				var base = flame.get_meta("base_scale", flame.scale)
@@ -942,8 +994,10 @@ func update_screen(delta):
 		stage_text = "Escape burn"
 	elif mission_seconds >= orbit_seconds:
 		stage_text = "Coasting in orbit"
+	elif third_separated:
+		stage_text = "Third stage burning"
 	elif mission_seconds >= main_engine_cutoff_seconds + 7.0:
-		stage_text = "Top stage burning"
+		stage_text = "Second stage burning" if pieces.has("third") else "Top stage burning"
 	elif mission_seconds >= 0.0:
 		stage_text = "Bottom stage burning" + (" with boosters" if booster_seconds > 0.0 and mission_seconds < booster_seconds else "")
 	var altitude = shown_altitude(mission_seconds)

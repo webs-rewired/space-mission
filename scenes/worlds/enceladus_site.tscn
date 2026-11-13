@@ -1,0 +1,339 @@
+[gd_scene format=3]
+
+[ext_resource type="Shader" path="res://shaders/terrain.gdshader" id="1_terrain"]
+[ext_resource type="Shader" path="res://shaders/surface_sky.gdshader" id="2_surface_sky"]
+[ext_resource type="Shader" path="res://shaders/surface_rock.gdshader" id="3_surface_rock"]
+[ext_resource type="Texture2D" path="res://assets/surface/textures/regolith_detail.png" id="4_regolith_detail"]
+[ext_resource type="Texture2D" path="res://assets/surface/textures/regolith_normal.png" id="5_regolith_normal"]
+[ext_resource type="Texture2D" path="res://assets/surface/textures/rock_detail.png" id="6_rock_detail"]
+[ext_resource type="Texture2D" path="res://assets/surface/textures/rock_normal.png" id="7_rock_normal"]
+[ext_resource type="PackedScene" path="res://scenes/worlds/rock_field.tscn" id="8_rock_field"]
+[ext_resource type="PackedScene" path="res://assets/surface/rocks/rock_angular_1_tiny.glb" id="9_rock_angular_1_tiny"]
+[ext_resource type="PackedScene" path="res://assets/surface/rocks/rock_angular_3_tiny.glb" id="10_rock_angular_3_tiny"]
+[ext_resource type="PackedScene" path="res://assets/surface/rocks/rock_angular_1_small.glb" id="11_rock_angular_1_small"]
+[ext_resource type="PackedScene" path="res://assets/surface/rocks/rock_angular_2_small.glb" id="12_rock_angular_2_small"]
+[ext_resource type="PackedScene" path="res://assets/surface/rocks/ice_block.glb" id="13_ice_block"]
+[ext_resource type="PackedScene" path="res://assets/surface/rocks/rock_angular_2_medium.glb" id="14_rock_angular_2_medium"]
+[ext_resource type="PackedScene" path="res://assets/surface/rocks/rock_angular_3.glb" id="15_rock_angular_3"]
+[ext_resource type="PackedScene" path="res://scenes/worlds/sky_planet.tscn" id="16_sky_planet"]
+[ext_resource type="PackedScene" path="res://scenes/effects/plume.tscn" id="17_plume"]
+[ext_resource type="PackedScene" path="res://scenes/effects/drifting_particles.tscn" id="18_drifting_particles"]
+[ext_resource type="Texture2D" path="res://assets/surface/textures/soft_puff.png" id="19_soft_puff"]
+
+[sub_resource type="FastNoiseLite" id="hills"]
+seed = 916
+frequency = 0.008
+fractal_octaves = 5
+
+[sub_resource type="NoiseTexture2D" id="hills_texture"]
+width = 512
+height = 512
+seamless = true
+noise = SubResource("hills")
+
+[sub_resource type="FastNoiseLite" id="patches"]
+seed = 917
+frequency = 0.03
+fractal_octaves = 4
+
+[sub_resource type="NoiseTexture2D" id="patches_texture"]
+width = 512
+height = 512
+seamless = true
+noise = SubResource("patches")
+
+[sub_resource type="ShaderMaterial" id="ground_material"]
+shader = ExtResource("1_terrain")
+shader_parameter/height_noise = SubResource("hills_texture")
+shader_parameter/detail_noise = SubResource("patches_texture")
+shader_parameter/regolith_detail = ExtResource("4_regolith_detail")
+shader_parameter/regolith_normal = ExtResource("5_regolith_normal")
+shader_parameter/rock_detail = ExtResource("6_rock_detail")
+shader_parameter/rock_normal = ExtResource("7_rock_normal")
+shader_parameter/light_ground = Color(0.95, 0.96, 0.98, 1)
+shader_parameter/dark_ground = Color(0.76, 0.81, 0.87, 1)
+shader_parameter/rock_color = Color(0.72, 0.77, 0.82, 1)
+shader_parameter/patch_color = Color(0.2, 0.2, 0.2, 1)
+shader_parameter/patch_amount = 0.0
+shader_parameter/patch_scale = 0.012
+shader_parameter/second_patch_color = Color(1, 1, 1, 1)
+shader_parameter/second_patch_amount = 0.0
+shader_parameter/grain_strength = 1.0
+shader_parameter/ground_roughness = 0.55
+shader_parameter/ice_sheen = 0.6
+shader_parameter/hill_height = 8.0
+shader_parameter/flat_radius = 30.0
+shader_parameter/world_radius = 252100.0
+shader_parameter/mountain_height = 180.0
+shader_parameter/mountain_start = 1200.0
+shader_parameter/mountain_sharpness = 1.0
+shader_parameter/terrace = 0.0
+shader_parameter/landmark_kind = 0
+shader_parameter/landmark_direction = Vector2(0, -1)
+shader_parameter/landmark_distance = 5000.0
+shader_parameter/landmark_height = 0.0
+shader_parameter/landmark_width = 1500.0
+shader_parameter/crater_freshness = 0.3
+shader_parameter/groove_strength = 0.0
+shader_parameter/groove_spacing = 40.0
+shader_parameter/groove_direction = Vector2(1, 0.3)
+shader_parameter/crack_strength = 0.5
+shader_parameter/crack_color = Color(0.42, 0.58, 0.74, 1)
+shader_parameter/crack_scale = 200.0
+shader_parameter/cell_strength = 0.0
+shader_parameter/cell_size = 60.0
+shader_parameter/ripple_strength = 0.0
+shader_parameter/ripple_direction = Vector2(0.8, 0.6)
+
+[sub_resource type="PlaneMesh" id="near_mesh"]
+material = SubResource("ground_material")
+size = Vector2(480, 480)
+subdivide_width = 319
+subdivide_depth = 319
+
+[sub_resource type="PlaneMesh" id="far_mesh"]
+material = SubResource("ground_material")
+size = Vector2(16000, 16000)
+subdivide_width = 399
+subdivide_depth = 399
+
+[sub_resource type="ShaderMaterial" id="sky_material"]
+shader = ExtResource("2_surface_sky")
+shader_parameter/zenith_color = Color(0, 0, 0, 1)
+shader_parameter/horizon_color = Color(0, 0, 0, 1)
+shader_parameter/ground_color = Color(0.03, 0.03, 0.03, 1)
+shader_parameter/horizon_softness = 0.35
+shader_parameter/sky_energy = 1
+shader_parameter/sun_halo_color = Color(0, 0, 0, 1)
+shader_parameter/sun_halo_size = 0.1
+shader_parameter/sun_glow_strength = 0.3
+shader_parameter/sun_disk_strength = 1
+shader_parameter/band_color = Color(0.3, 0.5, 1, 1)
+shader_parameter/band_strength = 0
+shader_parameter/star_brightness = 0
+
+[sub_resource type="Sky" id="sky"]
+sky_material = SubResource("sky_material")
+
+[sub_resource type="Environment" id="environment"]
+background_mode = 2
+sky = SubResource("sky")
+tonemap_mode = 3
+tonemap_exposure = 0.8
+ssao_enabled = true
+ssao_radius = 1.5
+ssao_intensity = 2.5
+glow_enabled = true
+glow_intensity = 0.8
+glow_hdr_threshold = 1.5
+ambient_light_source = 2
+ambient_light_color = Color(0.7, 0.72, 0.75, 1)
+ambient_light_energy = 0.1
+reflected_light_source = 1
+
+[sub_resource type="ShaderMaterial" id="rock_material"]
+shader = ExtResource("3_surface_rock")
+shader_parameter/rock_detail = ExtResource("6_rock_detail")
+shader_parameter/rock_normal = ExtResource("7_rock_normal")
+shader_parameter/regolith_detail = ExtResource("4_regolith_detail")
+shader_parameter/rock_color = Color(0.82, 0.86, 0.9, 1)
+shader_parameter/dust_color = Color(0.96, 0.97, 0.99, 1)
+shader_parameter/dust_amount = 0.8
+shader_parameter/ice_sheen = 0.5
+
+[sub_resource type="Gradient" id="Plume1_fade_gradient"]
+offsets = PackedFloat32Array(0, 0.08, 0.6, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 0.7, 1, 1, 1, 0.45, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="Plume1_fade"]
+gradient = SubResource("Plume1_fade_gradient")
+
+[sub_resource type="Curve" id="Plume1_grow_curve"]
+_data = [Vector2(0, 0.25), 0.0, 1.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="Plume1_grow"]
+curve = SubResource("Plume1_grow_curve")
+
+[sub_resource type="ParticleProcessMaterial" id="Plume1_process"]
+emission_shape = 1
+emission_sphere_radius = 20.0
+direction = Vector3(0, 1, 0)
+spread = 4
+initial_velocity_min = 240
+initial_velocity_max = 280
+gravity = Vector3(0, -0.11, 0)
+damping_min = 6
+damping_max = 8.4
+scale_min = 150
+scale_max = 330
+scale_curve = SubResource("Plume1_grow")
+color = Color(0.95, 0.97, 1, 0.55)
+color_ramp = SubResource("Plume1_fade")
+
+[sub_resource type="Gradient" id="Plume2_fade_gradient"]
+offsets = PackedFloat32Array(0, 0.08, 0.6, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 0.7, 1, 1, 1, 0.45, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="Plume2_fade"]
+gradient = SubResource("Plume2_fade_gradient")
+
+[sub_resource type="Curve" id="Plume2_grow_curve"]
+_data = [Vector2(0, 0.25), 0.0, 1.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="Plume2_grow"]
+curve = SubResource("Plume2_grow_curve")
+
+[sub_resource type="ParticleProcessMaterial" id="Plume2_process"]
+emission_shape = 1
+emission_sphere_radius = 20.0
+direction = Vector3(0, 1, 0)
+spread = 5
+initial_velocity_min = 220
+initial_velocity_max = 260
+gravity = Vector3(0, -0.11, 0)
+damping_min = 6
+damping_max = 8.4
+scale_min = 150
+scale_max = 330
+scale_curve = SubResource("Plume2_grow")
+color = Color(0.95, 0.97, 1, 0.55)
+color_ramp = SubResource("Plume2_fade")
+
+[sub_resource type="Gradient" id="Plume3_fade_gradient"]
+offsets = PackedFloat32Array(0, 0.08, 0.6, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 0.7, 1, 1, 1, 0.45, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="Plume3_fade"]
+gradient = SubResource("Plume3_fade_gradient")
+
+[sub_resource type="Curve" id="Plume3_grow_curve"]
+_data = [Vector2(0, 0.25), 0.0, 1.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="Plume3_grow"]
+curve = SubResource("Plume3_grow_curve")
+
+[sub_resource type="ParticleProcessMaterial" id="Plume3_process"]
+emission_shape = 1
+emission_sphere_radius = 20.0
+direction = Vector3(0, 1, 0)
+spread = 4
+initial_velocity_min = 200
+initial_velocity_max = 250
+gravity = Vector3(0, -0.11, 0)
+damping_min = 6
+damping_max = 8.4
+scale_min = 150
+scale_max = 330
+scale_curve = SubResource("Plume3_grow")
+color = Color(0.95, 0.97, 1, 0.55)
+color_ramp = SubResource("Plume3_fade")
+
+[sub_resource type="Gradient" id="Drift4_fade_gradient"]
+offsets = PackedFloat32Array(0, 0.2, 0.8, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="Drift4_fade"]
+gradient = SubResource("Drift4_fade_gradient")
+
+[sub_resource type="ParticleProcessMaterial" id="Drift4_process"]
+emission_shape = 3
+emission_box_extents = Vector3(40, 15, 40)
+direction = Vector3(0, -1, 0)
+spread = 30.0
+initial_velocity_min = 0.1
+initial_velocity_max = 0.4
+gravity = Vector3(0, -0.11, 0)
+turbulence_enabled = true
+turbulence_noise_strength = 0.4
+scale_min = 0.02
+scale_max = 0.05
+color = Color(1, 1, 1, 0.9)
+color_ramp = SubResource("Drift4_fade")
+
+[sub_resource type="StandardMaterial3D" id="Drift4_mesh_material"]
+transparency = 1
+vertex_color_use_as_albedo = true
+albedo_texture = ExtResource("19_soft_puff")
+roughness = 1.0
+billboard_mode = 3
+billboard_keep_scale = true
+shading_mode = 0
+
+[sub_resource type="QuadMesh" id="Drift4_mesh"]
+material = SubResource("Drift4_mesh_material")
+size = Vector2(1, 1)
+
+[node name="EnceladusSite" type="Node3D"]
+metadata/crater_count = 8
+metadata/crater_max_radius = 30.0
+metadata/crater_depth = 0.2
+metadata/dust_color = Color(0.95, 0.96, 0.98, 1)
+metadata/sights = PackedStringArray("Saturn hangs huge in the sky, with its rings seen exactly edge-on as a thin line, because Enceladus orbits in the ring plane.", "The jets come from the 'tiger stripe' cracks: water from an ocean under the ice, sprayed into space. Some of it falls back as snow, and the rest makes Saturn's E ring.", "Enceladus is the most reflective world in the solar system: its fresh snow bounces back 99 % of the sunlight.")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("environment")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.17101, 0.469846, 0, 0.939693, 0.34202, -0.5, -0.296198, 0.813798, 0, 300, 0)
+light_color = Color(1, 0.98, 0.95, 1)
+light_energy = 1
+light_angular_distance = 0.05564
+shadow_enabled = true
+directional_shadow_max_distance = 350.0
+
+[node name="NearGround" type="MeshInstance3D" parent="."]
+custom_aabb = AABB(-240, -200, -240, 480, 400, 480)
+mesh = SubResource("near_mesh")
+
+[node name="FarGround" type="MeshInstance3D" parent="."]
+custom_aabb = AABB(-8000, -4000, -8000, 16000, 8000, 16000)
+mesh = SubResource("far_mesh")
+instance_shader_parameters/sink_inside = 1.0
+
+[node name="RockField" parent="." instance=ExtResource("8_rock_field")]
+tiny_shapes = Array[PackedScene]([ExtResource("9_rock_angular_1_tiny"), ExtResource("10_rock_angular_3_tiny")])
+small_shapes = Array[PackedScene]([ExtResource("11_rock_angular_1_small"), ExtResource("12_rock_angular_2_small")])
+medium_shapes = Array[PackedScene]([ExtResource("13_ice_block"), ExtResource("14_rock_angular_2_medium")])
+large_shapes = Array[PackedScene]([ExtResource("13_ice_block"), ExtResource("15_rock_angular_3")])
+rock_material = SubResource("rock_material")
+pebble_count = 8400
+rock_count = 800
+boulder_count = 20
+
+[node name="SaturnInTheSky" parent="." instance=ExtResource("16_sky_planet")]
+body_name = "Saturn"
+width_degrees = 27.5
+direction = Vector3(0.25, 0.32, -0.91)
+rings = "saturn"
+ring_opening_degrees = 0
+
+[node name="Plume1" parent="." instance=ExtResource("17_plume")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1500, 0, -2600)
+amount = 900
+lifetime = 15
+preprocess = 15
+process_material = SubResource("Plume1_process")
+
+[node name="Plume2" parent="." instance=ExtResource("17_plume")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -900, 0, -3000)
+amount = 800
+lifetime = 15
+preprocess = 15
+process_material = SubResource("Plume2_process")
+
+[node name="Plume3" parent="." instance=ExtResource("17_plume")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2200, 0, -2200)
+amount = 700
+lifetime = 15
+preprocess = 15
+process_material = SubResource("Plume3_process")
+
+[node name="Drift4" parent="." instance=ExtResource("18_drifting_particles")]
+
+[node name="Particles" parent="Drift4" index="0"]
+amount = 500
+process_material = SubResource("Drift4_process")
+draw_pass_1 = SubResource("Drift4_mesh")

@@ -19,6 +19,28 @@ const PARACHUTE_SCENE = preload("res://scenes/parts/parachute.tscn")
 const AIRBAGS_SCENE = preload("res://scenes/parts/airbags.tscn")
 const SKY_CRANE_SCENE = preload("res://scenes/parts/sky_crane.tscn")
 const DUST_SCENE = preload("res://scenes/effects/separation_burst.tscn")
+# A lander on legs carries the rover on its deck and lets it drive down a ramp (like ESA's Kazachok platform
+# for the Rosalind Franklin rover, or China's Chang'e landers with their Yutu rovers)
+const ROVER_PLATFORM_SCENE = preload("res://scenes/parts/rover_platform.tscn")
+# Each rocky world has its own landing-site scene (sky, sunlight, ground, rocks and its own sights), made by
+# tools/make_sites.py and editable in Godot. A world without one gets the plain ground and sky below.
+const SITE_FOLDER = "res://scenes/worlds/"
+const WHEEL_TRACK_TEXTURE = "res://assets/surface/textures/wheel_track.png"
+const MAX_CRATERS = 48
+const Spacecraft = preload("res://scripts/spacecraft.gd")
+
+# The rover is a real physics vehicle: a 1,025 kg body (Perseverance's mass) on six motorized wheels with springy
+# suspension, pulled down by the world's own gravity. The ground and every rock big enough to matter have collision
+# shapes, so wheels climb over small rocks and get stopped by big ones. Grip depends on what a wheel is on: loose soil,
+# soft sand, slippery ice or solid rock, and on how hard gravity presses it down.
+const ROVER_MASS = 1025.0                     # kg
+const WHEEL_RADIUS = 0.2625                   # Perseverance's wheels are 52.5 cm across (aluminum, with curved treads)
+const WHEELS_MODEL = "perseverance_wheels.glb"
+const TERRAIN_SPACING = 2.0                   # meters between the ground's collision points
+const TERRAIN_POINTS = 241                    # 241 x 241 points: 480 m square
+const LOWEST_GRAVITY = 0.25                   # m/s^2: on Phobos (0.0057) a bump would launch the rover for minutes, so it's raised to this
+const SURFACE_GRIP = {"soil": 2.4, "sand": 0.7, "ice": 0.9, "rock": 4.0}
+const DRIVE_AREA_RADIUS = 225.0
 
 # Ground colors (light, dark), sky colors (worlds with air), haze, how dim the sunlight is, and a planet hanging in the sky
 const WORLDS = {
@@ -99,6 +121,9 @@ var dust_timer = 0.0
 var shake = 0.0
 var camera_angle = 0.6
 var parachute_full_size = 10.0
+var platform: Node3D = null        # the legged lander that carries the rover
+var rover_ready = false            # the rover is on the ground and free to drive
+var legs_deployed = false
 
 # Driving
 var driving = false
@@ -130,20 +155,48 @@ var parachute_sound_played = false
 
 # The journey (launch.gd) pauses the landing or the rover while a decision is on screen, and opens the decisions
 # made on the way down once the landing reaches its tense moment (just before the parachute opens, or on the way in)
-var paused = false
+var paused = false:
+	set(value):
+		paused = value
+		if rover_body:
+			rover_body.freeze = value   # the rover can't roll away while a decision is on screen
 var reached_decision_point = false
 var crash_landing = false          # a landing check failed or a decision went wrong: it comes down far too hard
 var drive_seconds = 0.0            # time spent driving, so surface events come every so often while you drive
 
+# The landing site scene and its ground
+var site: Node3D = null
+var crater_list = []               # Vector4: x, z, radius, depth (the same craters the ground shader draws)
+var world_radius = 1.0e12          # how fast the ground curves away (meters)
+var sights = []                    # things to notice at this site, shown while you drive
+var sight_index = 0
+var sight_timer = 6.0
+var rover_body: VehicleBody3D = null
+var rover_wheels = []                # [VehicleWheel3D, steering share: +1 front corners, -1 rear corners, 0 middle]
+var terrain_body: StaticBody3D = null
+var terrain_heights = PackedFloat32Array()
+var terrain_rows_done = 0
+var landing_ground = 0.0             # the ground's height right where the lander comes down
+var airborne_seconds = 0.0
+var tipped_seconds = 0.0
+var track_mesh: ImmediateMesh = null
+var track_points = []              # [left wheel, right wheel] for each step along the rover's path
+
 func set_up(destination_name):
 	destination = destination_name
+	add_to_group("landing_site")
 	landing = GameState.choices.get("landing", "landing_legs")
 	var world = WORLDS.get(destination, WORLDS["Moon"])
 	dust_color = world["light"].lightened(0.15)
-	set_up_ground(world)
-	set_up_sky(world)
+	var site_path = SITE_FOLDER + destination.to_lower() + "_site.tscn"
+	if ResourceLoader.exists(site_path):
+		use_site(load(site_path).instantiate())
+	else:
+		set_up_ground(world)
+		set_up_sky(world)
+		scatter_rocks(world)
+	landing_ground = ground_height(Vector2.ZERO) if site else 0.0
 	start_world_sound()
-	scatter_rocks(world)
 	build_vehicle()
 	plan_landing()
 	update_vehicle(0.0)
@@ -210,6 +263,72 @@ func has_air():
 # ---------------------------------------------------------------------------
 # The world
 # ---------------------------------------------------------------------------
+# Moves in the site's sky, sunlight and ground, adds craters, and scatters its rocks on the ground
+func use_site(site_scene):
+	site = site_scene
+	add_child(site)
+	var site_sky = site.get_node_or_null("WorldEnvironment")
+	if site_sky:
+		world_environment.environment = site_sky.environment
+		site_sky.queue_free()   # only one sky at a time
+	var site_sun = site.get_node_or_null("Sun")
+	if site_sun:
+		sun.queue_free()
+		sun = site_sun
+	var near_ground = site.get_node_or_null("NearGround")
+	if near_ground:
+		ground.queue_free()
+		ground = near_ground
+	dust_color = site.get_meta("dust_color", dust_color)
+	sights = Array(site.get_meta("sights", PackedStringArray()))
+	var material = ground.get_active_material(0)
+	if material is ShaderMaterial:
+		world_radius = material.get_shader_parameter("world_radius")
+		# The computer's copy of the ground's height noise (the same picture the shader reads, made right away)
+		var noise_texture = material.get_shader_parameter("height_noise")
+		if noise_texture is NoiseTexture2D and noise_texture.noise:
+			height_image = noise_texture.noise.get_seamless_image(noise_texture.width, noise_texture.height, noise_texture.invert, noise_texture.in_3d_space, noise_texture.seamless_blend_skirt, noise_texture.normalize)
+		make_craters(material)
+	var rock_field = site.get_node_or_null("RockField")
+	if rock_field and rock_field.has_method("scatter"):
+		rock_field.scatter(self)
+
+# Craters: lots of small ones and a few big ones, sized like real crater fields (many more small than big),
+# kept clear of the landing spot. Big ones farther out shape the view.
+func make_craters(material):
+	var count = int(site.get_meta("crater_count", 0))
+	var biggest = float(site.get_meta("crater_max_radius", 30.0))
+	var depth_share = float(site.get_meta("crater_depth", 0.2))
+	var random = RandomNumberGenerator.new()
+	random.seed = hash(destination) + 3
+	crater_list = []
+	var far_count = min(int(count / 3), 12)
+	for index in min(count + far_count, MAX_CRATERS):
+		var far = index >= count
+		var radius = lerp(2.0, biggest, pow(random.randf(), 2.2)) if not far else random.randf_range(biggest * 2.0, biggest * 6.0)
+		for attempt in 10:
+			var angle = random.randf() * TAU
+			var distance = sqrt(random.randf()) * 230.0 if not far else random.randf_range(350.0, 3000.0)
+			var place = Vector2(cos(angle), sin(angle)) * distance
+			if place.length() > radius * 1.6 + 10.0:
+				crater_list.append(Vector4(place.x, place.y, radius, radius * depth_share * random.randf_range(0.6, 1.2)))
+				break
+	material.set_shader_parameter("craters", crater_list)
+	material.set_shader_parameter("crater_count", crater_list.size())
+
+func craters_height(place):
+	var total = 0.0
+	for crater in crater_list:
+		var r = place.distance_to(Vector2(crater.x, crater.y)) / crater.z
+		if r > 4.0:
+			continue
+		var rim = crater.w * 0.22
+		if r < 1.0:
+			total += rim + crater.w * (r * r - 1.0)
+		else:
+			total += rim / (r * r * r)
+	return total
+
 func set_up_ground(world):
 	var material = ground.get_active_material(0)
 	if material is ShaderMaterial:
@@ -303,6 +422,9 @@ func build_vehicle():
 	if lookalike_id in ["perseverance", "opportunity"]:
 		lander.rotation.y = PI   # NASA's rover models face -Z; turn them to face the way they drive
 	# The Apollo Lunar Module had one big descent engine; Viking, InSight and Phoenix had clusters of small thrusters
+	if can_drive() and landing == "landing_legs":
+		add_rover_platform()
+		return
 	var engine_spots = [Vector2.ZERO] if lookalike_id == "apollo_lunar_module" else [Vector2(0.25, 0.25), Vector2(-0.25, 0.25), Vector2(0.25, -0.25), Vector2(-0.25, -0.25)]
 	for spot in engine_spots:
 		var flame = RocketModel.make_flame("hydrogen")
@@ -314,11 +436,80 @@ func build_vehicle():
 		lander.add_child(flame)
 		lander_flames.append(flame)
 
+# The rover rides on the platform's deck; its four engines bring them down, and its legs swing out on the way
+func add_rover_platform():
+	platform = ROVER_PLATFORM_SCENE.instantiate()
+	vehicle.add_child(platform)
+	lander.position.y = platform.get_meta("deck_height", 1.475)
+	var animation = platform.get_node_or_null("AnimationPlayer")
+	if animation:
+		animation.play("legs_out")
+		animation.seek(0.0, true)
+		animation.pause()   # folded up until the last part of the descent
+	for engine in platform.get_children():
+		if engine.name.begins_with("Engine"):
+			var flame = RocketModel.make_flame("hydrogen")
+			flame.position = Vector3(0, -0.22, 0)
+			flame.scale = Vector3(0.2, 1.5, 0.2)
+			flame.visible = false
+			RocketModel.set_flame_vacuum(flame, 1.0 if not has_air() else 0.3)
+			engine.add_child(flame)
+			lander_flames.append(flame)
+
+func deploy_legs():
+	if legs_deployed or platform == null:
+		return
+	legs_deployed = true
+	var animation = platform.get_node_or_null("AnimationPlayer")
+	if animation:
+		animation.play("legs_out")
+	play_sound("thump", -12.0, 1.6)
+
+# After touchdown: the ramps fold down and the rover drives off the deck onto the ground
+func deploy_rover():
+	var animation = platform.get_node_or_null("AnimationPlayer")
+	await get_tree().create_timer(1.0).timeout
+	if animation:
+		animation.play("ramps_down")
+	play_sound("thump", -10.0, 1.3)
+	await get_tree().create_timer(2.2).timeout
+	var deck = lander.position.y
+	var ramp_length = platform.get_meta("ramp_length", 2.5)
+	var ramp_angle = deg_to_rad(platform.get_meta("ramp_angle_degrees", 35.5))
+	var ramp_top = 1.75
+	var ramp_bottom = ramp_top + ramp_length * cos(ramp_angle)
+	var drive = create_tween()
+	drive.tween_property(lander, "position", Vector3(0, deck, ramp_top), 1.4).set_trans(Tween.TRANS_SINE)
+	drive.tween_property(lander, "rotation:x", -ramp_angle, 0.5)
+	drive.parallel().tween_property(lander, "position", Vector3(0, deck - 0.2, ramp_top + 0.3), 0.5)
+	drive.tween_property(lander, "position", Vector3(0, 0.12, ramp_bottom - 0.3), 2.2)
+	drive.tween_property(lander, "rotation:x", 0.0, 0.5)
+	drive.parallel().tween_property(lander, "position", Vector3(0, 0.0, ramp_bottom + 0.4), 0.5)
+	drive.tween_property(lander, "position", Vector3(0, 0.0, ramp_bottom + 2.2), 1.2).set_trans(Tween.TRANS_SINE)
+	if audio():
+		audio().start_engine("mars_rover_drive", -14.0 + air_loudness(), air_pitch())
+	await drive.finished
+	if audio():
+		audio().stop_engine(0.5)
+	# The platform stays behind; from here on the rover is the vehicle
+	var platform_place = platform.global_transform
+	vehicle.remove_child(platform)
+	add_child(platform)
+	platform.global_transform = platform_place
+	vehicle.global_position += vehicle.global_transform.basis * lander.position
+	lander.position = Vector3.ZERO
+	rover_ready = true
+
+# Huygens (2005) floated down onto Titan inside its capsule the whole way. A lander carrying a rover drops its
+# heat shield and comes down under its own power instead, like at Mars.
+func huygens_style():
+	return destination == "Titan" and platform == null
+
 func uses_heat_shield():
-	return has_air() and destination != "Titan" and GameState.choices.get("shield", "") in ["shield_heat", "shield_venus"]
+	return has_air() and not huygens_style() and GameState.choices.get("shield", "") in ["shield_heat", "shield_venus"]
 
 func plan_landing():
-	if destination == "Titan":
+	if huygens_style():
 		# Huygens floated down for 2.5 hours under its parachute; here it's sped up
 		add_capsule()
 		phases = [["parachute", 9.0, 260.0, 0.0]]
@@ -363,6 +554,8 @@ func add_capsule():
 	parachute.scale = Vector3.ONE * 0.05
 	capsule.add_child(parachute)
 	lander.visible = false   # folded up inside the capsule
+	if platform:
+		platform.visible = false
 
 # ---------------------------------------------------------------------------
 # Every frame
@@ -370,6 +563,8 @@ func add_capsule():
 func _process(delta):
 	if paused:
 		return
+	if site and terrain_rows_done < TERRAIN_POINTS:
+		build_terrain_rows(12)   # the ground's collision shape, a few rows at a time while the lander comes down
 	update_drifting(delta)
 	shake = max(0.0, shake - delta * 1.5)
 	if driving:
@@ -416,13 +611,17 @@ func update_vehicle(fraction):
 				play_sound("thump", -4.0, 1.3)   # the parachute bangs open
 			if crash_landing:
 				open = min(open, 0.15)   # it never opens properly
+			if height < 70.0:
+				deploy_legs()   # (only a lander with legs has any)
 			parachute.scale = Vector3.ONE * max(0.05, parachute_full_size / capsule.scale.x * open)
 			parachute.position.y = (2.6 * parachute.scale.y + 3.1)
 			capsule.rotation.z = sin(phase_time * 1.7) * 0.06
-			if destination != "Titan" and phase_time > phase[1] * 0.55 and capsule.has_node("HeatShield"):
+			if not huygens_style() and phase_time > phase[1] * 0.55 and capsule.has_node("HeatShield"):
 				drop_heat_shield()
 		"release":
 			lander.visible = true
+			if platform:
+				platform.visible = true
 			if crane:
 				crane.visible = true
 			if airbags:
@@ -431,6 +630,8 @@ func update_vehicle(fraction):
 		"powered":
 			set_flames(lander_flames, true)
 			start_engine_sound()
+			if height < 90.0:
+				deploy_legs()
 			kick_up_dust(fraction)
 			if fraction >= 0.3:
 				reached_decision_point = true
@@ -451,10 +652,10 @@ func update_vehicle(fraction):
 				if bounce_time > 0.85:
 					airbags.scale = airbags.scale.lerp(Vector3.ONE * 0.05, 0.08)
 					lander.visible = true
-	vehicle.position.y = height
+	vehicle.position.y = height + landing_ground
 
 func finish_phase(phase_name):
-	if phase_name == "parachute" and destination != "Titan" and capsule:
+	if phase_name == "parachute" and not huygens_style() and capsule:
 		# The lander drops out of the backshell; the backshell and parachute drift off
 		var place = capsule.global_transform
 		vehicle.remove_child(capsule)
@@ -522,7 +723,7 @@ func spawn_dust(place, size):
 func touchdown():
 	landed = true
 	reached_decision_point = true
-	vehicle.position.y = 0.0
+	vehicle.position.y = landing_ground
 	if crash_landing:
 		crash()
 		touched_down.emit()
@@ -537,6 +738,10 @@ func touchdown():
 	play_sound("thump", 2.0, 0.8)
 	if destination == "Moon" and audio():
 		audio().play_voice("eagle_has_landed", 0.0, 1.5)   # Apollo 11: "Houston, Tranquility Base here. The Eagle has landed."
+	if platform and can_drive():
+		deploy_rover()
+	else:
+		rover_ready = true
 	touched_down.emit()
 
 # Far too fast: a cloud of dust, a bang, and a broken lander tipped over in its own crater
@@ -572,6 +777,9 @@ func play_event_effect(kind):
 			play_sound("impact", 0.0)
 			return 1.0
 		"dust":
+			var dust_devil = site.get_node_or_null("DustDevil1") if site else null
+			if dust_devil and dust_devil.has_method("pass_near"):
+				dust_devil.pass_near(vehicle.position)
 			if has_air():
 				spawn_dust(vehicle.position + Vector3(lander_size * 3.0, 0.5, -lander_size * 2.0), 6.0)
 				spawn_dust(vehicle.position + Vector3(-lander_size * 2.0, 0.5, lander_size * 3.0), 5.0)
@@ -610,8 +818,9 @@ func place_camera(blend):
 #   Jupiter's radiation fries its electronics near Io and Europa (a hardened computer or a radiation vault helps),
 #   solar panels barely charge far from the Sun or under Titan and Venus's clouds, and low gravity makes it bounce.
 # ---------------------------------------------------------------------------
+# Every rocky world can have a rover, whatever brings it down (sky crane, airbags, or a lander with legs and ramps)
 func can_drive():
-	return landing in ["landing_skycrane", "landing_airbags"] and CONDITIONS.has(destination)
+	return landing != "landing_none" and CONDITIONS.has(destination)
 
 func start_driving():
 	driving = true
@@ -626,10 +835,12 @@ func start_driving():
 	if airbags and is_instance_valid(airbags):
 		airbags.visible = false
 	lander.visible = true
-	var material = ground.get_active_material(0)
-	var noise_texture = material.get_shader_parameter("height_noise") if material is ShaderMaterial else null
-	if noise_texture:
-		height_image = noise_texture.get_image()
+	if height_image == null:
+		var material = ground.get_active_material(0)
+		var noise_texture = material.get_shader_parameter("height_noise") if material is ShaderMaterial else null
+		if noise_texture:
+			height_image = noise_texture.get_image()
+	start_tracks()
 	var conditions = CONDITIONS[destination]
 	var temperature = conditions[1]
 	$DriveScreen/DrivePanel/Column/DriveTitle.text = "PERSEVERANCE ON %s" % destination.to_upper()
@@ -643,6 +854,7 @@ func start_driving():
 		place_sand_patches()
 	rover_heading = randf() * TAU
 	last_ground_height = ground_height(Vector2(vehicle.position.x, vehicle.position.z))
+	make_rover_body()
 	if audio():
 		audio().start_engine("mars_rover_drive", -60.0, air_pitch())
 	show_message(intro_message(), 9.0)
@@ -757,7 +969,8 @@ func ground_height(place):
 	var hill_height = material.get_shader_parameter("hill_height") if material is ShaderMaterial else 0.0
 	var flat_radius = material.get_shader_parameter("flat_radius") if material is ShaderMaterial else 30.0
 	var keep_flat = smoothstep(flat_radius, flat_radius * 4.0, place.length())
-	return (noise_at(place * 0.0035) - 0.5) * hill_height * keep_flat + (noise_at(place * 0.03) - 0.5) * 0.5
+	return (noise_at(place * 0.0035) - 0.5) * hill_height * keep_flat + (noise_at(place * 0.03) - 0.5) * 0.5 \
+		+ craters_height(place) - place.length_squared() / (2.0 * world_radius)
 
 func update_driving(delta):
 	drive_seconds += delta
@@ -786,51 +999,61 @@ func update_driving(delta):
 			in_sand = true
 	if in_sand:
 		show_message_once("sand", "Soft sand! The wheels sink and spin. Spirit got stuck like this in 2009 and never got out.", 5.0)
-	var grip = clamp(real_gravity / 3.7, 0.3, 1.0)   # less weight pressing the wheels down means less grip
-	var on_ground = vehicle.position.y <= last_ground_height + 0.05
 	var top_speed = DRIVE_SPEED * (0.2 if in_sand else 1.0) * (1.0 - wheel_damage / 150.0)
-	if on_ground:
-		rover_speed = move_toward(rover_speed, throttle * top_speed, delta * 2.2 * grip)
-		rover_heading += steering * delta * 1.1 * (1.0 if rover_speed >= 0.0 else -1.0) * clamp(abs(rover_speed) + 0.3, 0.0, 1.0)
-	var forward = Vector3(sin(rover_heading), 0.0, cos(rover_heading))
-	var next = vehicle.position + forward * rover_speed * delta
-	var next_place = Vector2(next.x, next.z)
 	bump_cooldown -= delta
-	for rock in big_rocks:
-		if next_place.distance_to(rock[0]) < rock[1] + lander_size * 0.3:
-			if abs(rover_speed) > 0.4 and bump_cooldown <= 0.0:
-				bump_cooldown = 1.0
-				wheel_damage = min(100.0, wheel_damage + abs(rover_speed) * 4.0)
-				shake = 0.4
-				play_sound("impact", 0.0)
-				show_message("Bang! You hit a rock. Curiosity's wheels got holes punched in them by sharp Mars rocks." if destination == "Mars" else "Bang! You hit a rock and damaged a wheel.", 3.0)
-			rover_speed = -rover_speed * 0.3
+	var forward = Vector3(sin(rover_heading), 0.0, cos(rover_heading))
+	var on_ground = true
+	if rover_body:
+		rover_speed = drive_physics(delta, throttle, steering, in_sand, top_speed)
+		forward = rover_body.global_transform.basis.z
+		rover_heading = atan2(forward.x, forward.z)
+		on_ground = airborne_seconds == 0.0
+		if not driving:
+			return
+	else:
+		var grip = clamp(real_gravity / 3.7, 0.3, 1.0)   # less weight pressing the wheels down means less grip
+		on_ground = vehicle.position.y <= last_ground_height + 0.05
+		if on_ground:
+			rover_speed = move_toward(rover_speed, throttle * top_speed, delta * 2.2 * grip)
+			rover_heading += steering * delta * 1.1 * (1.0 if rover_speed >= 0.0 else -1.0) * clamp(abs(rover_speed) + 0.3, 0.0, 1.0)
+		forward = Vector3(sin(rover_heading), 0.0, cos(rover_heading))
+		var next = vehicle.position + forward * rover_speed * delta
+		var next_place = Vector2(next.x, next.z)
+		for rock in big_rocks:
+			if next_place.distance_to(rock[0]) < rock[1] + lander_size * 0.3:
+				if abs(rover_speed) > 0.4 and bump_cooldown <= 0.0:
+					bump_cooldown = 1.0
+					wheel_damage = min(100.0, wheel_damage + abs(rover_speed) * 4.0)
+					shake = 0.4
+					play_sound("impact", 0.0)
+					show_message("Bang! You hit a rock. Curiosity's wheels got holes punched in them by sharp Mars rocks." if destination == "Mars" else "Bang! You hit a rock and damaged a wheel.", 3.0)
+				rover_speed = -rover_speed * 0.3
+				next = vehicle.position
+				next_place = here
+				break
+		if next_place.length() > 220.0:
 			next = vehicle.position
-			next_place = here
-			break
-	if next_place.length() > 220.0:
-		next = vehicle.position
-		rover_speed = 0.0
-	# Stay on the ground, or sail off the top of a bump in low gravity
-	var ground_here = ground_height(Vector2(next.x, next.z))
-	rover_vertical_speed -= gravity * delta
-	var new_height = vehicle.position.y + rover_vertical_speed * delta
-	if new_height <= ground_here:
-		rover_vertical_speed = max((ground_here - last_ground_height) / max(delta, 0.001), 0.0) * 0.9
-		new_height = ground_here
-		if not on_ground and real_gravity < 2.0:
-			spawn_dust(Vector3(next.x, ground_here + 0.2, next.z), 1.5)
-	elif real_gravity < 2.0 and new_height > ground_here + 0.6:
-		show_message_once("hop", "Wheee! In low gravity the rover sails off bumps.", 3.0)
-	last_ground_height = ground_here
-	vehicle.position = Vector3(next.x, new_height, next.z)
-	# Tilt with the slope of the ground
-	var step = 1.0
-	var slope_x = ground_height(Vector2(next.x + step, next.z)) - ground_here
-	var slope_z = ground_height(Vector2(next.x, next.z + step)) - ground_here
-	var up = Vector3(-slope_x, step, -slope_z).normalized()
-	var side = up.cross(forward).normalized()
-	vehicle.basis = Basis(side, up, side.cross(up).normalized()).orthonormalized()
+			rover_speed = 0.0
+		# Stay on the ground, or sail off the top of a bump in low gravity
+		var ground_here = ground_height(Vector2(next.x, next.z))
+		rover_vertical_speed -= gravity * delta
+		var new_height = vehicle.position.y + rover_vertical_speed * delta
+		if new_height <= ground_here:
+			rover_vertical_speed = max((ground_here - last_ground_height) / max(delta, 0.001), 0.0) * 0.9
+			new_height = ground_here
+			if not on_ground and real_gravity < 2.0:
+				spawn_dust(Vector3(next.x, ground_here + 0.2, next.z), 1.5)
+		elif real_gravity < 2.0 and new_height > ground_here + 0.6:
+			show_message_once("hop", "Wheee! In low gravity the rover sails off bumps.", 3.0)
+		last_ground_height = ground_here
+		vehicle.position = Vector3(next.x, new_height, next.z)
+		# Tilt with the slope of the ground
+		var step = 1.0
+		var slope_x = ground_height(Vector2(next.x + step, next.z)) - ground_here
+		var slope_z = ground_height(Vector2(next.x, next.z + step)) - ground_here
+		var up = Vector3(-slope_x, step, -slope_z).normalized()
+		var side = up.cross(forward).normalized()
+		vehicle.basis = Basis(side, up, side.cross(up).normalized()).orthonormalized()
 	odometer += abs(rover_speed) * delta
 	if audio():
 		var effort = clamp(abs(rover_speed) / DRIVE_SPEED, 0.0, 1.0)
@@ -889,6 +1112,12 @@ func update_driving(delta):
 		return
 
 	update_science(delta)
+	update_tracks()
+	sight_timer -= delta
+	if sight_timer <= 0.0 and message_seconds <= 0.0 and sight_index < sights.size():
+		show_message(sights[sight_index], 9.0)
+		sight_index += 1
+		sight_timer = 20.0
 	update_drive_screen()
 	place_drive_camera(min(1.0, delta * 3.0))
 	message_seconds -= delta
@@ -961,6 +1190,239 @@ func place_drive_camera(blend):
 	camera.h_offset = randf_range(-1.0, 1.0) * shake * 0.2 if shake > 0.0 else 0.0
 	camera.v_offset = randf_range(-1.0, 1.0) * shake * 0.2 if shake > 0.0 else 0.0
 
+# ---------------------------------------------------------------------------
+# Collision and the physics rover
+# ---------------------------------------------------------------------------
+func is_icy_world():
+	return destination in ["Europa", "Enceladus", "Triton", "Pluto", "Haumea", "Makemake", "Eris", "Titania", "Charon", "Ganymede"]
+
+# The ground's collision shape: a height grid made from the same heights the rover drives on
+func build_terrain_rows(row_count):
+	if terrain_heights.is_empty():
+		terrain_heights.resize(TERRAIN_POINTS * TERRAIN_POINTS)
+	var half = (TERRAIN_POINTS - 1) * TERRAIN_SPACING * 0.5
+	var last_row = min(terrain_rows_done + row_count, TERRAIN_POINTS)
+	for row in range(terrain_rows_done, last_row):
+		for column in TERRAIN_POINTS:
+			# (stored divided by the spacing, because the whole shape is scaled up evenly by it)
+			terrain_heights[row * TERRAIN_POINTS + column] = ground_height(Vector2(column * TERRAIN_SPACING - half, row * TERRAIN_SPACING - half)) / TERRAIN_SPACING
+	terrain_rows_done = last_row
+	if terrain_rows_done >= TERRAIN_POINTS:
+		var shape = HeightMapShape3D.new()
+		shape.map_width = TERRAIN_POINTS
+		shape.map_depth = TERRAIN_POINTS
+		shape.map_data = terrain_heights
+		terrain_body = StaticBody3D.new()
+		terrain_body.name = "GroundCollision"
+		var shape_node = CollisionShape3D.new()
+		shape_node.shape = shape
+		shape_node.scale = Vector3.ONE * TERRAIN_SPACING
+		terrain_body.add_child(shape_node)
+		add_child(terrain_body)
+
+func make_rover_body():
+	if not site:
+		return   # (no landing-site scene: the simple driving below is used instead)
+	if terrain_rows_done < TERRAIN_POINTS:
+		build_terrain_rows(TERRAIN_POINTS)
+	var size_share = lander_size / 3.0
+	rover_body = VehicleBody3D.new()
+	rover_body.name = "RoverBody"
+	rover_body.mass = ROVER_MASS
+	rover_body.gravity_scale = max(CONDITIONS[destination][0], LOWEST_GRAVITY) / ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
+	rover_body.center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM
+	rover_body.center_of_mass = Vector3(0, 0.45 * size_share, 0)   # low and central, like the real rover's
+	rover_body.angular_damp = 1.2
+	rover_body.can_sleep = false
+	rover_body.contact_monitor = true
+	rover_body.max_contacts_reported = 6
+	var chassis = CollisionShape3D.new()
+	var box = BoxShape3D.new()
+	box.size = Vector3(2.0, 0.6, 2.3) * size_share
+	chassis.shape = box
+	chassis.position = Vector3(0, 1.0 * size_share, 0)    # the body rides about 70 cm above the ground
+	rover_body.add_child(chassis)
+	add_child(rover_body)
+	var start = vehicle.global_position
+	start.y = ground_height(Vector2(start.x, start.z)) + 0.12
+	rover_body.global_transform = Transform3D(Basis(Vector3.UP, rover_heading), start)
+	vehicle.global_transform = rover_body.global_transform
+	add_wheels(size_share)
+	rover_body.body_entered.connect(_on_rover_bumped)
+
+# Six wheels where the real model's wheels are. The model's own wheels move onto them, so they turn and steer.
+func add_wheels(size_share):
+	var inner_model = lander.get_child(0) if lander.get_child_count() > 0 else null
+	var wheels_path = Spacecraft.find_model(WHEELS_MODEL)
+	var wheel_nodes = []
+	if inner_model and wheels_path != "":
+		var wheel_model = load(wheels_path).instantiate()
+		var wheels_holder = Node3D.new()
+		lander.add_child(wheels_holder)
+		wheels_holder.transform = inner_model.transform
+		wheels_holder.add_child(wheel_model)
+		var original_wheels = inner_model.find_child("Wheels_objs", true, false)
+		if original_wheels:
+			original_wheels.visible = false
+		for child in wheel_model.get_children():
+			if child.name.begins_with("wheel_"):
+				wheel_nodes.append(child)
+	var places = []
+	if wheel_nodes.size() == 6:
+		for node in wheel_nodes:
+			places.append(rover_body.global_transform.affine_inverse() * node.global_position)
+	else:
+		for corner in [Vector3(1.06, 0, 1.16), Vector3(-1.06, 0, 1.16), Vector3(1.18, 0, 0.09), Vector3(-1.18, 0, 0.09), Vector3(1.06, 0, -1.09), Vector3(-1.06, 0, -1.09)]:
+			places.append(corner * size_share + Vector3(0, WHEEL_RADIUS * size_share, 0))
+	var rest_length = 0.25 * size_share
+	for index in places.size():
+		var wheel = VehicleWheel3D.new()
+		wheel.name = "Wheel%d" % index
+		wheel.position = places[index] + Vector3(0, rest_length, 0)
+		wheel.wheel_radius = WHEEL_RADIUS * size_share
+		wheel.wheel_rest_length = rest_length
+		wheel.suspension_travel = 0.22 * size_share
+		wheel.suspension_stiffness = 28.0
+		wheel.suspension_max_force = ROVER_MASS * 30.0
+		wheel.damping_compression = 1.6
+		wheel.damping_relaxation = 2.2
+		wheel.wheel_roll_influence = 0.03
+		wheel.wheel_friction_slip = SURFACE_GRIP["ice"] if is_icy_world() else SURFACE_GRIP["soil"]
+		wheel.use_as_traction = true          # every wheel has its own motor
+		wheel.use_as_steering = false         # steered one by one below: the corner wheels turn opposite ways
+		rover_body.add_child(wheel)
+		var steer_share = 0.0
+		if places[index].z > 0.5 * size_share:
+			steer_share = 1.0
+		elif places[index].z < -0.5 * size_share:
+			steer_share = -1.0
+		rover_wheels.append([wheel, steer_share])
+		if index < wheel_nodes.size():
+			var mesh_node = wheel_nodes[index]
+			var mesh_basis = mesh_node.global_transform.basis
+			mesh_node.get_parent().remove_child(mesh_node)
+			wheel.add_child(mesh_node)
+			mesh_node.transform = Transform3D(rover_body.global_transform.basis.inverse() * mesh_basis, Vector3.ZERO)
+
+# Drives the physics rover. Returns its forward speed.
+func drive_physics(delta, throttle, steering, in_sand, top_speed):
+	var forward = rover_body.global_transform.basis.z
+	var speed = rover_body.linear_velocity.dot(forward)
+	var gravity = max(CONDITIONS[destination][0], LOWEST_GRAVITY)
+	var force_per_wheel = ROVER_MASS * (0.9 + gravity * 0.35) / 6.0
+	var wheels_touching = 0
+	for entry in rover_wheels:
+		var wheel: VehicleWheel3D = entry[0]
+		# The corner wheels turn like a car's front wheels at the front and the opposite way at the back.
+		# (The real rover creeps at 4 cm/s; at this game's speed, sharp turns would flip it, so they get gentler as it speeds up.)
+		wheel.steering = steering * max(0.12, 0.45 - 0.11 * abs(speed)) * entry[1]
+		if abs(speed) < top_speed or sign(throttle) != sign(speed):
+			wheel.engine_force = throttle * force_per_wheel
+		else:
+			wheel.engine_force = 0.0
+		wheel.brake = 0.0 if throttle != 0.0 else ROVER_MASS * 0.06   # the motors hold the rover still when you let go
+		# Grip: what is this wheel on?
+		var surface = "ice" if is_icy_world() else "soil"
+		if in_sand:
+			surface = "sand"
+		if wheel.is_in_contact():
+			wheels_touching += 1
+			var touching = wheel.get_contact_body()
+			if touching and touching.name == "RockColliders":
+				surface = "rock"
+				if abs(speed) > 1.2:
+					wheel_damage = min(100.0, wheel_damage + abs(speed) * delta * 0.6)   # sharp rocks chew the wheels
+		wheel.wheel_friction_slip = SURFACE_GRIP[surface]
+	if in_sand:
+		rover_body.apply_central_force(-rover_body.linear_velocity * ROVER_MASS * 0.8)   # sinking wheels drag
+	# The mission plan keeps the rover near the landing site
+	var flat_place = Vector2(rover_body.global_position.x, rover_body.global_position.z)
+	if flat_place.length() > DRIVE_AREA_RADIUS:
+		var back = -Vector3(flat_place.x, 0, flat_place.y).normalized()
+		rover_body.apply_central_force(back * ROVER_MASS * 3.0)
+		show_message_once("edge", "That's as far as the mission plan goes: the team on Earth wants you near the landing site.", 4.0)
+	# In the air (low gravity hops), or tipped over on a steep slope
+	airborne_seconds = airborne_seconds + delta if wheels_touching == 0 else 0.0
+	if airborne_seconds > 0.4:
+		show_message_once("hop", "Wheee! In low gravity the rover sails off bumps.", 3.0)
+	var up = rover_body.global_transform.basis.y
+	tipped_seconds = tipped_seconds + delta if up.y < 0.25 else 0.0
+	if tipped_seconds > 2.0:
+		end_driving("The rover tipped over on a steep slope. Real rover drivers check every slope first: Curiosity avoids anything steeper than 30 degrees.")
+	# Fell through the ground somehow: put it back on top
+	var ground_here = ground_height(flat_place)
+	if rover_body.global_position.y < ground_here - 3.0:
+		rover_body.global_position.y = ground_here + 0.5
+		rover_body.linear_velocity = Vector3.ZERO
+	last_ground_height = ground_here
+	vehicle.global_transform = rover_body.global_transform
+	return speed
+
+func _on_rover_bumped(body):
+	if body == null or body.name != "RockColliders" or not driving:
+		return
+	var speed = rover_body.linear_velocity.length()
+	if speed > 0.6 and bump_cooldown <= 0.0:
+		bump_cooldown = 1.0
+		wheel_damage = min(100.0, wheel_damage + speed * 5.0)
+		shake = 0.4
+		play_sound("impact", 0.0)
+		show_message("Bang! You hit a rock. Curiosity's wheels got holes punched in them by sharp Mars rocks." if destination == "Mars" else "Bang! You hit a rock and damaged a wheel.", 3.0)
+
+# Wheel tracks: two ribbons pressed into the ground behind the rover's wheels
+func start_tracks():
+	track_mesh = ImmediateMesh.new()
+	var tracks = MeshInstance3D.new()
+	tracks.name = "WheelTracks"
+	tracks.mesh = track_mesh
+	tracks.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var material = StandardMaterial3D.new()
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	if ResourceLoader.exists(WHEEL_TRACK_TEXTURE):
+		material.albedo_texture = load(WHEEL_TRACK_TEXTURE)
+	material.albedo_color = Color(dust_color.darkened(0.35), 0.55)
+	material.roughness = 1.0
+	tracks.material_override = material
+	add_child(tracks)
+	track_points = []
+
+func update_tracks():
+	if track_mesh == null or vehicle.position.y > last_ground_height + 0.15:
+		return   # (no tracks while the rover is in the air)
+	var here = Vector3(vehicle.position.x, 0.0, vehicle.position.z)
+	if not track_points.is_empty() and here.distance_to(track_points[-1][2]) < 0.35:
+		return
+	var side = vehicle.basis.x.normalized()
+	var half_width = lander_size * 0.36
+	var points = []
+	for wheel_side in [-1.0, 1.0]:
+		var wheel = here + side * half_width * wheel_side
+		points.append(Vector3(wheel.x, ground_height(Vector2(wheel.x, wheel.z)) + 0.04, wheel.z))
+	points.append(here)
+	track_points.append(points)
+	if track_points.size() > 1500:
+		track_points.pop_front()
+	track_mesh.clear_surfaces()
+	if track_points.size() < 2:
+		return
+	var wheel_width = lander_size * 0.14
+	track_mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	for wheel_index in 2:
+		var travelled = 0.0
+		for index in range(1, track_points.size()):
+			var start = track_points[index - 1][wheel_index]
+			var finish = track_points[index][wheel_index]
+			var across = (finish - start).cross(Vector3.UP).normalized() * wheel_width * 0.5
+			var next_travelled = travelled + start.distance_to(finish)
+			var corners = [[start - across, Vector2(0, travelled)], [start + across, Vector2(1, travelled)], [finish + across, Vector2(1, next_travelled)],
+				[start - across, Vector2(0, travelled)], [finish + across, Vector2(1, next_travelled)], [finish - across, Vector2(0, next_travelled)]]
+			for corner in corners:
+				track_mesh.surface_set_normal(Vector3.UP)
+				track_mesh.surface_set_uv(corner[1] * Vector2(1.0, 1.0 / wheel_width))
+				track_mesh.surface_add_vertex(corner[0])
+			travelled = next_travelled
+	track_mesh.surface_end()
+
 func _on_done_driving():
 	end_driving("")
 
@@ -970,6 +1432,9 @@ func end_driving(reason):
 	driving = false
 	failure = reason
 	$DriveScreen.visible = false
+	for entry in rover_wheels:
+		entry[0].engine_force = 0.0
+		entry[0].brake = ROVER_MASS * 0.2   # parked
 	if audio():
 		audio().stop_engine(0.8)
 		if reason != "":

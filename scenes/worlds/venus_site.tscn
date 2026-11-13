@@ -1,0 +1,265 @@
+[gd_scene format=3]
+
+[ext_resource type="Shader" path="res://shaders/terrain.gdshader" id="1_terrain"]
+[ext_resource type="Shader" path="res://shaders/surface_sky.gdshader" id="2_surface_sky"]
+[ext_resource type="Shader" path="res://shaders/surface_rock.gdshader" id="3_surface_rock"]
+[ext_resource type="Texture2D" path="res://assets/surface/textures/regolith_detail.png" id="4_regolith_detail"]
+[ext_resource type="Texture2D" path="res://assets/surface/textures/regolith_normal.png" id="5_regolith_normal"]
+[ext_resource type="Texture2D" path="res://assets/surface/textures/rock_detail.png" id="6_rock_detail"]
+[ext_resource type="Texture2D" path="res://assets/surface/textures/rock_normal.png" id="7_rock_normal"]
+[ext_resource type="PackedScene" path="res://scenes/worlds/rock_field.tscn" id="8_rock_field"]
+[ext_resource type="PackedScene" path="res://assets/surface/rocks/rock_slab_tiny.glb" id="9_rock_slab_tiny"]
+[ext_resource type="PackedScene" path="res://assets/surface/rocks/rock_angular_1_tiny.glb" id="10_rock_angular_1_tiny"]
+[ext_resource type="PackedScene" path="res://assets/surface/rocks/rock_slab_small.glb" id="11_rock_slab_small"]
+[ext_resource type="PackedScene" path="res://assets/surface/rocks/rock_angular_1_small.glb" id="12_rock_angular_1_small"]
+[ext_resource type="PackedScene" path="res://assets/surface/rocks/rock_slab_medium.glb" id="13_rock_slab_medium"]
+[ext_resource type="PackedScene" path="res://assets/surface/rocks/rock_angular_2_medium.glb" id="14_rock_angular_2_medium"]
+[ext_resource type="PackedScene" path="res://assets/surface/rocks/rock_slab.glb" id="15_rock_slab"]
+[ext_resource type="PackedScene" path="res://assets/surface/rocks/rock_angular_1.glb" id="16_rock_angular_1"]
+[ext_resource type="PackedScene" path="res://scenes/effects/plume.tscn" id="17_plume"]
+[ext_resource type="Texture2D" path="res://assets/surface/textures/soft_puff.png" id="18_soft_puff"]
+[ext_resource type="PackedScene" path="res://scenes/effects/drifting_particles.tscn" id="19_drifting_particles"]
+
+[sub_resource type="FastNoiseLite" id="hills"]
+seed = 529
+frequency = 0.008
+fractal_octaves = 5
+
+[sub_resource type="NoiseTexture2D" id="hills_texture"]
+width = 512
+height = 512
+seamless = true
+noise = SubResource("hills")
+
+[sub_resource type="FastNoiseLite" id="patches"]
+seed = 530
+frequency = 0.03
+fractal_octaves = 4
+
+[sub_resource type="NoiseTexture2D" id="patches_texture"]
+width = 512
+height = 512
+seamless = true
+noise = SubResource("patches")
+
+[sub_resource type="ShaderMaterial" id="ground_material"]
+shader = ExtResource("1_terrain")
+shader_parameter/height_noise = SubResource("hills_texture")
+shader_parameter/detail_noise = SubResource("patches_texture")
+shader_parameter/regolith_detail = ExtResource("4_regolith_detail")
+shader_parameter/regolith_normal = ExtResource("5_regolith_normal")
+shader_parameter/rock_detail = ExtResource("6_rock_detail")
+shader_parameter/rock_normal = ExtResource("7_rock_normal")
+shader_parameter/light_ground = Color(0.4, 0.31, 0.19, 1)
+shader_parameter/dark_ground = Color(0.21, 0.16, 0.1, 1)
+shader_parameter/rock_color = Color(0.2, 0.16, 0.11, 1)
+shader_parameter/patch_color = Color(0.2, 0.2, 0.2, 1)
+shader_parameter/patch_amount = 0.0
+shader_parameter/patch_scale = 0.012
+shader_parameter/second_patch_color = Color(1, 1, 1, 1)
+shader_parameter/second_patch_amount = 0.0
+shader_parameter/grain_strength = 0.8
+shader_parameter/ground_roughness = 0.95
+shader_parameter/ice_sheen = 0.0
+shader_parameter/hill_height = 8.0
+shader_parameter/flat_radius = 30.0
+shader_parameter/world_radius = 6051800.0
+shader_parameter/mountain_height = 200.0
+shader_parameter/mountain_start = 1500.0
+shader_parameter/mountain_sharpness = 0.0
+shader_parameter/terrace = 0.0
+shader_parameter/landmark_kind = 2
+shader_parameter/landmark_direction = Vector2(-0.6, -1)
+shader_parameter/landmark_distance = 7000.0
+shader_parameter/landmark_height = 1400.0
+shader_parameter/landmark_width = 6000.0
+shader_parameter/crater_freshness = 0.5
+shader_parameter/groove_strength = 0.0
+shader_parameter/groove_spacing = 40.0
+shader_parameter/groove_direction = Vector2(1, 0.3)
+shader_parameter/crack_strength = 0.0
+shader_parameter/crack_color = Color(0.45, 0.25, 0.15, 1)
+shader_parameter/crack_scale = 90.0
+shader_parameter/cell_strength = 0.0
+shader_parameter/cell_size = 60.0
+shader_parameter/ripple_strength = 0.0
+shader_parameter/ripple_direction = Vector2(0.8, 0.6)
+
+[sub_resource type="PlaneMesh" id="near_mesh"]
+material = SubResource("ground_material")
+size = Vector2(480, 480)
+subdivide_width = 319
+subdivide_depth = 319
+
+[sub_resource type="PlaneMesh" id="far_mesh"]
+material = SubResource("ground_material")
+size = Vector2(16000, 16000)
+subdivide_width = 399
+subdivide_depth = 399
+
+[sub_resource type="ShaderMaterial" id="sky_material"]
+shader = ExtResource("2_surface_sky")
+shader_parameter/zenith_color = Color(0.52, 0.38, 0.17, 1)
+shader_parameter/horizon_color = Color(0.86, 0.63, 0.31, 1)
+shader_parameter/ground_color = Color(0.3, 0.2, 0.1, 1)
+shader_parameter/horizon_softness = 0.6
+shader_parameter/sky_energy = 0.9
+shader_parameter/sun_halo_color = Color(0.55, 0.38, 0.16, 1)
+shader_parameter/sun_halo_size = 0.7
+shader_parameter/sun_glow_strength = 0
+shader_parameter/sun_disk_strength = 0
+shader_parameter/band_color = Color(0.3, 0.5, 1, 1)
+shader_parameter/band_strength = 0
+shader_parameter/star_brightness = 0
+
+[sub_resource type="Sky" id="sky"]
+sky_material = SubResource("sky_material")
+
+[sub_resource type="Environment" id="environment"]
+background_mode = 2
+sky = SubResource("sky")
+tonemap_mode = 3
+tonemap_exposure = 1
+ssao_enabled = true
+ssao_radius = 1.5
+ssao_intensity = 2.5
+glow_enabled = true
+glow_intensity = 0.8
+glow_hdr_threshold = 1.5
+ambient_light_source = 3
+ambient_light_energy = 0.9
+fog_enabled = true
+fog_light_color = Color(0.78, 0.55, 0.27, 1)
+fog_density = 0.0006
+fog_sky_affect = 0.7
+volumetric_fog_enabled = true
+volumetric_fog_density = 0.003
+volumetric_fog_albedo = Color(0.95, 0.7, 0.4, 1)
+volumetric_fog_length = 140
+
+[sub_resource type="ShaderMaterial" id="rock_material"]
+shader = ExtResource("3_surface_rock")
+shader_parameter/rock_detail = ExtResource("6_rock_detail")
+shader_parameter/rock_normal = ExtResource("7_rock_normal")
+shader_parameter/regolith_detail = ExtResource("4_regolith_detail")
+shader_parameter/rock_color = Color(0.22, 0.18, 0.13, 1)
+shader_parameter/dust_color = Color(0.36, 0.27, 0.17, 1)
+shader_parameter/dust_amount = 0.15
+shader_parameter/ice_sheen = 0
+
+[sub_resource type="Gradient" id="Virga1_fade_gradient"]
+offsets = PackedFloat32Array(0, 0.12, 0.45, 0.7)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 0.85, 1, 1, 1, 0.45, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="Virga1_fade"]
+gradient = SubResource("Virga1_fade_gradient")
+
+[sub_resource type="ParticleProcessMaterial" id="Virga1_process"]
+emission_shape = 3
+emission_box_extents = Vector3(1200, 40, 1200)
+direction = Vector3(0.15, -1, 0)
+spread = 2.0
+initial_velocity_min = 55.0
+initial_velocity_max = 70.0
+gravity = Vector3(0, 0, 0)
+scale_min = 0.8
+scale_max = 1.4
+color = Color(0.95, 0.85, 0.55, 1)
+color_ramp = SubResource("Virga1_fade")
+
+[sub_resource type="StandardMaterial3D" id="Virga1_mesh_material"]
+transparency = 1
+vertex_color_use_as_albedo = true
+albedo_texture = ExtResource("18_soft_puff")
+roughness = 1.0
+billboard_mode = 2
+billboard_keep_scale = true
+disable_fog = true
+
+[sub_resource type="QuadMesh" id="Virga1_mesh"]
+material = SubResource("Virga1_mesh_material")
+size = Vector2(1.5, 45)
+
+[sub_resource type="Gradient" id="Drift2_fade_gradient"]
+offsets = PackedFloat32Array(0, 0.2, 0.8, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="Drift2_fade"]
+gradient = SubResource("Drift2_fade_gradient")
+
+[sub_resource type="ParticleProcessMaterial" id="Drift2_process"]
+emission_shape = 3
+emission_box_extents = Vector3(40, 15, 40)
+direction = Vector3(1, 0, 0.2)
+spread = 30.0
+initial_velocity_min = 0.2
+initial_velocity_max = 0.8
+gravity = Vector3(0, 0, 0)
+turbulence_enabled = true
+turbulence_noise_strength = 0.4
+scale_min = 0.05
+scale_max = 0.12
+color = Color(0.9, 0.7, 0.4, 0.25)
+color_ramp = SubResource("Drift2_fade")
+
+[node name="VenusSite" type="Node3D"]
+metadata/crater_count = 0
+metadata/crater_max_radius = 30.0
+metadata/crater_depth = 0.2
+metadata/dust_color = Color(0.45, 0.34, 0.2, 1)
+metadata/sights = PackedStringArray("Venus: 465 °C and 92 times Earth's air pressure, like being 900 m under the ocean. The flat slabs of lava rock are just like the ones in Venera 13's photos (1982).", "Those streaks high in the murk are sulfuric acid rain. It falls from clouds about 48 km up and boils away around 30 km up, so it never reaches the ground. (Here it's drawn much closer so you can see it.)", "There are no small craters here: the thick air burns up small space rocks before they can hit the ground.")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("environment")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.939693, -0.262003, 0.219846, 0, 0.642788, 0.766044, -0.34202, -0.719846, 0.604023, 0, 300, 0)
+light_color = Color(1, 0.76, 0.46, 1)
+light_energy = 0.5
+light_angular_distance = 10
+shadow_enabled = true
+directional_shadow_max_distance = 350.0
+
+[node name="NearGround" type="MeshInstance3D" parent="."]
+custom_aabb = AABB(-240, -200, -240, 480, 400, 480)
+mesh = SubResource("near_mesh")
+
+[node name="FarGround" type="MeshInstance3D" parent="."]
+custom_aabb = AABB(-8000, -4000, -8000, 16000, 8000, 16000)
+mesh = SubResource("far_mesh")
+instance_shader_parameters/sink_inside = 1.0
+
+[node name="RockField" parent="." instance=ExtResource("8_rock_field")]
+tiny_shapes = Array[PackedScene]([ExtResource("9_rock_slab_tiny"), ExtResource("10_rock_angular_1_tiny")])
+small_shapes = Array[PackedScene]([ExtResource("11_rock_slab_small"), ExtResource("12_rock_angular_1_small")])
+medium_shapes = Array[PackedScene]([ExtResource("13_rock_slab_medium"), ExtResource("14_rock_angular_2_medium")])
+large_shapes = Array[PackedScene]([ExtResource("15_rock_slab"), ExtResource("16_rock_angular_1")])
+rock_material = SubResource("rock_material")
+pebble_count = 14400
+rock_count = 1000
+boulder_count = 20
+special_shape = ExtResource("15_rock_slab")
+special_material = SubResource("rock_material")
+special_count = 260
+special_size = Vector2(0.8, 3)
+special_spread = Vector2(8, 160)
+special_clusters = 0
+special_cluster_radius = 10.0
+special_sink = 0.40
+special_stand_up = false
+special_blocks_rover = true
+
+[node name="AcidRain" parent="." instance=ExtResource("17_plume")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 450, -900)
+amount = 2400
+lifetime = 9.0
+preprocess = 9.0
+visibility_aabb = AABB(-2500, -800, -2500, 5000, 1000, 5000)
+process_material = SubResource("Virga1_process")
+draw_pass_1 = SubResource("Virga1_mesh")
+
+[node name="Drift2" parent="." instance=ExtResource("19_drifting_particles")]
+
+[node name="Particles" parent="Drift2" index="0"]
+amount = 300
+process_material = SubResource("Drift2_process")

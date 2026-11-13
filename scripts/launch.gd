@@ -102,6 +102,15 @@ var descent_start = Vector3.ZERO
 var descent_start_scale = 1.0
 var landed_scale = 1.0
 const PROBE_HEIGHT = 0.8          # the journey's probe model, in scene units
+# Scale: one scene unit is Earth's radius (6,371 km), and planets are their true sizes compared with each other.
+# A real spacecraft (about 10 m) would be far smaller than a pixel next to a planet, so the spacecraft is drawn
+# bigger than real, and how much bigger depends on where it is: out in empty space it's drawn big enough to see,
+# and near a planet or moon it shrinks to about 1 % of that world's size, so the world looms huge behind it.
+# The camera keeps the same distance from the spacecraft compared with its size, so it always stays in view.
+const NEAR_PLANET_SIZE = 0.012    # the spacecraft's drawn size near a world, compared with that world's radius
+const FULL_SIZE_DISTANCE = 4.0    # from this far from a world's surface (scene units), it's drawn at full size
+var display_scale = 1.0           # how big the spacecraft is drawn right now (1 = PROBE_SIZE)
+var probe_marker: MeshInstance3D = null   # a small glowing dot that marks the spacecraft when it's too small to see
 var landing_spot = Vector3.ZERO
 var pending_event = false         # an event's animation is playing; its panel opens when the animation ends
 var animation_seconds_left = 0.0
@@ -190,6 +199,21 @@ func set_up_cruise_extras():
 	probe_flame.scale = Vector3(0.07, 0.5, 0.07)
 	probe_flame.visible = false
 	probe.add_child(probe_flame)
+	probe_marker = MeshInstance3D.new()
+	var dot = QuadMesh.new()
+	dot.size = Vector2(0.018, 0.018)
+	probe_marker.mesh = dot
+	var dot_material = StandardMaterial3D.new()
+	dot_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dot_material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	dot_material.fixed_size = true          # the same size on screen however far away
+	dot_material.no_depth_test = true
+	dot_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	dot_material.albedo_color = Color(0.55, 0.9, 1.0, 0.85)
+	probe_marker.material_override = dot_material
+	probe_marker.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	probe_marker.visible = false
+	probe.add_child(probe_marker)
 	trail_mesh = ImmediateMesh.new()
 	trail = MeshInstance3D.new()
 	trail.name = "Trail"
@@ -264,7 +288,7 @@ func _process(delta):
 		if surface_view and surface_view.landed and not pending_event:
 			seconds_since_touchdown += delta
 			seconds_since_last_event += delta
-			if rover_state == "waiting" and seconds_since_touchdown >= 2.5 and not next_event_has_phase("descent"):
+			if rover_state == "waiting" and seconds_since_touchdown >= 2.5 and surface_view.rover_ready and not next_event_has_phase("descent"):
 				start_rover()
 
 	if pending_event:
@@ -275,6 +299,10 @@ func _process(delta):
 
 	if arrival_mode != "":
 		update_arrival(delta)
+	update_display_scale()
+	orient_probe(probe.basis)
+	if probe_marker and camera:
+		probe_marker.visible = probe.visible and camera.global_position.distance_to(probe.global_position) > display_scale * 12.0
 	update_flight_hud()
 	if arrival_mode == "":
 		announce_sights()
@@ -307,12 +335,13 @@ func place_chase_camera(blend):
 		place_arrival_camera(blend)
 		return
 	var direction = flight_direction(flight_progress)
-	var wanted = probe.position - direction * 2.8 + Vector3(0, 1.0, 1.6)
+	var size = display_scale
+	var wanted = probe.position + (-direction * 2.8 + Vector3(0, 1.0, 1.6)) * size
 	if scenery and not scenery.belt_at(flight_progress).is_empty():
-		wanted = probe.position - direction * 2.4 + Vector3(0, 0.7, 0.5)   # right behind, to see the rocks coming
+		wanted = probe.position + (-direction * 2.4 + Vector3(0, 0.7, 0.5)) * size   # right behind, to see the rocks coming
 	camera.position = camera.position.lerp(wanted, clamp(blend, 0.0, 1.0))
-	var look_point = probe.position.lerp(target_planet.position, 0.3)
-	if camera.position.distance_to(look_point) > 0.01:
+	var look_point = probe.position + (target_planet.position - probe.position).normalized() * min(probe.position.distance_to(target_planet.position) * 0.3, 3.0 * size + probe.position.distance_to(target_planet.position) * 0.3 * size)
+	if camera.position.distance_to(look_point) > 0.000001:
 		camera.look_at(look_point, Vector3.UP)
 	apply_shake()
 
@@ -329,28 +358,24 @@ func place_arrival_camera(blend):
 		apply_shake()
 		return
 	var outward = (probe.position - center).normalized()
-	var forward = -probe.basis.y if arrival_mode != "orbiting" else probe.basis.y
+	var forward = (-probe.basis.y if arrival_mode != "orbiting" else probe.basis.y).normalized()
 	var side = outward.cross(Vector3.UP).normalized() if abs(outward.dot(Vector3.UP)) < 0.95 else Vector3.RIGHT
-	var wanted = probe.position + outward * 1.6 - forward * 1.4 + side * 1.2 + Vector3(0, 0.5, 0)
-	var look_point = probe.position.lerp(center, 0.2)
+	var size = display_scale
+	var wanted = probe.position + (outward * 1.1 - forward * 2.2 + side * 1.0) * size
+	var look_point = probe.position + (center - probe.position).normalized() * size * 2.0
 	if arrival_mode == "descending":
-		var size = max(probe.scale.x * 2.0, target_radius() * 0.6)
-		wanted = probe.position + outward * 1.0 * size + side * 1.8 * size
-		look_point = probe.position.lerp(center, 0.15)
-	elif arrival_mode == "landed":
-		# Down low beside the probe, with the world's horizon curving away behind it
-		var size = max(probe.scale.x * 2.5, target_radius() * 0.35)
-		wanted = probe.position + outward * 0.45 * size + side * 1.5 * size
-		look_point = probe.position + outward * 0.15 * size
+		# Following the lander down, with the ground coming up to meet it
+		wanted = probe.position + (outward * 1.4 + side * 2.6) * size * 2.0
+		look_point = probe.position + (center - probe.position).normalized() * size * 3.0
 	camera.position = camera.position.lerp(wanted, clamp(blend, 0.0, 1.0))
-	if camera.position.distance_to(look_point) > 0.01:
+	if camera.position.distance_to(look_point) > 0.000001:
 		camera.look_at(look_point, Vector3.UP if abs(outward.dot(Vector3.UP)) < 0.95 else Vector3.FORWARD)
 	apply_shake()
 
 func apply_shake():
 	if shake > 0.0:
-		camera.h_offset = randf_range(-1.0, 1.0) * shake * 0.12
-		camera.v_offset = randf_range(-1.0, 1.0) * shake * 0.12
+		camera.h_offset = randf_range(-1.0, 1.0) * shake * 0.12 * display_scale
+		camera.v_offset = randf_range(-1.0, 1.0) * shake * 0.12 * display_scale
 	else:
 		camera.h_offset = 0.0
 		camera.v_offset = 0.0
@@ -405,7 +430,7 @@ func set_up_target_planet():
 	var extra_length = clamp(log(max(distance_from_sun, 1.0)) / log(2.0) * 8.0, 0.0, 40.0)
 	path_height = 4.0 + extra_length * 0.15
 	target_planet.position = Vector3(6 + planet_radius + extra_length, 0, 0)
-	flight_end = target_planet.position - Vector3(planet_radius + 1.0, 0, 0)
+	flight_end = target_planet.position - Vector3(planet_radius * 1.12, 0, 0)   # arriving at a low orbit's height
 
 	if destination == "Saturn":
 		add_saturn_rings(sphere_radius)
@@ -468,12 +493,36 @@ func path_frame(progress):
 	var side = forward.cross(Vector3.UP).normalized()
 	return {"forward": forward, "side": side, "up": side.cross(forward).normalized()}
 
+# How big to draw the spacecraft right now: smaller the closer it is to a world (see NEAR_PLANET_SIZE)
+func update_display_scale():
+	var wanted = 1.0
+	var worlds = [target_planet]
+	var earth = get_node_or_null("Earth")
+	if earth and earth.visible:
+		worlds.append(earth)
+	for world in worlds:
+		if not world is Node3D:
+			continue
+		var radius = world.scale.x * (world.mesh.radius if world is MeshInstance3D and world.mesh is SphereMesh else 1.0)
+		var above_surface = max(probe.position.distance_to(world.position) - radius, 0.0)
+		var near_size = radius * NEAR_PLANET_SIZE / PROBE_SIZE
+		wanted = min(wanted, lerp(near_size, 1.0, clamp(above_surface / FULL_SIZE_DISTANCE, 0.0, 1.0)))
+	if arrival_mode in ["orbiting", "descending", "approaching"]:
+		wanted = min(wanted, target_radius() * NEAR_PLANET_SIZE / PROBE_SIZE)
+	display_scale = clamp(wanted, 0.002, 1.0)
+	if camera:
+		camera.near = clamp(display_scale * 0.05, 0.0002, 0.05)
+
+# Turns the spacecraft (setting its basis would also reset its size, so the size goes back on each time)
+func orient_probe(new_basis):
+	probe.basis = new_basis.orthonormalized().scaled(Vector3.ONE * display_scale)
+
 func set_flight_progress(new_progress):
 	flight_progress = new_progress
 	var frame = path_frame(new_progress)
 	probe.position = path_point(new_progress) + frame["side"] * steer.x + frame["up"] * steer.y
 	# Point the rocket's nose the way it's flying (up at first, level at the top of the curve, then down)
-	probe.basis = Basis(Quaternion(Vector3.UP, flight_direction(new_progress)))
+	orient_probe(Basis(Quaternion(Vector3.UP, flight_direction(new_progress))))
 
 func fly_to(target_progress):
 	# The probe now coasts through the interval at the selected mission-time rate.
@@ -728,7 +777,7 @@ func begin_orbit():
 	flight_progress = 1.0
 	elapsed_flight_days = total_flight_days
 	var center = target_planet.position
-	orbit_radius = max(probe.position.distance_to(center), target_radius() + 0.6)
+	orbit_radius = max(probe.position.distance_to(center), target_radius() * 1.12)
 	orbit_angle = atan2(probe.position.z - center.z, probe.position.x - center.x)
 	# Arriving at the closest point of a stretched orbit, the way real orbit insertions work
 	orbit_semi_major_axis = orbit_radius / (1.0 - ORBIT_ECCENTRICITY)
@@ -762,8 +811,8 @@ func begin_descent():
 	descent_time = 0.0
 	descent_start = probe.position
 	# The worlds here are drawn small, so the probe shrinks on the way down to look the right size standing on one
-	descent_start_scale = probe.scale.x
-	landed_scale = clamp(target_radius() * 0.3 / PROBE_HEIGHT, 0.03, 1.0)
+	descent_start_scale = display_scale
+	landed_scale = display_scale
 	var center = target_planet.position
 	var outward = (probe.position - center).normalized()
 	var label = world_name()
@@ -779,7 +828,7 @@ func begin_descent():
 			show_caption("Going down to the surface of %s..." % label, 4.0)
 	if not GameState.destination in GameState.AIRLESS_WORLDS:
 		flash(Color(1.0, 0.55, 0.15), 0.35)   # hitting the air: the heat shield glows
-		spawn_effect(SPARKS_SCENE, probe.position - outward * 0.3, Vector3.ZERO, Color(1.0, 0.6, 0.3), 0.6)
+		spawn_effect(SPARKS_SCENE, probe.position - outward * 0.3 * display_scale, Vector3.ZERO, Color(1.0, 0.6, 0.3), 0.6 * display_scale)
 
 # Where the probe is on its orbit (relative to the world's center), from Kepler's equation:
 # it sweeps out equal areas in equal times, so it races past the world and crawls along the far side.
@@ -820,7 +869,7 @@ func update_arrival(delta):
 			var outward = (approach_start - center).normalized()
 			var close_in = center + outward * target_radius() * 1.8
 			probe.position = approach_start.lerp(close_in, 1.0 - exp(-approach_seconds * 0.12))
-			probe.basis = Basis(Quaternion(Vector3.UP, outward)).scaled(Vector3.ONE * probe.scale.x)
+			orient_probe(Basis(Quaternion(Vector3.UP, outward)))
 		"orbiting":
 			orbit_seconds += delta
 			target_planet.rotate_y(delta * 0.04)   # the world turning below
@@ -828,14 +877,13 @@ func update_arrival(delta):
 			var place = orbit_point(orbit_mean_anomaly)
 			probe.position = center + place
 			var forward = (orbit_point(orbit_mean_anomaly + 0.01) - place).normalized()
-			probe.basis = Basis(Quaternion(Vector3.UP, forward))
+			orient_probe(Basis(Quaternion(Vector3.UP, forward)))
 		"descending":
 			descent_time += delta
 			var fraction = smoothstep(0.0, 1.0, descent_time / DESCENT_SECONDS)
 			probe.position = descent_start.lerp(landing_spot, fraction)
-			# Engine toward the ground, braking all the way down (setting the basis also sets the size, so both go together)
-			var size = lerp(descent_start_scale, landed_scale, min(1.0, fraction * 1.4))
-			probe.basis = Basis(Quaternion(Vector3.UP, (probe.position - center).normalized())).scaled(Vector3.ONE * size)
+			# Engine toward the ground, braking all the way down
+			orient_probe(Basis(Quaternion(Vector3.UP, (probe.position - center).normalized())))
 			flame_seconds_left = 0.1 if fraction < 0.97 else 0.0
 			if fraction >= 1.0:
 				if not GameState.destination in GameState.NO_SURFACE:
@@ -976,12 +1024,12 @@ func start_event_animation(event):
 			var light = get_node_or_null("DirectionalLight3D")
 			if light:
 				sun_direction = -light.global_transform.basis.z
-			spawn_effect(SOLAR_WIND_SCENE, probe.position - sun_direction * 3.0, -sun_direction)
+			spawn_effect(SOLAR_WIND_SCENE, probe.position - sun_direction * 3.0 * display_scale, -sun_direction, Color.WHITE, display_scale)
 			flash(Color(1.0, 0.75, 0.3), 0.35)
 			play_sound("alarm", -4.0)
 			return 1.8
 		"hit":
-			spawn_effect(SPARKS_SCENE, probe.position, Vector3.ZERO)
+			spawn_effect(SPARKS_SCENE, probe.position, Vector3.ZERO, Color.WHITE, display_scale)
 			flash(Color(1.0, 0.3, 0.2), 0.45)
 			shake = 0.8
 			play_sound("impact", 0.0)
@@ -989,7 +1037,7 @@ func start_event_animation(event):
 		"radio":
 			var earth = get_node_or_null("Earth")
 			var toward_earth = (earth.global_position - probe.position).normalized() if earth else Vector3.LEFT
-			spawn_effect(RADIO_WAVES_SCENE, probe.position, toward_earth)
+			spawn_effect(RADIO_WAVES_SCENE, probe.position, toward_earth, Color.WHITE, display_scale)
 			play_sound("static", -6.0)
 			return 1.8
 		"glitch":
@@ -1016,6 +1064,8 @@ func spawn_effect(scene, place, direction, tint = Color.WHITE, size = 1.0):
 		effect.global_basis = Basis(Quaternion(Vector3.UP, direction.normalized()))
 	if effect is CPUParticles3D:
 		effect.color = tint
+		effect.emission_sphere_radius *= size
+		effect.emission_box_extents *= size
 		effect.scale_amount_min *= size
 		effect.scale_amount_max *= size
 		effect.initial_velocity_min *= size

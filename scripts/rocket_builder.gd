@@ -18,7 +18,7 @@ const WATCH = Color(1.0, 0.8, 0.3)
 const NO_GO = Color(1.0, 0.4, 0.35)
 const INFO = Color(0.55, 0.75, 1.0)
 const EARTH_SPIN_BONUS = 408        # m/s: Earth's spin pushes a rocket launched east from Florida (28.5° N) this fast for free
-const LIFTOFF_PUSH_NEEDED = 1.2     # thrust-to-weight a rocket needs to climb away from the pad
+const LIFTOFF_PUSH_NEEDED = 1.15    # thrust-to-weight a rocket needs to climb away from the pad (Saturn V lifted off at about 1.17)
 const TOP_STAGE_PUSH_NEEDED = 0.4   # thrust-to-weight a top stage needs to reach orbit before falling back
 const SAFE_SQUEEZE_G = 6.0          # most spacecraft are built to handle about 6 g of launch push
 const TOWER_SCALE = 47.2            # NASA's Mobile Launcher model is 2.46 units tall; the real one is 116 m
@@ -130,7 +130,7 @@ func fill_choices():
 			if engine["stage"] != stage:
 				continue
 			var thrust = engine["thrust_sea_level"] if stage == "bottom" else engine["thrust_vacuum"]
-			option.add_item("%s   %s kN, %d s, $%dM each" % [engine["name"], format_number(thrust), engine["isp_vacuum"], engine["cost"]])
+			option.add_item("%s   %s kN, %d s, %s each" % [engine["name"], format_number(thrust), engine["isp_vacuum"], GameState.money_text(engine["cost"])])
 			choice_ids[stage + "_engine"].append(engine_id)
 	var boosters_option = choices["boosters"]
 	boosters_option.clear()
@@ -139,7 +139,7 @@ func fill_choices():
 		var booster = RocketData.BOOSTERS[booster_id]
 		var text = booster["name"]
 		if booster["count"] > 0:
-			text += "   $%dM" % (booster["cost_each"] * booster["count"])
+			text += "   " + GameState.money_text(booster["cost_each"] * booster["count"])
 		boosters_option.add_item(text)
 		choice_ids["boosters"].append(booster_id)
 	var kick_option = choices["kick_stage"]
@@ -147,7 +147,7 @@ func fill_choices():
 	choice_ids["kick_stage"] = []
 	for kick_id in RocketData.KICK_STAGES:
 		var kick = RocketData.KICK_STAGES[kick_id]
-		kick_option.add_item(kick["name"] + ("   $%dM" % kick["cost"] if kick.has("cost") else ""))
+		kick_option.add_item(kick["name"] + ("   " + GameState.money_text(kick["cost"]) if kick.has("cost") else ""))
 		choice_ids["kick_stage"].append(kick_id)
 	refill_tanks("bottom")
 	refill_tanks("top")
@@ -163,7 +163,7 @@ func refill_tanks(stage):
 		var tank = RocketData.TANKS[tank_id]
 		if tank["fuel"] != fuel:
 			continue
-		option.add_item("%s   $%dM" % [tank["name"], tank["cost"]])
+		option.add_item("%s   %s" % [tank["name"], GameState.money_text(tank["cost"])])
 		choice_ids[setting].append(tank_id)
 	if not GameState.rocket[setting] in choice_ids[setting]:
 		GameState.rocket[setting] = choice_ids[setting][0]
@@ -273,7 +273,7 @@ func update_review(report, numbers):
 	var lines = ["[b]LAUNCH READINESS REVIEW[/b]\nBefore every launch, each team answers \"go\" or \"no-go\". Every line must be GO or WATCH to fly.\n"]
 
 	var liftoff = report["liftoff_thrust_to_weight"]
-	var liftoff_text = "Thrust-to-weight %.2f: the engines push with %s kN against %s tonnes. Falcon 9 lifts off at about 1.4, Saturn V at about 1.2." % [liftoff, format_number(numbers["liftoff_thrust"]), format_number(report["liftoff_mass"] / 1000.0)]
+	var liftoff_text = "Thrust-to-weight %.2f: the engines push with %s kN against %s tonnes. Falcon 9 lifts off at about 1.4, Saturn V at about 1.17." % [liftoff, format_number(numbers["liftoff_thrust"]), format_number(report["liftoff_mass"] / 1000.0)]
 	if liftoff < LIFTOFF_PUSH_NEEDED:
 		lines.append(line("no_go", "Lifting off the pad", liftoff_text + " Too heavy: add engines or boosters, or use a smaller tank."))
 	elif liftoff < 1.3:
@@ -305,7 +305,7 @@ func update_review(report, numbers):
 
 	var cost = GameState.total_cost()
 	var budget = GameState.budget()
-	var cost_text = "Rocket $%sM + probe $%sM = $%sM of your $%sM budget." % [format_number(GameState.rocket_cost()), format_number(GameState.probe_cost()), format_number(cost), format_number(budget)]
+	var cost_text = "Rocket %s + probe %s = %s of your %s budget." % [GameState.money_text(GameState.rocket_cost()), GameState.money_text(GameState.probe_cost()), GameState.money_text(cost), GameState.money_text(budget)]
 	if cost > budget:
 		lines.append(line("no_go", "Budget", cost_text + " RS-25 engines and giant boosters are the expensive parts."))
 	elif cost > budget * 0.9:
@@ -355,7 +355,7 @@ func update_flight_plan(report):
 	events.append([plan["escape_start"], "Top stage relights: the escape burn toward %s" % GameState.destination])
 	events.append([plan["escape_end"], "Escape burn complete"])
 	if rocket["kick_stage"] != "none":
-		events.append([plan["kick_end"], "The kick stage spins up and fires its last push"])
+		events.append([plan["kick_end"], RocketData.KICK_STAGES[rocket["kick_stage"]].get("caption", "The kick stage spins up and fires its last push")])
 	events.append([plan["kick_end"] + 60.0, "Your probe separates and heads for %s" % GameState.destination])
 	events.sort_custom(func(first, second): return first[0] < second[0])
 	var lines = ["[b]FLIGHT PLAN[/b]\nWhat happens after liftoff, worked out from your engines and tanks.\n"]
@@ -389,8 +389,8 @@ func update_briefing(report, numbers):
 func update_summary(report):
 	var cost = GameState.total_cost()
 	var ready = report["problems"].is_empty() and report["fast_enough"] and cost <= GameState.budget()
-	summary_label.text = "%s t at liftoff    %s of %s m/s    $%sM of $%sM    %s" % [format_number(report["liftoff_mass"] / 1000.0), format_number(report["total_speed"]),
-		format_number(report["speed_needed"]), format_number(cost), format_number(GameState.budget()), "GO for launch" if ready else "NO-GO: see the review"]
+	summary_label.text = "%s t at liftoff    %s of %s m/s    %s of %s    %s" % [format_number(report["liftoff_mass"] / 1000.0), format_number(report["total_speed"]),
+		format_number(report["speed_needed"]), GameState.money_text(cost), GameState.money_text(GameState.budget()), "GO for launch" if ready else "NO-GO: see the review"]
 	summary_label.add_theme_color_override("font_color", GO if ready else NO_GO)
 	launch_button.disabled = not ready
 

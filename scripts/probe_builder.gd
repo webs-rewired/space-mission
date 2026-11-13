@@ -386,7 +386,7 @@ func build_screen():
 
 func part_label(part_id):
 	var part = GameState.PARTS[part_id]
-	var text = "%s   %d kg, $%dM" % [part["name"], part["mass"], part["cost"]]
+	var text = "%s   %d kg, %s" % [part["name"], part["mass"], GameState.money_text(part["cost"])]
 	if part.has("power_at_earth"):
 		text += ", %s W at Earth" % format_number(part["power_at_earth"])
 	elif part.has("power_anywhere"):
@@ -461,7 +461,7 @@ func update_review():
 	var cost = GameState.probe_cost()
 	var budget = GameState.budget()
 	var status = "go" if cost <= budget * 0.7 else ("watch" if cost <= budget else "no-go")
-	lines.append(line(status, "Budget", "The probe costs $%dM of your $%dM. The rocket still has to be paid for too." % [cost, budget]))
+	lines.append(line(status, "Budget", "The probe costs %s of your %s. The rocket still has to be paid for too." % [GameState.money_text(cost), GameState.money_text(budget)]))
 
 	# Power when it gets there
 	var made = GameState.power_made()
@@ -602,7 +602,7 @@ func update_review():
 		verdict = "[color=#%s][b]ALL SYSTEMS GO![/b][/color]" % GO.to_html(false)
 	readiness_label.text = "[b]FLIGHT READINESS REVIEW[/b]\n" + verdict + "\n\n" + "\n".join(lines)
 
-	summary_label.text = "%s kg   |   %s W at %s   |   $%dM of $%dM" % [format_number(GameState.total_mass()), format_number(made), destination, cost, budget]
+	summary_label.text = "%s kg   |   %s W at %s   |   %s of %s" % [format_number(GameState.total_mass()), format_number(made), destination, GameState.money_text(cost), GameState.money_text(budget)]
 	summary_label.add_theme_color_override("font_color", Color(0.1, 0.12, 0.16))
 	next_button.disabled = cost > budget
 	next_button.tooltip_text = "The probe is over budget." if cost > budget else ""
