@@ -614,7 +614,8 @@ func build_screen():
 	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	layer.add_child(fade)
 	caption = Label.new()
-	caption.add_theme_font_size_override("font_size", 36)
+	caption.theme_type_variation = "TitleLabel"
+	caption.add_theme_font_size_override("font_size", 38)
 	caption.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	caption.add_theme_constant_override("outline_size", 8)
 	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -625,7 +626,8 @@ func build_screen():
 	caption.offset_top = 60
 	layer.add_child(caption)
 	telemetry = Label.new()
-	telemetry.add_theme_font_size_override("font_size", 18)
+	telemetry.theme_type_variation = "DataLabel"
+	telemetry.add_theme_font_size_override("font_size", 17)
 	telemetry.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	telemetry.add_theme_constant_override("outline_size", 6)
 	telemetry.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)

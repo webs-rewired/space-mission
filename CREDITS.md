@@ -19,3 +19,4 @@
 - **Mission audio**: NASA (Apollo 11 countdown and "The Eagle has landed", Apollo 13, Artemis I, Space Shuttle, Perseverance's microphones, InSight, Juno), public domain.
 - **Sound effects**: Kenney (https://kenney.nl), Sci-Fi Sounds and Interface Sounds packs, CC0. The motor, latch, clank and crash sounds for cables, ramps, legs and the robotic arm are from the Sci-Fi Sounds pack.
 - **Music**: "Space Music: Out There" by yd and "Outer Space Loop" by wipics, from OpenGameArt.org, CC0.
+- **Fonts**: Inter, Barlow Condensed, JetBrains Mono and Orbitron, from Google Fonts, SIL Open Font License (licenses in assets/fonts).

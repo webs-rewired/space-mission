@@ -118,6 +118,7 @@ layout_mode = 2
 theme_override_constants/separation = 4
 
 [node name="DriveTitle" type="Label" parent="DriveScreen/DrivePanel/Column" unique_id=119427122]
+theme_type_variation = &"TitleLabel"
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 18

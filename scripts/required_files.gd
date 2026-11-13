@@ -6,6 +6,11 @@ extends RefCounted
 # a sound just doesn't play.
 
 const FILES = [
+	"res://assets/ui/orbit_lab_theme.tres",
+	"res://assets/fonts/Inter-Variable.ttf",
+	"res://assets/fonts/BarlowCondensed-SemiBold.ttf",
+	"res://assets/fonts/JetBrainsMono-Variable.ttf",
+	"res://assets/fonts/Orbitron-Variable.ttf",
 	"res://assets/audio/effects/computerNoise_001.ogg",
 	"res://assets/audio/effects/doorClose_000.ogg",
 	"res://assets/audio/effects/doorOpen_000.ogg",

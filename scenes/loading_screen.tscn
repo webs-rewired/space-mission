@@ -43,6 +43,7 @@ layout_mode = 2
 theme_override_constants/separation = 14
 
 [node name="Kicker" type="Label" parent="Cover/Center/Column"]
+theme_type_variation = &"DataLabel"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
 theme_override_font_sizes/font_size = 14
@@ -50,8 +51,9 @@ text = "ORBIT LAB   |   MISSION CONTROL"
 horizontal_alignment = 1
 
 [node name="Title" type="Label" parent="Cover/Center/Column"]
+theme_type_variation = &"TitleLabel"
 layout_mode = 2
-theme_override_font_sizes/font_size = 40
+theme_override_font_sizes/font_size = 48
 text = "SOLAR SYSTEM"
 horizontal_alignment = 1
 
@@ -63,6 +65,7 @@ theme_override_styles/fill = SubResource("bar_fill")
 show_percentage = false
 
 [node name="Status" type="Label" parent="Cover/Center/Column"]
+theme_type_variation = &"DataLabel"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.8, 0.88, 1)
 theme_override_font_sizes/font_size = 16

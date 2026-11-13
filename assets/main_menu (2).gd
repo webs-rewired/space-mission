@@ -1125,9 +1125,20 @@ func _black_bar(top: bool) -> void:
 		_place(bar, 0.0, 1.0 - BAR_SIZE, 1.0, 1.0)
 
 
-func _menu_font(spacing: int) -> FontVariation:
+# The game's fonts (assets/fonts, set up in assets/ui/orbit_lab_theme.tres), with extra letter spacing.
+# role: "logo" (Orbitron, for the title), "heading" (Barlow Condensed) or "body" (Inter).
+# If the font files are missing, Godot's built-in font is used instead.
+const FONT_FILES = {
+	"logo": "res://assets/fonts/Orbitron-Variable.ttf",
+	"heading": "res://assets/fonts/BarlowCondensed-SemiBold.ttf",
+	"body": "res://assets/fonts/Inter-Variable.ttf",
+}
+func _menu_font(spacing: int, role := "heading") -> FontVariation:
 	var font := FontVariation.new()
-	font.base_font = ThemeDB.fallback_font
+	var path: String = FONT_FILES.get(role, "")
+	font.base_font = load(path) if path != "" and ResourceLoader.exists(path) else ThemeDB.fallback_font
+	if role == "logo":
+		font.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 700}
 	font.spacing_glyph = spacing
 	return font
 
@@ -1138,13 +1149,15 @@ func _menu_button(text: String, size: int, action: Callable) -> Button:
 	button.text = text.to_upper()
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.custom_minimum_size = Vector2(460, size + 22)
-	button.add_theme_font_override("font", _menu_font(4))
+	button.add_theme_font_override("font", _menu_font(3))
 	button.add_theme_font_size_override("font_size", size)
 	button.add_theme_color_override("font_color", Color(0.93, 0.95, 0.97, 0.85))
 	button.add_theme_color_override("font_hover_color", Color(0.55, 0.85, 1.0))
 	button.add_theme_color_override("font_pressed_color", Color(0.7, 0.8, 0.9))
 	button.add_theme_color_override("font_focus_color", Color.WHITE)
 	button.add_theme_color_override("font_disabled_color", Color(0.6, 0.65, 0.7))
+	button.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.45))   # readable over the bright sky
+	button.add_theme_constant_override("outline_size", 4)
 	for style_name in ["normal", "hover", "pressed", "focus", "disabled"]:
 		button.add_theme_stylebox_override(style_name, StyleBoxEmpty.new())
 	button.pressed.connect(action)
@@ -1159,8 +1172,8 @@ func _build_ui() -> void:
 	# Title
 	var title := Label.new()
 	title.text = GAME_TITLE
-	title.add_theme_font_override("font", _menu_font(14))
-	title.add_theme_font_size_override("font_size", 64)
+	title.add_theme_font_override("font", _menu_font(10, "logo"))
+	title.add_theme_font_size_override("font_size", 60)
 	title.add_theme_color_override("font_color", Color(0.96, 0.97, 1.0))
 	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
 	title.add_theme_constant_override("shadow_offset_y", 3)
@@ -1169,8 +1182,10 @@ func _build_ui() -> void:
 	var tagline := Label.new()
 	tagline.text = GAME_TAGLINE.to_upper()
 	tagline.add_theme_font_override("font", _menu_font(3))
-	tagline.add_theme_font_size_override("font_size", 15)
+	tagline.add_theme_font_size_override("font_size", 18)
 	tagline.add_theme_color_override("font_color", Color(0.55, 0.85, 1.0))
+	tagline.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.75))   # readable over the bright sky
+	tagline.add_theme_constant_override("shadow_offset_y", 2)
 	layer.add_child(tagline)
 	_place(tagline, 0.068, 0.2, 0.068, 0.2)
 	tagline.offset_top = 84.0

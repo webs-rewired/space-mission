@@ -717,6 +717,7 @@ func build_scenery():
 		caption_label.offset_top = 16
 		layer.add_child(caption_label)
 		control_banner = Label.new()
+		control_banner.theme_type_variation = "TitleLabel"
 		control_banner.text = "MANUAL CONTROL\nSteer with WASD or the arrow keys to dodge the rocks"
 		control_banner.add_theme_font_size_override("font_size", 22)
 		control_banner.add_theme_color_override("font_color", Color(1.0, 0.82, 0.3))
@@ -842,10 +843,12 @@ func build_flight_controls():
 
 	var heading = Label.new()
 	heading.text = "MISSION CONTROL"
-	heading.add_theme_font_size_override("font_size", 18)
+	heading.theme_type_variation = "TitleLabel"   # (fonts: assets/ui/orbit_lab_theme.tres)
+	heading.add_theme_font_size_override("font_size", 22)
 	column.add_child(heading)
 
 	mission_clock_label = Label.new()
+	mission_clock_label.theme_type_variation = "DataLabel"
 	column.add_child(mission_clock_label)
 
 	mission_status_label = Label.new()
@@ -859,6 +862,7 @@ func build_flight_controls():
 	column.add_child(mission_progress_bar)
 
 	time_mode_label = Label.new()
+	time_mode_label.theme_type_variation = "DataLabel"
 	column.add_child(time_mode_label)
 
 	var buttons = HBoxContainer.new()

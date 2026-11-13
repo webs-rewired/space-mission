@@ -33,6 +33,7 @@ layout_mode = 2
 theme_override_constants/separation = 4
 
 [node name="Title" type="Label" parent="Screen/Panel/Column"]
+theme_type_variation = &"TitleLabel"
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 18
@@ -40,12 +41,14 @@ text = "IN ORBIT"
 autowrap_mode = 3
 
 [node name="OrbitLabel" type="Label" parent="Screen/Panel/Column"]
+theme_type_variation = &"DataLabel"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.85, 1, 1)
 theme_override_font_sizes/font_size = 12
 autowrap_mode = 3
 
 [node name="CoverageLabel" type="Label" parent="Screen/Panel/Column"]
+theme_type_variation = &"DataLabel"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.8, 0.84, 0.9, 1)
 theme_override_font_sizes/font_size = 12
@@ -57,6 +60,7 @@ layout_mode = 2
 show_percentage = false
 
 [node name="DataLabel" type="Label" parent="Screen/Panel/Column"]
+theme_type_variation = &"DataLabel"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.8, 0.84, 0.9, 1)
 theme_override_font_sizes/font_size = 12
@@ -69,6 +73,7 @@ layout_mode = 2
 show_percentage = false
 
 [node name="PowerLabel" type="Label" parent="Screen/Panel/Column"]
+theme_type_variation = &"DataLabel"
 layout_mode = 2
 theme_override_colors/font_color = Color(0.8, 0.84, 0.9, 1)
 theme_override_font_sizes/font_size = 12
@@ -119,6 +124,7 @@ layout_mode = 2
 theme_override_constants/separation = 5
 
 [node name="MapTitle" type="Label" parent="Screen/MapPanel/Column"]
+theme_type_variation = &"TitleLabel"
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
 theme_override_font_sizes/font_size = 13
