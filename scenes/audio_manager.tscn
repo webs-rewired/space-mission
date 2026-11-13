@@ -1,0 +1,40 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/audio_manager.gd" id="1_script"]
+
+[node name="AudioManager" type="Node"]
+process_mode = 3
+script = ExtResource("1_script")
+
+[node name="MusicA" type="AudioStreamPlayer" parent="."]
+bus = &"Music"
+
+[node name="MusicB" type="AudioStreamPlayer" parent="."]
+bus = &"Music"
+
+[node name="Ambience" type="AudioStreamPlayer" parent="."]
+bus = &"Ambience"
+
+[node name="Engine" type="AudioStreamPlayer" parent="."]
+bus = &"Effects"
+
+[node name="Voice" type="AudioStreamPlayer" parent="."]
+bus = &"Voice"
+
+[node name="Effect1" type="AudioStreamPlayer" parent="."]
+bus = &"Effects"
+
+[node name="Effect2" type="AudioStreamPlayer" parent="."]
+bus = &"Effects"
+
+[node name="Effect3" type="AudioStreamPlayer" parent="."]
+bus = &"Effects"
+
+[node name="Effect4" type="AudioStreamPlayer" parent="."]
+bus = &"Effects"
+
+[node name="Effect5" type="AudioStreamPlayer" parent="."]
+bus = &"Effects"
+
+[node name="Effect6" type="AudioStreamPlayer" parent="."]
+bus = &"Effects"

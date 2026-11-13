@@ -163,6 +163,8 @@ func _on_liftoff_finished():
 	cruising = true
 	if flight_controls:
 		flight_controls.visible = true
+	if audio():
+		audio().play_music("music_cruise", 4.0)   # space itself is silent, so the trip gets music
 	set_flight_progress(0.0)
 	place_chase_camera(1.0)
 	set_time_mode("fast")
@@ -553,12 +555,14 @@ func steer_through_belt(delta, belt):
 			rocks_hit[index] = true
 			if rocks_hit.size() > MOST_ROCK_STRIKES:
 				show_caption("Another rock strike! Luckily it only scraped the probe.", 2.0)
+				play_sound("impact", -8.0)
 				if hit_flash:
 					hit_flash.color.a = 0.3
 				continue
 			GameState.science -= ROCK_STRIKE_SCIENCE
 			GameState.mission_log.append({"title": "Rock strike", "text": "A rock hit the probe in the %s. Lost %d science." % [belt["name"].to_lower(), ROCK_STRIKE_SCIENCE], "ok": false})
 			show_caption("Rock strike! Lost %d science." % ROCK_STRIKE_SCIENCE, 2.0)
+			play_sound("impact", -2.0)
 			if hit_flash:
 				hit_flash.color.a = 0.45
 
@@ -728,6 +732,11 @@ func begin_orbit():
 		show_caption("Straight in! Your lander hits %s's air behind its heat shield, like Perseverance did." % label, 5.0)
 		return
 	show_caption(("Braking burn complete: %s's gravity has caught your probe. You're in orbit!" % label).replace(": the", ": The"), 5.0)
+	play_sound("thruster", -6.0)
+	if audio() and GameState.destination in ["Jupiter", "Io", "Europa", "Ganymede", "Callisto"] and audio().has_sound("jupiter_radio"):
+		audio().play_ambience("jupiter_radio", -8.0)
+		await get_tree().create_timer(5.5).timeout
+		show_caption("That eerie sound is real: radio waves NASA's Juno recorded near Ganymede, turned into sound.", 6.0)
 
 func begin_descent():
 	arrival_mode = "descending"
@@ -813,6 +822,9 @@ func update_arrival(delta):
 # Cut to the landing site: the real lander comes down on that world's ground under its sky
 func open_surface_view():
 	arrival_mode = "landing"
+	if audio():
+		audio().stop_music(4.0)
+		audio().stop_ambience(2.0)
 	surface_view = SURFACE_SCENE.instantiate()
 	add_child(surface_view)
 	surface_view.set_up(GameState.destination)
@@ -886,25 +898,32 @@ func start_event_animation(event):
 				sun_direction = -light.global_transform.basis.z
 			spawn_effect(SOLAR_WIND_SCENE, probe.position - sun_direction * 3.0, -sun_direction)
 			flash(Color(1.0, 0.75, 0.3), 0.35)
+			play_sound("alarm", -4.0)
 			return 1.8
 		"hit":
 			spawn_effect(SPARKS_SCENE, probe.position, Vector3.ZERO)
 			flash(Color(1.0, 0.3, 0.2), 0.45)
 			shake = 0.8
+			play_sound("impact", 0.0)
 			return 1.4
 		"radio":
 			var earth = get_node_or_null("Earth")
 			var toward_earth = (earth.global_position - probe.position).normalized() if earth else Vector3.LEFT
 			spawn_effect(RADIO_WAVES_SCENE, probe.position, toward_earth)
+			play_sound("static", -6.0)
 			return 1.8
 		"glitch":
 			flicker_seconds_left = 1.2
+			play_sound("glitch", -4.0)
 			return 1.4
 		"burn":
 			flame_seconds_left = 2.0
+			play_sound("thruster", -8.0)
 			return 1.6
 		"quake":
 			shake = 1.0
+			# A real marsquake that NASA's InSight lander felt (sped up so we can hear it)
+			play_sound("marsquake" if GameState.destination == "Mars" else "thump", 0.0)
 			return 1.4
 	return 0.3
 
@@ -996,8 +1015,18 @@ func _on_continue_pressed():
 	else:
 		fly_to(progress_at_event(event_index))
 
+func audio():
+	return get_node_or_null("/root/AudioManager")
+
+func play_sound(sound_name, volume_db = 0.0):
+	if audio():
+		audio().play_effect(sound_name, volume_db)
+
 func go_to_results():
 	cruising = false
+	if GameState.lost and audio():
+		audio().play_voice("houston_problem")   # Apollo 13: "Houston, we've had a problem"
+		await get_tree().create_timer(3.5).timeout
 	if flight_controls:
 		flight_controls.visible = false
 	GameState.finish_mission()

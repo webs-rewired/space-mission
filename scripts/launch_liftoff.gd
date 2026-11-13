@@ -62,7 +62,10 @@ var smoke_noise: NoiseTexture2D
 var timeline = []              # [real mission seconds, event name], in order
 var next_event = 0
 var mission_seconds = -10.0    # real mission time: starts at T-10 for the countdown
-const COUNTDOWN_TIME_SPEED = 2.0 # the countdown runs twice as fast as real time
+const COUNTDOWN_TIME_SPEED = 2.0 # the countdown runs twice as fast as real time (real time when there's a countdown voice)
+# Seconds into each real countdown recording when "zero" / "liftoff" is called, to line it up with T-0
+# (Apollo 11: "...ten, nine, ignition sequence start... two, one, zero" at 14.6 s; Artemis I: "booster ignition" right at the start)
+const COUNTDOWN_VOICE_LIFTOFF_AT = {"countdown_apollo": 14.6, "countdown_artemis": 0.3}
 const IGNITION_SECONDS = -3.0    # engines light 3 seconds before liftoff (like a Falcon 9)
 var compression = 18.0
 var in_high_shot = false
@@ -95,6 +98,10 @@ var booster_flip_seconds = 0.0
 
 var caption: Label
 var caption_seconds_left = 0.0
+var countdown_speed = COUNTDOWN_TIME_SPEED
+var countdown_voice = ""
+var last_roar_distance = -1.0
+var silence_announced = false
 var telemetry: Label
 var fade: ColorRect
 
@@ -114,6 +121,64 @@ func start(environment_node):
 		world_environment.environment = sky_environment
 	camera.current = true
 	show_caption("3")
+	start_countdown_voice()
+
+# ---------------------------------------------------------------------------
+# Sound: a real NASA countdown, then the roar. Sound travels at 343 m/s, so it reaches the camera a moment
+# after the flames light; it drops in pitch as the rocket races away (the Doppler effect), and fades to silence
+# as the air thins: above about 50 km there's almost no air left to carry it.
+# ---------------------------------------------------------------------------
+func audio():
+	return get_node_or_null("/root/AudioManager")
+
+func start_countdown_voice():
+	var sound = audio()
+	if sound == null:
+		return
+	# SLS gets the Artemis I call; the others, Apollo 11's
+	var voice = "countdown_artemis" if pieces.get("real_rocket", "") == "SLS" else "countdown_apollo"
+	if not sound.has_sound(voice):
+		voice = "countdown_apollo" if voice == "countdown_artemis" else "countdown_artemis"
+	if not sound.has_sound(voice):
+		return
+	countdown_speed = 1.0   # a real countdown voice runs in real time
+	countdown_voice = voice
+	var seconds_to_liftoff = -mission_seconds / countdown_speed
+	var start_at = COUNTDOWN_VOICE_LIFTOFF_AT[voice] - seconds_to_liftoff
+	sound.play_voice(voice, 0.0, max(-start_at, 0.0), max(start_at, 0.0))
+
+func start_roar():
+	var sound = audio()
+	if sound == null:
+		return
+	var distance = camera.global_position.distance_to(rocket_root.global_position)
+	var roar = "launch_atlas" if pieces.get("real_rocket", "") == "Atlas V" and sound.has_sound("launch_atlas") else "launch_roar"
+	sound.start_engine(roar, roar_volume(distance), 1.0, sound.sound_delay(distance))
+	last_roar_distance = distance
+
+# Louder up close: about 6 decibels quieter every time the distance doubles
+func roar_volume(distance):
+	return clamp(4.0 - 20.0 * log(max(distance, 60.0) / 150.0) / log(10.0), -40.0, 6.0)
+
+func update_roar(delta):
+	var sound = audio()
+	if sound == null or last_roar_distance < 0.0:
+		return
+	if in_high_shot:
+		# Air gets thinner by about 2.7 times every 8.5 km up
+		var air = exp(-shown_altitude(mission_seconds) / 8.5)
+		sound.set_air(air)
+		var volume = -6.0 + 20.0 * log(max(air, 0.0005)) / log(10.0)
+		sound.set_engine(volume if (flames_on["bottom"] or flames_on["booster"] or flames_on["top"]) else -60.0, 0.7)
+		if not silence_announced and air < 0.004 and caption_seconds_left <= 0.0:
+			silence_announced = true
+			show_caption("Silence: up here there's almost no air left to carry sound")
+		return
+	var distance = camera.global_position.distance_to(rocket_root.global_position)
+	var moving_away = (distance - last_roar_distance) / max(delta, 0.001)
+	last_roar_distance = distance
+	# The Doppler effect: a sound source racing away sounds lower
+	sound.set_engine(roar_volume(distance), clamp(343.0 / (343.0 + moving_away), 0.55, 1.1))
 
 # ---------------------------------------------------------------------------
 # When things happen, from the rocket's design
@@ -558,11 +623,18 @@ func build_screen():
 func _process(delta):
 	if finished_sent:
 		return
-	var time_speed = COUNTDOWN_TIME_SPEED
+	var time_speed = countdown_speed
 	if mission_seconds >= 0.0:
 		time_speed = PAD_SHOT_TIME_SPEED if mission_seconds < PAD_SHOT_SECONDS else compression
 	var before = mission_seconds
 	mission_seconds += delta * time_speed
+	# During the countdown, the clock follows the recording, so "...three, two, one, zero" always lines up with T-0
+	if mission_seconds < 0.0 and countdown_voice != "" and audio():
+		var player = audio().voice
+		if player.playing and player.stream == audio().get_stream(countdown_voice):
+			var heard = player.get_playback_position() + AudioServer.get_time_since_last_mix() - COUNTDOWN_VOICE_LIFTOFF_AT[countdown_voice]
+			if abs(heard - mission_seconds) > 0.12:
+				mission_seconds = min(heard, -0.001) if before < 0.0 else mission_seconds
 	if before < 0.0:
 		var count_before = ceil(-before)
 		var count_now = ceil(-mission_seconds)
@@ -572,6 +644,7 @@ func _process(delta):
 			show_caption("Access arm retracting")
 		if before < IGNITION_SECONDS and mission_seconds >= IGNITION_SECONDS:
 			show_caption("Ignition!")
+			start_roar()
 			set_flames("bottom", true)       # main engines light 3 seconds before liftoff
 			set_flames("booster", false)
 			smoke.emitting = true
@@ -591,6 +664,7 @@ func _process(delta):
 		update_high_shot(delta, delta * time_speed)
 	else:
 		update_pad_shot()
+	update_roar(delta)
 	update_falling_pieces(delta)
 	update_booster_flip(delta)
 	flicker_flames()
@@ -708,6 +782,7 @@ func run_event(event_name):
 						flame.visible = true
 		"boosters":
 			show_caption("Booster separation")
+			play_sound("thump", -4.0)
 			set_flames("booster", false)
 			for booster in pieces["boosters"]:
 				# Small thrusters at each end push the booster sideways, away from the core
@@ -719,6 +794,8 @@ func run_event(event_name):
 				drop_piece(booster, rocket_root.global_transform.basis.orthonormalized() * (outward * 1.2) + Vector3(-1.5, -0.6, 0), Vector3(randf_range(-1, 1), 0, randf_range(-1, 1)) * 0.6)
 		"cutoff":
 			show_caption("Main engine cutoff")
+			if audio():
+				audio().play_voice("call_meco")
 			set_flames("bottom", false)
 			set_flames("booster", false)
 		"separation":
@@ -728,6 +805,7 @@ func run_event(event_name):
 			else:
 				show_caption("Stage separation")
 			stage_separated = true
+			play_sound("thump", -2.0)
 			separation_puff(part_point(pieces["top"], 0.0))   # right at the joint between the stages
 			var falling_stage = drop_piece(pieces["bottom"], Vector3(-2.5, -0.8, 0), Vector3(0, 0, 0.35))
 			if reusable_booster:
@@ -735,6 +813,7 @@ func run_event(event_name):
 				booster_flip_seconds = 0.0
 		"top_ignition":
 			show_caption("Top stage ignition")
+			play_sound("thruster", -12.0)
 			set_flames("top", true)
 		"fairing":
 			if pieces["fairing"].is_empty():
@@ -746,6 +825,7 @@ func run_event(event_name):
 				drop_piece(pieces["fairing"][0], Vector3(2.5, 1.2, 0.4), Vector3(0, 0, 0.6))
 			else:
 				show_caption(pieces.get("fairing_caption", "Fairing separation: there's your probe!"))
+				play_sound("thump", -6.0)
 				pieces["payload"].visible = true   # (no puff here: it would hide the probe)
 				for half_index in pieces["fairing"].size():
 					# The two halves split apart like a clamshell (sideways from the rocket, across the view) and fall behind
@@ -754,14 +834,20 @@ func run_event(event_name):
 					drop_piece(pieces["fairing"][half_index], apart + Vector3(-0.8, -0.1, 0.0), Vector3(0, 0, side * 0.9))
 		"orbit":
 			show_caption("In orbit around Earth!")
+			play_sound("confirm", -6.0)
 			set_flames("top", false)
 		"escape":
 			show_caption("Escape burn: heading for %s" % GameState.destination)
 			set_flames("top", true)
 		"probe":
 			set_flames("top", false)
+			play_sound("thump", -8.0)
 			var kick = GameState.rocket["kick_stage"] != "none"
 			show_caption("Probe separation. Kick stage fires: on to %s!" % GameState.destination if kick else "Probe separation: on to %s!" % GameState.destination)
+
+func play_sound(sound_name, volume_db = 0.0):
+	if audio():
+		audio().play_effect(sound_name, volume_db)
 
 # A stage, booster or fairing half lets go: it keeps its place in the world and drifts away tumbling
 func drop_piece(piece, velocity, spin):
@@ -870,6 +956,10 @@ func finish():
 	if finished_sent:
 		return
 	finished_sent = true
+	if audio():
+		audio().stop_engine(1.0)
+		audio().stop_voice()
+		audio().set_air(1.0)
 	if world_environment and space_environment:
 		world_environment.environment = space_environment
 	finished.emit()

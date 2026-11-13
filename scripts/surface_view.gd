@@ -125,6 +125,8 @@ var messages_shown = {}
 var message_seconds = 0.0
 var failure = ""
 var bump_cooldown = 0.0
+var engine_sound_on = false
+var parachute_sound_played = false
 
 func set_up(destination_name):
 	destination = destination_name
@@ -133,11 +135,60 @@ func set_up(destination_name):
 	dust_color = world["light"].lightened(0.15)
 	set_up_ground(world)
 	set_up_sky(world)
+	start_world_sound()
 	scatter_rocks(world)
 	build_vehicle()
 	plan_landing()
 	update_vehicle(0.0)
 	place_camera(1.0)
+
+# ---------------------------------------------------------------------------
+# Sound on another world depends on its air. Mars's thin air makes everything about 20 decibels quieter than on
+# Earth and fades the high pitches; Venus and Titan's thick air carries sound well and makes it deeper;
+# with no air at all (the Moon, Mercury, icy moons) you'd only hear vibrations coming up through the rover itself.
+# ---------------------------------------------------------------------------
+func audio():
+	return get_node_or_null("/root/AudioManager")
+
+func play_sound(sound_name, volume_db = 0.0, pitch = 1.0):
+	if audio():
+		audio().play_effect(sound_name, volume_db + air_loudness(), pitch * air_pitch())
+
+func air_thickness():
+	if destination in ["Venus", "Titan"]:
+		return 1.0
+	if destination == "Mars":
+		return 0.3
+	return 0.02
+
+func air_loudness():
+	return {"Venus": 3.0, "Titan": 2.0, "Mars": -8.0}.get(destination, -14.0)
+
+func air_pitch():
+	return {"Venus": 0.75, "Titan": 0.85}.get(destination, 1.0)
+
+func start_world_sound():
+	var sound = audio()
+	if sound == null:
+		return
+	sound.set_air(air_thickness())
+	if destination == "Mars":
+		sound.play_ambience("mars_wind", 0.0)   # real wind, recorded by Perseverance's microphone
+	elif destination in ["Venus", "Titan"]:
+		sound.play_ambience("mars_wind", 4.0, 0.6)   # thick air: a deeper, stronger wind
+	else:
+		sound.stop_ambience(1.0)
+
+func start_engine_sound():
+	if engine_sound_on or audio() == null:
+		return
+	engine_sound_on = true
+	audio().start_engine("engine_loop", -6.0 + air_loudness(), air_pitch())
+
+func stop_engine_sound():
+	if engine_sound_on and audio():
+		audio().stop_engine(0.6)
+	engine_sound_on = false
 
 # How long the whole landing takes, in seconds
 func landing_seconds():
@@ -346,6 +397,9 @@ func update_vehicle(fraction):
 		"parachute":
 			# The canopy snaps open, and the capsule sways under it
 			var open = smoothstep(0.0, 0.18, phase_time)
+			if not parachute_sound_played:
+				parachute_sound_played = true
+				play_sound("thump", -4.0, 1.3)   # the parachute bangs open
 			parachute.scale = Vector3.ONE * max(0.05, parachute_full_size / capsule.scale.x * open)
 			parachute.position.y = (2.6 * parachute.scale.y + 3.1)
 			capsule.rotation.z = sin(phase_time * 1.7) * 0.06
@@ -360,9 +414,11 @@ func update_vehicle(fraction):
 				lander.visible = false
 		"powered":
 			set_flames(lander_flames, true)
+			start_engine_sound()
 			kick_up_dust(fraction)
 		"sky_crane":
 			set_flames(crane_flames, true)
+			start_engine_sound()
 			lander.position.y = 0.0
 			if fraction > 0.92 and crane.get_parent() == vehicle:
 				fly_crane_away()
@@ -395,6 +451,7 @@ func drop_heat_shield():
 	add_child(heat_shield)
 	heat_shield.global_transform = place
 	drifting.append({"node": heat_shield, "velocity": Vector3(0.5, -22.0, -0.3), "spin": Vector3(0.6, 0, 0.4)})
+	play_sound("impact", -10.0, 0.8)
 
 func fly_crane_away():
 	# Cables cut: the sky crane flies off to crash a safe distance away, like Perseverance's did
@@ -453,6 +510,10 @@ func touchdown():
 	set_flames(crane_flames, false)
 	shake = 0.6
 	spawn_dust(Vector3(0, 0.3, 0), 6.0 + lander_size)
+	stop_engine_sound()
+	play_sound("thump", 2.0, 0.8)
+	if destination == "Moon" and audio():
+		audio().play_voice("eagle_has_landed", 0.0, 1.5)   # Apollo 11: "Houston, Tranquility Base here. The Eagle has landed."
 	touched_down.emit()
 
 # ---------------------------------------------------------------------------
@@ -518,6 +579,8 @@ func start_driving():
 		place_sand_patches()
 	rover_heading = randf() * TAU
 	last_ground_height = ground_height(Vector2(vehicle.position.x, vehicle.position.z))
+	if audio():
+		audio().start_engine("mars_rover_drive", -60.0, air_pitch())
 	show_message(intro_message(), 9.0)
 
 func intro_message():
@@ -531,7 +594,7 @@ func intro_message():
 		"Mercury":
 			return "Mercury's day side is 430 °C, hot enough to melt lead." + (" Your radiators and sunshade help." if choices.get("thermal", "") in ["thermal_radiators", "thermal_both"] else " Without radiators the heat builds fast.")
 		"Mars":
-			return "Mars: gravity is 38 % of Earth's and it's -60 °C. Watch out for soft sand: the rover Spirit got stuck in sand in 2009 and never got out."
+			return "Mars: gravity is 38 % of Earth's and it's -60 °C. The wind you hear is real, recorded by Perseverance. Watch out for soft sand: Spirit got stuck in sand in 2009 and never got out."
 		"Moon":
 			return "The Moon: gravity is 1/6 of Earth's, so the rover bounces over bumps like the Apollo moon buggies did. There's no air, so the sky is black even in daylight."
 		"Titan":
@@ -674,6 +737,7 @@ func update_driving(delta):
 				bump_cooldown = 1.0
 				wheel_damage = min(100.0, wheel_damage + abs(rover_speed) * 4.0)
 				shake = 0.4
+				play_sound("impact", 0.0)
 				show_message("Bang! You hit a rock. Curiosity's wheels got holes punched in them by sharp Mars rocks." if destination == "Mars" else "Bang! You hit a rock and damaged a wheel.", 3.0)
 			rover_speed = -rover_speed * 0.3
 			next = vehicle.position
@@ -703,6 +767,9 @@ func update_driving(delta):
 	var side = up.cross(forward).normalized()
 	vehicle.basis = Basis(side, up, side.cross(up).normalized()).orthonormalized()
 	odometer += abs(rover_speed) * delta
+	if audio():
+		var effort = clamp(abs(rover_speed) / DRIVE_SPEED, 0.0, 1.0)
+		audio().set_engine(lerp(-40.0, -4.0, effort) + air_loudness() if effort > 0.02 else -60.0, (0.85 + effort * 0.3) * air_pitch())
 	if abs(rover_speed) > 0.5 and on_ground and randf() < delta * 4.0:
 		spawn_dust(vehicle.position - forward * lander_size * 0.5, 0.6)   # dust kicked up by the wheels
 
@@ -784,6 +851,10 @@ func update_science(delta):
 			if Input.is_key_pressed(KEY_E):
 				studying = target
 				study_time = 0.0
+				# Perseverance's SuperCam zaps rocks with a laser and reads the light from the spark
+				for zap in 3:
+					if audio():
+						audio().play_effect("laser", -6.0 + air_loudness(), 1.0, zap * 0.35)
 				show_message("Studying the %s..." % target["name"].to_lower(), STUDY_SECONDS)
 
 func update_drive_screen():
@@ -834,6 +905,10 @@ func end_driving(reason):
 	driving = false
 	failure = reason
 	$DriveScreen.visible = false
+	if audio():
+		audio().stop_engine(0.8)
+		if reason != "":
+			audio().play_effect("error", -4.0)
 	var summary = "Drove %d m in %s and studied %d science target%s (+%d science)." % [int(odometer), time_text(mission_minutes), findings.size(), "" if findings.size() == 1 else "s", science_found]
 	if findings.size() > 0:
 		summary += " Found: " + ", ".join(findings) + "."

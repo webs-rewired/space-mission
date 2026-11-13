@@ -1,5 +1,14 @@
 extends Node
 
+const AUDIO_MANAGER_SCENE = "res://scenes/audio_manager.tscn"
+
+# Starts the music and sound for the whole game (the audio manager stays alive across scenes)
+func _ready():
+	if ResourceLoader.exists(AUDIO_MANAGER_SCENE) and get_tree().root.get_node_or_null("AudioManager") == null:
+		var audio_manager = load(AUDIO_MANAGER_SCENE).instantiate()
+		audio_manager.name = "AudioManager"
+		get_tree().root.add_child.call_deferred(audio_manager)
+
 # GameState remembers everything the player picks and does all the math.
 # It's an Autoload, so every scene can use it (Project > Project Settings > Globals).
 
