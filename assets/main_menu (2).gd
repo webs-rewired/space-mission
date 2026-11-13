@@ -1,9 +1,7 @@
 extends Node3D
 ## MAIN MENU: a rocket launches in the background, with one "Start a Mission" button.
 ## Everything is built in code, so the scene only needs this script on a Node3D.
-
 signal mission_started   # sent when the player clicks the button (handy if the menu is inside your game scene)
-
 # What "Start a Mission" does:
 #  - a scene path -> switches to that scene. RECOMMENDED: keep this menu as its own scene
 #                    (set it as the project's Main Scene) and put your gameplay scene's path here.
@@ -11,21 +9,17 @@ signal mission_started   # sent when the player clicks the button (handy if the 
 #  - ""           -> just removes the menu and shows the scene it was added to. Use this only if you
 #                    placed the menu INSIDE your game scene.
 const START_SCENE = "res://scenes/solar_system.tscn"
-
 # Only used when START_SCENE is "" (menu inside your game scene): freeze the game behind the menu
 const PAUSE_GAME_WHILE_OPEN = true
 const BUTTON_TEXT = "Start a Mission"
-
 # Launch timeline in seconds (the whole launch loops forever)
 const IGNITE_TIME = 2.0      # engines light, flame and smoke start
 const LIFTOFF_TIME = 4.0     # rocket starts to climb
 const ACCELERATION = 3.5     # how quickly the rocket speeds up
 const FADE_OUT_TIME = 14.0   # screen fades to black...
 const LOOP_TIME = 15.5       # ...then the launch starts over
-
 const PAD_TOP = 2.2   # height of the launch platform deck above the water
 const CAM_BASE = Vector3(20, 2.5, 28)
-
 # Which rocket to show:
 #   "starship"  = SpaceX Starship (Super Heavy booster + ship)
 #   "sls"       = NASA Space Launch System (orange core, two white boosters, Orion capsule)
@@ -33,7 +27,6 @@ const CAM_BASE = Vector3(20, 2.5, 28)
 #   "random"    = a different one on every launch loop
 const ROCKET_STYLE = "random"
 const ROCKET_STYLES = ["starship", "sls", "saturn_v"]
-
 # Overall mood: "moody" = foggy overcast ocean (like a cinematic game menu), "sunrise" = warm clear morning
 const LOOK = "moody"
 # Fancy effects (reflections, soft shadows, light fog, depth blur). Set to false if your PC runs slowly.
@@ -41,32 +34,27 @@ const HEAVY_EFFECTS = true
 # Size of the black cinematic bars at the top and bottom (fraction of screen height)
 const BAR_SIZE = 0.12
 const FOCUS_START = 9.0   # camera aims at this height at the start of each launch
-
 # OPTIONAL: use your own 3D model instead of the built-in rocket.
 # Put a .glb / .gltf / .tscn file in your project, right-click it > Copy Path, paste it below.
 # Leave it as "" to use the built-in rocket. The model's bottom (engine end) should sit at its origin.
 const ROCKET_MODEL = ""
 const ROCKET_MODEL_SCALE = 1.0
 const ROCKET_MODEL_OFFSET = Vector3.ZERO
-
 # Daytime sky with drifting clouds and a sun (it fades to space as the rocket climbs).
 # The script feeds it colors every frame, so you normally never need to edit this.
 const SKY_SHADER = """
 shader_type sky;
-
 uniform vec3 top_color : source_color = vec3(0.2, 0.36, 0.68);
 uniform vec3 horizon_color : source_color = vec3(0.95, 0.68, 0.5);
 uniform vec3 sun_direction = vec3(-0.09, 0.35, -0.93);
 uniform float space_amount = 0.0;
 uniform float cloud_offset = 0.0;
 uniform float overcast = 0.0;   // 0 = scattered clouds, 1 = heavy grey cloud cover
-
 float hash21(vec2 p) {
 	p = fract(p * vec2(123.34, 456.21));
 	p += dot(p, p + 45.32);
 	return fract(p.x * p.y);
 }
-
 float vnoise(vec2 p) {
 	vec2 i = floor(p);
 	vec2 f = fract(p);
@@ -77,7 +65,6 @@ float vnoise(vec2 p) {
 	float d = hash21(i + vec2(1.0, 1.0));
 	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
-
 float fbm(vec2 p) {
 	float v = 0.0;
 	float amp = 0.5;
@@ -88,22 +75,18 @@ float fbm(vec2 p) {
 	}
 	return v;
 }
-
 void sky() {
 	vec3 dir = normalize(EYEDIR);
 	vec3 sun = normalize(sun_direction);
 	float up = dir.y;
-
 	// Gradient from the horizon up to the top of the sky
 	vec3 col = mix(horizon_color, top_color, pow(clamp(up, 0.0, 1.0), 0.45));
 	if (up < 0.0) {
 		col = horizon_color;
 	}
-
 	// Sun: small bright disc plus a soft glow
 	float sd = max(dot(dir, sun), 0.0);
 	col += vec3(1.0, 0.85, 0.6) * (pow(sd, 700.0) * 3.0 + pow(sd, 10.0) * 0.3) * (1.0 - space_amount) * (1.0 - 0.85 * overcast);
-
 	// Clouds on a big flat layer, shaded so they look puffy
 	if (up > 0.0) {
 		vec2 uv = dir.xz / (up + 0.2) * 1.4 + vec2(cloud_offset, 0.0);
@@ -119,30 +102,24 @@ void sky() {
 	COLOR = col;
 }
 """
-
 # Ocean: big waves move the surface, small ripples only bend the light so it sparkles.
 const WATER_SHADER = """
 shader_type spatial;
-
 uniform vec3 deep_color : source_color = vec3(0.01, 0.035, 0.05);
 uniform vec3 shallow_color : source_color = vec3(0.05, 0.13, 0.16);
-
 varying vec3 world_pos;
-
 // One directional wave: x = height, y and z = slope along x and z
 vec3 wave(vec2 p, vec2 dir, float k, float amp, float speed, float t) {
 	vec2 d = normalize(dir);
 	float ph = dot(d, p) * k + t * speed;
 	return vec3(amp * sin(ph), amp * k * cos(ph) * d.x, amp * k * cos(ph) * d.y);
 }
-
 vec3 big_waves(vec2 p, float t) {
 	vec3 r = wave(p, vec2(1.0, 0.35), 0.12, 0.34, 0.9, t);
 	r += wave(p, vec2(0.55, 1.0), 0.18, 0.22, 1.2, t);
 	r += wave(p, vec2(-0.45, 1.0), 0.25, 0.14, 1.5, t);
 	return r;
 }
-
 vec3 small_waves(vec2 p, float t) {
 	vec3 r = wave(p, vec2(1.0, 0.1), 0.55, 0.05, 1.9, t);
 	r += wave(p, vec2(-0.3, 1.0), 0.9, 0.03, 2.3, t);
@@ -150,26 +127,22 @@ vec3 small_waves(vec2 p, float t) {
 	r += wave(p, vec2(-0.9, -0.4), 3.1, 0.008, 4.0, t);
 	return r;
 }
-
 void vertex() {
 	vec2 p = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xz;
 	vec3 w = big_waves(p, TIME);
 	VERTEX.y += w.x;
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
-
 void fragment() {
 	vec2 p = world_pos.xz;
 	vec3 bw = big_waves(p, TIME);
 	vec3 sw = small_waves(p, TIME);
-
 	// Fade the fine ripples with distance so the far water doesn't shimmer
 	float dist = length(world_pos - CAMERA_POSITION_WORLD);
 	float detail = 1.0 - smoothstep(60.0, 500.0, dist);
 	vec2 slope = vec2(bw.y, bw.z) + vec2(sw.y, sw.z) * detail;
 	vec3 n = normalize(vec3(-slope.x, 1.0, -slope.y));
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
-
 	float crest = clamp(bw.x * 1.6 + 0.5, 0.0, 1.0);
 	float foam = smoothstep(0.78, 1.0, crest + sw.x * 4.0 * detail);
 	ALBEDO = mix(mix(deep_color, shallow_color, crest * 0.7), vec3(0.62, 0.68, 0.72), foam * 0.45);
@@ -178,24 +151,20 @@ void fragment() {
 	SPECULAR = 0.65;
 }
 """
-
 # Film look drawn over the whole 3D view: grain, vignette, color fringing, cool grade.
 const POST_SHADER = """
 shader_type canvas_item;
-
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
 uniform float grain_amount = 0.055;
 uniform float vignette_amount = 0.55;
 uniform float aberration = 0.0025;
 uniform float desaturate = 0.22;
 uniform vec3 tint = vec3(0.93, 0.98, 1.06);
-
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
 	p3 += dot(p3, p3.yzx + 33.33);
 	return fract((p3.x + p3.y) * p3.z);
 }
-
 void fragment() {
 	vec2 uv = SCREEN_UV;
 	vec2 c = uv - 0.5;
@@ -204,20 +173,16 @@ void fragment() {
 	col.r = texture(screen_tex, uv + shift).r;
 	col.g = texture(screen_tex, uv).g;
 	col.b = texture(screen_tex, uv - shift).b;
-
 	float l = dot(col, vec3(0.299, 0.587, 0.114));
 	col = mix(col, vec3(l), desaturate);
 	col *= tint;
-
 	float vig = 1.0 - smoothstep(0.2, 0.95, length(c) * 1.25);
 	col *= mix(1.0 - vignette_amount, 1.0, vig);
-
 	float n = hash12(uv * vec2(1920.0, 1080.0) + floor(TIME * 24.0) * 17.0) - 0.5;
 	col += n * grain_amount * (1.0 - l * 0.6);
 	COLOR = vec4(col, 1.0);
 }
 """
-
 var t := 0.0
 var focus_y := FOCUS_START
 var style_index := -1
@@ -227,10 +192,8 @@ var day_horizon := Color(0.95, 0.68, 0.5)
 var birds: Array[Dictionary] = []
 var starting := false
 var paused_by_menu := false
-
 var layer: CanvasLayer   # all menu visuals live on this layer, on top of everything else
 var world: Node3D        # the menu's own 3D world (isolated from your game map)
-
 var rocket: Node3D
 var flames: Array[Node3D] = []
 var exhaust: GPUParticles3D
@@ -244,8 +207,6 @@ var env: Environment
 var fade: ColorRect
 var start_button: Button
 var message: Label
-
-
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS   # keep animating even if the game is paused behind it
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -260,13 +221,10 @@ func _ready() -> void:
 	_build_rocket()
 	_build_birds()
 	_build_ui()
-
-
 func _build_viewport() -> void:
 	layer = CanvasLayer.new()
 	layer.layer = 100   # above your game's own UI
 	add_child(layer)
-
 	# The menu's 3D scene is drawn inside its own SubViewport with its own World3D, so its sky,
 	# lights, ground and camera can never mix with (or overlap) your gameplay map.
 	var container := SubViewportContainer.new()
@@ -274,7 +232,6 @@ func _build_viewport() -> void:
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(container)
 	container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
 	# Film look: grain, vignette, slight color fringing and a cool, desaturated grade
 	var post := ColorRect.new()
 	post.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -288,26 +245,19 @@ func _build_viewport() -> void:
 	post.material = post_mat
 	layer.add_child(post)
 	post.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
 	var vp := SubViewport.new()
 	vp.own_world_3d = true
 	vp.msaa_3d = Viewport.MSAA_4X
 	container.add_child(vp)
-
 	world = Node3D.new()
 	vp.add_child(world)
-
-
 func _exit_tree() -> void:
 	# Never leave the game stuck paused if the menu is removed
 	if paused_by_menu and is_inside_tree():
 		get_tree().paused = false
-
-
 # ----------------------------------------------------------------------------
 # Animation: runs every frame
 # ----------------------------------------------------------------------------
-
 func _process(delta: float) -> void:
 	t += delta
 	ui_time += delta
@@ -316,7 +266,6 @@ func _process(delta: float) -> void:
 	var lit := t >= IGNITE_TIME
 	var ramp := clampf((t - IGNITE_TIME) / (LIFTOFF_TIME - IGNITE_TIME), 0.0, 1.0)   # engines throttle up
 	var shake := ramp * clampf(1.0 - altitude / 80.0, 0.0, 1.0)
-
 	# Rocket, flame, light and smoke
 	rocket.position = Vector3(randf_range(-1.0, 1.0) * 0.02 * shake, PAD_TOP + altitude, 0.0)
 	var flicker := randf_range(0.85, 1.25)
@@ -327,7 +276,6 @@ func _process(delta: float) -> void:
 	exhaust.emitting = lit
 	ground_smoke.emitting = lit and t < LIFTOFF_TIME + 5.0
 	arm_pivot.rotation_degrees.y = 75.0 * clampf((t - IGNITE_TIME) / 2.0, 0.0, 1.0)   # tower arm swings away
-
 	# Camera rises a little, tilts up to follow the rocket and shakes during the burn
 	focus_y = lerpf(focus_y, maxf(altitude + FOCUS_START, FOCUS_START), clampf(delta * 1.5, 0.0, 1.0))
 	cam.position = Vector3(CAM_BASE.x, CAM_BASE.y + altitude * 0.3, CAM_BASE.z)
@@ -335,7 +283,6 @@ func _process(delta: float) -> void:
 	# Engine shake plus a slow handheld-camera drift
 	cam.h_offset = randf_range(-1.0, 1.0) * 0.05 * shake + sin(t * 0.6) * 0.03
 	cam.v_offset = randf_range(-1.0, 1.0) * 0.05 * shake + cos(t * 0.45) * 0.02
-
 	# Sky fades from daytime blue into black space as the rocket climbs
 	var space := clampf(altitude / 150.0, 0.0, 1.0)
 	var top := day_top.lerp(Color(0.0, 0.0, 0.01), space)
@@ -347,26 +294,22 @@ func _process(delta: float) -> void:
 	env.ambient_light_color = top.lerp(horizon, 0.5)
 	env.fog_light_color = horizon
 	star_mat.albedo_color = Color(1, 1, 1, space)
-
 	_update_birds()
-	# The button text slowly breathes, like a game's "press any button" prompt
-	start_button.modulate = Color(1, 1, 1, 0.6 + 0.4 * (0.5 + 0.5 * sin(ui_time * 2.0)))
-
+	# The prompt text slowly breathes, like a game's "press any button" prompt
+	var prompt: Label = start_button.get_meta("prompt_label")
+	if prompt:
+		prompt.modulate = Color(1, 1, 1, 0.6 + 0.4 * (0.5 + 0.5 * sin(ui_time * 2.0)))
 	# Fade in at the start and out at the end of each loop
 	if not starting:
 		fade.color = Color(0, 0, 0, _fade_alpha())
 		if t >= LOOP_TIME:
 			_reset_launch()
-
-
 func _fade_alpha() -> float:
 	if t < 1.0:
 		return 1.0 - t
 	if t > FADE_OUT_TIME:
 		return clampf((t - FADE_OUT_TIME) / (LOOP_TIME - FADE_OUT_TIME), 0.0, 1.0)
 	return 0.0
-
-
 func _reset_launch() -> void:
 	t = 0.0
 	focus_y = FOCUS_START
@@ -381,12 +324,9 @@ func _reset_launch() -> void:
 			f.visible = false
 		exhaust.emitting = false
 		ground_smoke.emitting = false
-
-
 # ----------------------------------------------------------------------------
 # Small helpers
 # ----------------------------------------------------------------------------
-
 func _cyl_mesh(bottom: float, top: float, height: float) -> CylinderMesh:
 	var m := CylinderMesh.new()
 	m.bottom_radius = bottom
@@ -395,14 +335,10 @@ func _cyl_mesh(bottom: float, top: float, height: float) -> CylinderMesh:
 	m.radial_segments = 24
 	m.rings = 1
 	return m
-
-
 func _box_mesh(size: Vector3) -> BoxMesh:
 	var m := BoxMesh.new()
 	m.size = size
 	return m
-
-
 func _add_mesh(parent: Node3D, mesh: Mesh, color: Color, pos := Vector3.ZERO, metal := 0.0, rough := 0.6) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
@@ -414,8 +350,6 @@ func _add_mesh(parent: Node3D, mesh: Mesh, color: Color, pos := Vector3.ZERO, me
 	mi.position = pos
 	parent.add_child(mi)
 	return mi
-
-
 func _soft_circle() -> GradientTexture2D:
 	var g := Gradient.new()
 	g.offsets = PackedFloat32Array([0.0, 1.0])
@@ -428,17 +362,13 @@ func _soft_circle() -> GradientTexture2D:
 	gt.width = 64
 	gt.height = 64
 	return gt
-
-
 # ----------------------------------------------------------------------------
 # World: sky, sun, camera, stars, ground, launch tower
 # ----------------------------------------------------------------------------
-
 func _build_world() -> void:
 	var moody := LOOK == "moody"
 	day_top = Color(0.33, 0.41, 0.51) if moody else Color(0.2, 0.36, 0.68)
 	day_horizon = Color(0.68, 0.74, 0.8) if moody else Color(0.95, 0.68, 0.5)
-
 	var sky_shader := Shader.new()
 	sky_shader.code = SKY_SHADER
 	sky_mat = ShaderMaterial.new()
@@ -446,7 +376,6 @@ func _build_world() -> void:
 	sky_mat.set_shader_parameter("overcast", 1.0 if moody else 0.0)
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
-
 	env = Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
@@ -471,7 +400,6 @@ func _build_world() -> void:
 	var we := WorldEnvironment.new()
 	we.environment = env
 	world.add_child(we)
-
 	# Low warm sun shining on the side of the rocket that faces the camera
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-15, 30, 0)
@@ -480,7 +408,6 @@ func _build_world() -> void:
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 120.0
 	world.add_child(sun)
-
 	cam = Camera3D.new()
 	cam.position = CAM_BASE
 	cam.fov = 50.0
@@ -495,8 +422,6 @@ func _build_world() -> void:
 		cam.attributes = attrs
 	world.add_child(cam)
 	cam.make_current()
-
-
 func _build_stars() -> void:
 	var img := Image.create(2048, 1024, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
@@ -510,7 +435,6 @@ func _build_stars() -> void:
 		if b > 0.8:
 			img.set_pixel(x + 1, y, Color(1, 1, 1, b * 0.5))
 			img.set_pixel(x, y + 1, Color(1, 1, 1, b * 0.5))
-
 	star_mat = StandardMaterial3D.new()
 	star_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	star_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -518,7 +442,6 @@ func _build_stars() -> void:
 	star_mat.disable_fog = true
 	star_mat.albedo_texture = ImageTexture.create_from_image(img)
 	star_mat.albedo_color = Color(1, 1, 1, 0)   # invisible until the rocket climbs
-
 	var dome := MeshInstance3D.new()
 	var sm := SphereMesh.new()
 	sm.radius = 1500.0
@@ -529,8 +452,6 @@ func _build_stars() -> void:
 	dome.material_override = star_mat
 	dome.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	world.add_child(dome)
-
-
 func _build_scenery() -> void:
 	# Ocean with animated waves
 	var ocean := MeshInstance3D.new()
@@ -546,7 +467,6 @@ func _build_scenery() -> void:
 	ocean.material_override = water_mat
 	ocean.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	world.add_child(ocean)
-
 	# Offshore launch platform: a deck standing on four legs in the water
 	var concrete := Color(0.5, 0.52, 0.55)
 	_add_mesh(world, _box_mesh(Vector3(14, 0.8, 14)), concrete, Vector3(0, PAD_TOP - 0.4, 0), 0.0, 0.9)
@@ -556,7 +476,6 @@ func _build_scenery() -> void:
 	for s_ in [-1, 1]:
 		_add_mesh(world, _box_mesh(Vector3(11.6, 0.35, 0.35)), concrete.darkened(0.3), Vector3(0, -1.5, s_ * 5.8), 0.0, 0.9)
 		_add_mesh(world, _box_mesh(Vector3(0.35, 0.35, 11.6)), concrete.darkened(0.3), Vector3(s_ * 5.8, -1.5, 0), 0.0, 0.9)
-
 	# Launch tower (4 posts and cross beams)
 	var tower := Node3D.new()
 	tower.position = Vector3(-5.5, PAD_TOP, 0)
@@ -570,14 +489,11 @@ func _build_scenery() -> void:
 		for s_ in [-1, 1]:
 			_add_mesh(tower, _box_mesh(Vector3(1.9, 0.15, 0.15)), steel, Vector3(0, y, s_ * 0.9), 0.6, 0.5)
 			_add_mesh(tower, _box_mesh(Vector3(0.15, 0.15, 1.9)), steel, Vector3(s_ * 0.9, y, 0), 0.6, 0.5)
-
 	# Swing arm that reaches the rocket and then swings away at ignition
 	arm_pivot = Node3D.new()
 	arm_pivot.position = Vector3(-4.6, PAD_TOP + 6.0, 0)
 	world.add_child(arm_pivot)
 	_add_mesh(arm_pivot, _box_mesh(Vector3(3.0, 0.3, 0.5)), Color(0.8, 0.3, 0.1), Vector3(1.5, 0, 0), 0.3, 0.6)
-
-
 func _build_hills() -> void:
 	# A ring of big, low hills far away. The fog turns them hazy so they read as distant.
 	var r := RandomNumberGenerator.new()
@@ -600,24 +516,18 @@ func _build_hills() -> void:
 		hill.scale = Vector3(r.randf_range(150.0, 320.0), r.randf_range(35.0, 110.0), r.randf_range(150.0, 320.0))
 		hill.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		world.add_child(hill)
-
-
 # ----------------------------------------------------------------------------
 # Rocket (all simple shapes)
 # ----------------------------------------------------------------------------
-
 func _pick_style() -> String:
 	if ROCKET_STYLE == "random":
 		style_index = (style_index + 1) % ROCKET_STYLES.size()
 		return ROCKET_STYLES[style_index]
 	return ROCKET_STYLE
-
-
 func _build_rocket() -> void:
 	rocket = Node3D.new()
 	rocket.position = Vector3(0, PAD_TOP, 0)
 	world.add_child(rocket)
-
 	# Your own model if ROCKET_MODEL is set, otherwise one of the built-in rockets
 	var custom := ROCKET_MODEL != "" and _add_custom_model()
 	if custom:
@@ -630,7 +540,6 @@ func _build_rocket() -> void:
 				_build_saturn_v()
 			_:
 				_build_starship()
-
 	# Light from the flame that glows on the pad and tower
 	engine_light = OmniLight3D.new()
 	engine_light.position = Vector3(0, -1.5, 0)
@@ -638,14 +547,11 @@ func _build_rocket() -> void:
 	engine_light.omni_range = 40.0
 	engine_light.light_energy = 0.0
 	rocket.add_child(engine_light)
-
 	# Smoke: a trail behind the rocket, plus big billows around the pad during ignition
 	exhaust = _make_smoke(Vector3(0, 0.3, 0), 160, 4.0, Vector3(0, -1, 0), 14.0, 8.0, 14.0, 1.0, 2.2)
 	rocket.add_child(exhaust)
 	ground_smoke = _make_smoke(Vector3(0, PAD_TOP + 0.5, 0), 140, 5.0, Vector3(0, 1, 0), 80.0, 4.0, 9.0, 2.5, 4.5)
 	world.add_child(ground_smoke)
-
-
 func _add_custom_model() -> bool:
 	if not ResourceLoader.exists(ROCKET_MODEL):
 		push_warning("ROCKET_MODEL not found, using the built-in rocket: " + ROCKET_MODEL)
@@ -660,27 +566,22 @@ func _add_custom_model() -> bool:
 	model.position = ROCKET_MODEL_OFFSET
 	rocket.add_child(model)
 	return true
-
-
 # ----------------------------------------------------------------------------
 # The three built-in rockets. Each is spun from a (radius, height) profile so the
 # nose cones and tapers are smooth, then fins, flaps and engine bells are added.
 # Proportions follow the real rockets, shrunk to about 13 m tall.
 # ----------------------------------------------------------------------------
-
 func _build_starship() -> void:
 	var steel := Color(0.78, 0.8, 0.84)
 	var dark := Color(0.12, 0.12, 0.14)
 	var soot := Color(0.2, 0.18, 0.17)
 	var plate := Color(0.2, 0.2, 0.23)
-
 	# Super Heavy booster: stainless steel, sooty base, black hot-stage ring on top
 	var booster_pts := PackedVector2Array([
 		Vector2(0.0, 0.25), Vector2(0.48, 0.25), Vector2(0.48, 0.9),
 		Vector2(0.48, 7.3), Vector2(0.48, 7.6), Vector2(0.0, 7.6)])
 	var booster_cols := PackedColorArray([soot, soot, steel, dark, dark])
 	_add_lathe(booster_pts, booster_cols, Vector3.ZERO, 0.95, 0.28)
-
 	# Starship upper stage with a tapered nose
 	var ship_pts := PackedVector2Array([
 		Vector2(0.0, 7.6), Vector2(0.48, 7.6), Vector2(0.48, 11.6),
@@ -689,19 +590,16 @@ func _build_starship() -> void:
 	var ship_cols := PackedColorArray([dark])
 	ship_cols.append_array(_fill(steel, 7))
 	_add_lathe(ship_pts, ship_cols, Vector3.ZERO, 0.95, 0.28)
-
 	# 19 Raptor engines: 1 in the middle, then rings of 6 and 12
 	var engines: Array[Vector2] = [Vector2.ZERO]
 	engines.append_array(_ring(6, 0.17))
 	engines.append_array(_ring(12, 0.34, 0.26))
 	_add_bells(engines, 0.065, 0.25)
-
 	# Four grid fins at the top of the booster
 	for i in 4:
 		var a := i * PI / 2.0
 		var grid_fin := _add_mesh(rocket, _box_mesh(Vector3(0.2, 0.34, 0.05)), plate, Vector3(cos(a), 0.0, sin(a)) * 0.58 + Vector3(0, 7.0, 0), 0.5, 0.5)
 		grid_fin.rotation.y = -a
-
 	# Two flaps on each side of the ship: big ones at the back, small ones near the nose
 	for ang in [145.0, 325.0]:
 		var fa := deg_to_rad(ang)
@@ -710,18 +608,14 @@ func _build_starship() -> void:
 		aft.rotation.y = -fa
 		var fwd := _add_mesh(rocket, _box_mesh(Vector3(0.05, 0.55, 0.22)), plate, dir * 0.46 + Vector3(0, 12.1, 0), 0.4, 0.5)
 		fwd.rotation.y = -fa
-
 	# Wide pale plume from the engine cluster
 	_add_flame(Vector3.ZERO, 0.47, 5.0, Color(1.2, 0.8, 0.6, 0.5), Color(1.7, 1.9, 2.4, 0.9))
-
-
 func _build_sls() -> void:
 	var orange := Color(0.86, 0.42, 0.14)
 	var white := Color(0.94, 0.94, 0.96)
 	var gray := Color(0.78, 0.78, 0.82)
 	var black := Color(0.07, 0.07, 0.09)
 	var dark := Color(0.14, 0.14, 0.16)
-
 	# Orange core stage, upper stage, Orion capsule and the launch abort tower on top
 	var core_pts := PackedVector2Array([
 		Vector2(0.0, 0.35), Vector2(0.557, 0.35), Vector2(0.557, 8.6),
@@ -732,7 +626,6 @@ func _build_sls() -> void:
 	_add_lathe(core_pts, core_cols, Vector3.ZERO, 0.1, 0.65)
 	_add_bells(_ring(4, 0.22, PI / 4.0), 0.11, 0.35)   # four RS-25 engines
 	_add_flame(Vector3.ZERO, 0.32, 3.2, Color(1.0, 0.75, 0.55, 0.4), Color(1.7, 1.5, 1.3, 0.8))
-
 	# Two white solid rocket boosters
 	var srb_pts := PackedVector2Array([
 		Vector2(0.0, 0.2), Vector2(0.245, 0.2), Vector2(0.245, 6.8),
@@ -743,14 +636,11 @@ func _build_sls() -> void:
 		_add_lathe(srb_pts, srb_cols, Vector3(o.x, 0.0, o.y), 0.1, 0.5)
 		_add_flame(Vector3(o.x, 0.0, o.y), 0.2, 3.6, Color(1.9, 0.8, 0.15, 0.8), Color(2.4, 2.0, 1.0, 0.95))
 	_add_bells(srb_offsets, 0.17, 0.2)
-
-
 func _build_saturn_v() -> void:
 	var white := Color(0.95, 0.95, 0.97)
 	var gray := Color(0.8, 0.8, 0.83)
 	var black := Color(0.07, 0.07, 0.09)
 	var dark := Color(0.14, 0.14, 0.16)
-
 	# Three stages with the famous black and white bands, then the Apollo spacecraft and escape tower
 	var stack_pts := PackedVector2Array([
 		Vector2(0.0, 0.35), Vector2(0.57, 0.35), Vector2(0.57, 0.85),
@@ -763,12 +653,10 @@ func _build_saturn_v() -> void:
 		dark, black, white, black, white, black, white, black, black,
 		white, black, white, gray, white, white, white, white])
 	_add_lathe(stack_pts, stack_cols, Vector3.ZERO, 0.1, 0.5)
-
 	# Five F-1 engines: one in the middle and four around it
 	var engines: Array[Vector2] = [Vector2.ZERO]
 	engines.append_array(_ring(4, 0.28, PI / 4.0))
 	_add_bells(engines, 0.14, 0.35)
-
 	# Four big fins at the base
 	var fin_mesh := PrismMesh.new()
 	fin_mesh.size = Vector3(0.6, 1.5, 0.06)
@@ -777,18 +665,13 @@ func _build_saturn_v() -> void:
 		var a := i * PI / 2.0 + PI / 4.0
 		var fin := _add_mesh(rocket, fin_mesh, dark, Vector3(cos(a), 0.0, sin(a)) * 0.84 + Vector3(0, 1.25, 0), 0.2, 0.5)
 		fin.rotation.y = -a
-
 	_add_flame(Vector3.ZERO, 0.62, 5.5, Color(1.9, 0.85, 0.2, 0.8), Color(2.4, 2.0, 1.1, 0.95))
-
-
 func _ring(count: int, radius: float, phase := 0.0) -> Array[Vector2]:
 	var out: Array[Vector2] = []
 	for i in count:
 		var a := phase + TAU * i / count
 		out.append(Vector2(cos(a), sin(a)) * radius)
 	return out
-
-
 # Engine bells: one shared bell shape placed at each (x, z) offset, hanging just below base_y
 func _add_bells(offsets: Array[Vector2], bell_radius: float, base_y: float) -> void:
 	var pts := PackedVector2Array([
@@ -798,19 +681,13 @@ func _add_bells(offsets: Array[Vector2], bell_radius: float, base_y: float) -> v
 	for o in offsets:
 		var bell := _add_lathe_mesh(mesh, Vector3(o.x, base_y - bell_radius * 1.6, o.y), 0.9, 0.35)
 		bell.scale = Vector3.ONE * bell_radius
-
-
 func _fill(c: Color, n: int) -> PackedColorArray:
 	var arr := PackedColorArray()
 	for _i in n:
 		arr.append(c)
 	return arr
-
-
 func _add_lathe(pts: PackedVector2Array, cols: PackedColorArray, pos: Vector3, metal := 0.3, rough := 0.35) -> MeshInstance3D:
 	return _add_lathe_mesh(_lathe_mesh(pts, cols), pos, metal, rough)
-
-
 func _add_lathe_mesh(mesh: ArrayMesh, pos: Vector3, metal := 0.3, rough := 0.35) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	mi.mesh = mesh
@@ -823,19 +700,15 @@ func _add_lathe_mesh(mesh: ArrayMesh, pos: Vector3, metal := 0.3, rough := 0.35)
 	mi.position = pos
 	rocket.add_child(mi)
 	return mi
-
-
 # Spins a (radius, height) profile around the Y axis into a smooth mesh.
 func _lathe_mesh(pts: PackedVector2Array, cols: PackedColorArray, sides := 40) -> ArrayMesh:
 	var segs := pts.size() - 1
-
 	# Outward normal of each profile segment, in (radius, height) space
 	var seg_n: Array[Vector2] = []
 	for i in segs:
 		var d := pts[i + 1] - pts[i]
 		var n := Vector2(d.y, -d.x)
 		seg_n.append(n.normalized() if n.length() > 0.0001 else Vector2(1, 0))
-
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in segs:
@@ -857,14 +730,10 @@ func _lathe_mesh(pts: PackedVector2Array, cols: PackedColorArray, sides := 40) -
 			_lathe_vertex(st, pts[i], n_bottom, a0, cols[i])
 			_lathe_vertex(st, pts[i], n_bottom, a1, cols[i])
 	return st.commit()
-
-
 func _lathe_vertex(st: SurfaceTool, pt: Vector2, n: Vector2, a: float, color: Color) -> void:
 	st.set_color(color)
 	st.set_normal(Vector3(cos(a) * n.x, n.y, sin(a) * n.x))
 	st.add_vertex(Vector3(cos(a) * pt.x, pt.y, sin(a) * pt.x))
-
-
 func _add_flame(pos: Vector3, radius: float, height: float, outer := Color(1.8, 0.8, 0.2, 0.75), inner := Color(2.2, 1.9, 1.2, 0.95)) -> void:
 	var f := Node3D.new()
 	f.position = pos
@@ -873,8 +742,6 @@ func _add_flame(pos: Vector3, radius: float, height: float, outer := Color(1.8, 
 	_add_flame_cone(f, radius, height, outer)
 	_add_flame_cone(f, radius * 0.55, height * 0.65, inner)
 	flames.append(f)
-
-
 func _add_flame_cone(parent: Node3D, radius: float, height: float, color: Color) -> void:
 	var mi := MeshInstance3D.new()
 	mi.mesh = _cyl_mesh(0.0, radius, height)   # wide at the nozzle, pointed at the bottom
@@ -886,8 +753,6 @@ func _add_flame_cone(parent: Node3D, radius: float, height: float, color: Color)
 	mi.position = Vector3(0, -height * 0.5, 0)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	parent.add_child(mi)
-
-
 func _make_smoke(pos: Vector3, amount: int, life: float, dir: Vector3, spread: float, vmin: float, vmax: float, smin: float, smax: float) -> GPUParticles3D:
 	# Puff color: starts warm and clear, turns white-grey, then fades away
 	var ramp := Gradient.new()
@@ -897,14 +762,12 @@ func _make_smoke(pos: Vector3, amount: int, life: float, dir: Vector3, spread: f
 		Color(0.85, 0.85, 0.88, 0.6), Color(0.7, 0.7, 0.75, 0.0)])
 	var ramp_tex := GradientTexture1D.new()
 	ramp_tex.gradient = ramp
-
 	# Puffs grow as they age
 	var curve := Curve.new()
 	curve.add_point(Vector2(0.0, 0.3))
 	curve.add_point(Vector2(1.0, 1.6))
 	var curve_tex := CurveTexture.new()
 	curve_tex.curve = curve
-
 	var pm := ParticleProcessMaterial.new()
 	pm.direction = dir
 	pm.spread = spread
@@ -919,7 +782,6 @@ func _make_smoke(pos: Vector3, amount: int, life: float, dir: Vector3, spread: f
 	pm.color_ramp = ramp_tex
 	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
 	pm.emission_sphere_radius = 0.8
-
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -933,7 +795,6 @@ func _make_smoke(pos: Vector3, amount: int, life: float, dir: Vector3, spread: f
 	var quad := QuadMesh.new()
 	quad.size = Vector2(2, 2)
 	quad.material = mat
-
 	var p := GPUParticles3D.new()
 	p.amount = amount
 	p.lifetime = life
@@ -944,12 +805,9 @@ func _make_smoke(pos: Vector3, amount: int, life: float, dir: Vector3, spread: f
 	p.visibility_aabb = AABB(Vector3(-80, -300, -80), Vector3(160, 600, 160))
 	p.position = pos
 	return p
-
-
 # ----------------------------------------------------------------------------
 # Seagulls: flapping, gliding and banking in loose flocks. They scatter when the engines light.
 # ----------------------------------------------------------------------------
-
 func _build_birds() -> void:
 	var r := RandomNumberGenerator.new()
 	r.seed = 11
@@ -975,19 +833,15 @@ func _build_birds() -> void:
 			bird["phase"] = flock_phase + r.randf_range(-0.4, 0.4)
 			bird["hz"] = r.randf_range(2.2, 3.6)
 			birds.append(bird)
-
-
 func _make_bird() -> Dictionary:
 	var white := Color(0.92, 0.93, 0.95)
 	var tip := Color(0.14, 0.15, 0.17)
 	var node := Node3D.new()   # the bird faces -Z, like a Godot camera
-
 	var body_mesh := CapsuleMesh.new()
 	body_mesh.radius = 0.07
 	body_mesh.height = 0.5
 	var body := _add_mesh(node, body_mesh, white, Vector3.ZERO, 0.0, 0.9)
 	body.rotation_degrees = Vector3(90, 0, 0)
-
 	var head_mesh := SphereMesh.new()
 	head_mesh.radius = 0.055
 	head_mesh.height = 0.11
@@ -995,7 +849,6 @@ func _make_bird() -> Dictionary:
 	var beak := _add_mesh(node, _cyl_mesh(0.02, 0.0, 0.1), Color(0.95, 0.65, 0.1), Vector3(0, 0.015, -0.37), 0.0, 0.6)
 	beak.rotation_degrees = Vector3(-90, 0, 0)
 	_add_mesh(node, _box_mesh(Vector3(0.14, 0.01, 0.18)), white, Vector3(0, 0, 0.3), 0.0, 0.9)   # tail
-
 	# Each wing has an inner part (white) and an outer part (dark tip) that flap together
 	var wings := {}
 	for side in [-1, 1]:
@@ -1009,15 +862,11 @@ func _make_bird() -> Dictionary:
 		_add_mesh(elbow, _box_mesh(Vector3(0.34, 0.01, 0.13)), tip, Vector3(side * 0.17, 0, 0), 0.0, 0.9)
 		wings[side] = [root, elbow]
 	return {"node": node, "wl": wings[-1][0], "el": wings[-1][1], "wr": wings[1][0], "er": wings[1][1]}
-
-
 func _no_shadows(n: Node) -> void:
 	if n is MeshInstance3D:
 		(n as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	for c in n.get_children():
 		_no_shadows(c)
-
-
 func _update_birds() -> void:
 	var flee := clampf((t - IGNITE_TIME) / 2.5, 0.0, 1.0)   # birds scatter when the engines light
 	for b in birds:
@@ -1032,7 +881,6 @@ func _update_birds() -> void:
 		node.position = center + Vector3(cos(ang) * radius, height, sin(ang) * radius)
 		node.look_at(center + Vector3(cos(ahead) * radius, height, sin(ahead) * radius))
 		node.rotate_object_local(Vector3.FORWARD, 0.3 * signf(speed))   # lean into the turn
-
 		# Flap in bursts, glide in between
 		var hz: float = b["hz"]
 		var glide := clampf(sin(t * 0.35 + phase * 3.0) * 1.5 + 0.6, 0.0, 1.0)
@@ -1045,12 +893,9 @@ func _update_birds() -> void:
 		er.rotation.z = flap * 0.6
 		wl.rotation.z = -flap
 		el.rotation.z = -flap * 0.6
-
-
 # ----------------------------------------------------------------------------
 # Menu UI
 # ----------------------------------------------------------------------------
-
 func _place(c: Control, al: float, at: float, ar: float, ab: float) -> void:
 	c.anchor_left = al
 	c.anchor_top = at
@@ -1060,8 +905,6 @@ func _place(c: Control, al: float, at: float, ar: float, ab: float) -> void:
 	c.offset_top = 0.0
 	c.offset_right = 0.0
 	c.offset_bottom = 0.0
-
-
 func _black_bar(top: bool) -> void:
 	var bar := ColorRect.new()
 	bar.color = Color.BLACK
@@ -1071,36 +914,40 @@ func _black_bar(top: bool) -> void:
 		_place(bar, 0.0, 0.0, 1.0, BAR_SIZE)
 	else:
 		_place(bar, 0.0, 1.0 - BAR_SIZE, 1.0, 1.0)
-
-
 func _build_ui() -> void:
 	# Cinematic black bars, like a movie
 	_black_bar(true)
 	_black_bar(false)
-
-	# The prompt: small spaced-out white text on the left, no box (like "PRESS ANY BUTTON")
-	var font := FontVariation.new()
-	font.base_font = ThemeDB.fallback_font
-	font.spacing_glyph = 4
+	# Full-screen invisible button so any click starts the mission
 	start_button = Button.new()
-	start_button.text = BUTTON_TEXT.to_upper()
-	start_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	start_button.custom_minimum_size = Vector2(460, 48)
-	start_button.grow_horizontal = Control.GROW_DIRECTION_END
-	start_button.add_theme_font_override("font", font)
-	start_button.add_theme_font_size_override("font_size", 22)
-	start_button.add_theme_color_override("font_color", Color(0.93, 0.95, 0.97))
-	start_button.add_theme_color_override("font_hover_color", Color.WHITE)
-	start_button.add_theme_color_override("font_pressed_color", Color(0.7, 0.8, 0.9))
-	start_button.add_theme_color_override("font_focus_color", Color.WHITE)
-	start_button.add_theme_color_override("font_disabled_color", Color(0.6, 0.65, 0.7))
 	for style_name in ["normal", "hover", "pressed", "focus", "disabled"]:
 		start_button.add_theme_stylebox_override(style_name, StyleBoxEmpty.new())
 	start_button.pressed.connect(_on_start_pressed)
 	layer.add_child(start_button)
-	_place(start_button, 0.066, 0.64, 0.066, 0.64)
+	start_button.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	start_button.grab_focus()   # Enter / Space also works
-
+	# The visible prompt text (separate so we can place it nicely)
+	var font := FontVariation.new()
+	font.base_font = ThemeDB.fallback_font
+	font.spacing_glyph = 4
+	var prompt := Label.new()
+	prompt.text = BUTTON_TEXT.to_upper()
+	prompt.add_theme_font_override("font", font)
+	prompt.add_theme_font_size_override("font_size", 22)
+	prompt.add_theme_color_override("font_color", Color(0.93, 0.95, 0.97))
+	prompt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(prompt)
+	# Position: a bit in from the left edge, roughly where it was before (not hugging the wall, not centered)
+	prompt.anchor_left = 0.0
+	prompt.anchor_top = 0.64
+	prompt.anchor_right = 0.0
+	prompt.anchor_bottom = 0.64
+	prompt.offset_left = 90.0   # pixels from the left edge
+	prompt.offset_top = 0.0
+	prompt.offset_right = 500.0
+	prompt.offset_bottom = 48.0
+	# Keep a reference so the breathing animation still works
+	start_button.set_meta("prompt_label", prompt)
 	# Shows a hint if START_SCENE is wrong (instead of crashing)
 	message = Label.new()
 	message.visible = false
@@ -1109,15 +956,12 @@ func _build_ui() -> void:
 	message.add_theme_color_override("font_color", Color(1.0, 0.55, 0.45))
 	layer.add_child(message)
 	_place(message, 0.066, 0.72, 0.066, 0.72)
-
 	# Black overlay for the fades (added last so it draws on top)
 	fade = ColorRect.new()
 	fade.color = Color(0, 0, 0, 1)
 	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(fade)
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-
 func _on_start_pressed() -> void:
 	if starting:
 		return
@@ -1130,8 +974,6 @@ func _on_start_pressed() -> void:
 	var tween := create_tween()
 	tween.tween_property(fade, "color:a", 1.0, 0.7)
 	tween.tween_callback(_finish_start)
-
-
 func _finish_start() -> void:
 	if START_SCENE != "":
 		get_tree().change_scene_to_file(START_SCENE)
