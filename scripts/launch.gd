@@ -105,6 +105,16 @@ const PROBE_HEIGHT = 0.8          # the journey's probe model, in scene units
 var landing_spot = Vector3.ZERO
 var pending_event = false         # an event's animation is playing; its panel opens when the animation ends
 var animation_seconds_left = 0.0
+# The landing site and the rover. Landing events happen during the landing, and surface events while you drive.
+const FIRST_SURFACE_EVENT_DRIVE_SECONDS = 15.0
+const SURFACE_EVENT_SPACING_DRIVE_SECONDS = 25.0
+var rover_state = ""              # "" (no rover yet), "waiting" (just landed), "driving" or "done"
+var seconds_since_touchdown = 0.0
+var seconds_since_last_event = 0.0
+var next_surface_event_drive_seconds = FIRST_SURFACE_EVENT_DRIVE_SECONDS
+var finishing = false
+var approach_start = Vector3.ZERO
+var approach_seconds = 0.0
 var flame_seconds_left = 0.0
 var shake = 0.0
 var flicker_seconds_left = 0.0
@@ -241,15 +251,21 @@ func _process(delta):
 		if arrival_mode == "" and flight_progress >= 0.999:
 			begin_orbit()
 
-		# Events happen at mission-time milestones. Each one plays its animation first, then its panel opens.
-		if event_index < GameState.events.size():
-			var next_milestone = progress_at_event(event_index)
-			if flight_progress >= next_milestone or arrival_mode != "":
-				if arrival_mode == "":
-					set_flight_progress(next_milestone)
-					elapsed_flight_days = total_flight_days * next_milestone
-				pending_event = true
-				animation_seconds_left = start_event_animation(GameState.events[event_index])
+		# Each event waits for its moment (see next_event_ready). It plays its animation first, then its panel opens.
+		if event_index < GameState.events.size() and next_event_ready(GameState.events[event_index]):
+			if arrival_mode == "":
+				var next_milestone = progress_at_event(event_index)
+				set_flight_progress(next_milestone)
+				elapsed_flight_days = total_flight_days * next_milestone
+			pending_event = true
+			animation_seconds_left = start_event_animation(GameState.events[event_index])
+
+		# On the ground: the rover sets off once the touchdown checks are done
+		if surface_view and surface_view.landed and not pending_event:
+			seconds_since_touchdown += delta
+			seconds_since_last_event += delta
+			if rover_state == "waiting" and seconds_since_touchdown >= 2.5 and not next_event_has_phase("descent"):
+				start_rover()
 
 	if pending_event:
 		animation_seconds_left -= delta
@@ -463,8 +479,6 @@ func fly_to(target_progress):
 	# The probe now coasts through the interval at the selected mission-time rate.
 	# target_progress is retained for compatibility with the existing event sequence.
 	flying_to_final_event = target_progress >= 0.999   # heading for the arrival: the braking burn comes at the end
-	if target_progress <= flight_progress:
-		_show_event()
 
 # ---------------------------------------------------------------------------
 # Scenery: planets passed, belts to steer through
@@ -726,10 +740,13 @@ func begin_orbit():
 	flame_seconds_left = 2.5    # the braking burn that lets the world's gravity catch the probe
 	var label = world_name()
 	if GameState.direct_entry():
-		# Heat-shield landers dive straight into the air without stopping in orbit first, like Perseverance at Mars
+		# Heat-shield landers dive straight into the air without stopping in orbit first, like Perseverance at Mars.
+		# They coast in on the final approach while the arrival checks happen, then hit the air.
 		flame_seconds_left = 0.0
-		begin_descent()
-		show_caption("Straight in! Your lander hits %s's air behind its heat shield, like Perseverance did." % label, 5.0)
+		arrival_mode = "approaching"
+		approach_start = probe.position
+		approach_seconds = 0.0
+		show_caption("Final approach: your lander is lined up to hit %s's air behind its heat shield, with no stop in orbit." % label, 5.0)
 		return
 	show_caption(("Braking burn complete: %s's gravity has caught your probe. You're in orbit!" % label).replace(": the", ": The"), 5.0)
 	play_sound("thruster", -6.0)
@@ -756,7 +773,9 @@ func begin_descent():
 		show_caption("Diving into %s's clouds, like the Galileo probe did at Jupiter in 1995" % label, 5.0)
 	else:
 		landing_spot = center + outward * (target_radius() + 0.46 * landed_scale)   # the probe's base on the ground
-		if not GameState.direct_entry():
+		if GameState.direct_entry():
+			show_caption("Straight in! Your lander hits %s's air behind its heat shield, like Perseverance did." % label, 5.0)
+		else:
 			show_caption("Going down to the surface of %s..." % label, 4.0)
 	if not GameState.destination in GameState.AIRLESS_WORLDS:
 		flash(Color(1.0, 0.55, 0.15), 0.35)   # hitting the air: the heat shield glows
@@ -795,6 +814,13 @@ func update_arrival(delta):
 	var center = target_planet.position
 	var tilt = Basis(Vector3(1, 0, 0), deg_to_rad(ORBIT_TILT_DEGREES))
 	match arrival_mode:
+		"approaching":
+			# Coasting in toward the world, heat shield first
+			approach_seconds += delta
+			var outward = (approach_start - center).normalized()
+			var close_in = center + outward * target_radius() * 1.8
+			probe.position = approach_start.lerp(close_in, 1.0 - exp(-approach_seconds * 0.12))
+			probe.basis = Basis(Quaternion(Vector3.UP, outward)).scaled(Vector3.ONE * probe.scale.x)
 		"orbiting":
 			orbit_seconds += delta
 			target_planet.rotate_y(delta * 0.04)   # the world turning below
@@ -817,7 +843,6 @@ func update_arrival(delta):
 				else:
 					arrival_mode = "landed"
 					probe.visible = false
-					animation_seconds_left = min(animation_seconds_left, 1.0)
 
 # Cut to the landing site: the real lander comes down on that world's ground under its sky
 func open_surface_view():
@@ -827,7 +852,8 @@ func open_surface_view():
 		audio().stop_ambience(2.0)
 	surface_view = SURFACE_SCENE.instantiate()
 	add_child(surface_view)
-	surface_view.set_up(GameState.destination)
+	# Saturn has no ground: its landers go down to its moon Titan, like ESA's Huygens did
+	surface_view.set_up("Titan" if GameState.destination == "Saturn" else GameState.destination)
 	# Only one sky at a time: use the landing site's
 	var surface_sky = surface_view.get_node_or_null("WorldEnvironment")
 	for child in get_children():
@@ -840,28 +866,71 @@ func open_surface_view():
 		surface_sky.queue_free()
 	surface_view.camera.current = true
 	surface_view.touched_down.connect(_on_touched_down)
+	surface_view.crash_landing = landing_will_fail()
 	if flight_controls:
 		flight_controls.visible = false
 
+# A landing check that the design fails (like no heat shield at Mars) means the lander comes down too hard
+func landing_will_fail():
+	for index in range(event_index, GameState.events.size()):
+		var event = GameState.events[index]
+		if event.get("phase", "") == "descent" and event.has("check") and event.get("fatal", false) and not GameState.requirement_met(event["pass_if"]):
+			return true
+	return GameState.lost
+
+func next_event_has_phase(phase):
+	return event_index < GameState.events.size() and GameState.events[event_index].get("phase", "") == phase
+
 func _on_touched_down():
 	arrival_mode = "landed"
+	seconds_since_touchdown = 0.0
+	seconds_since_last_event = 0.0
+	if surface_view.crash_landing:
+		show_caption("Impact! The lander hit the ground far too fast.", 5.0)
+		rover_state = "done"
+		return
 	show_caption("Touchdown! You're on the surface of %s." % world_name(), 5.0)
-	if surface_view.can_drive():
-		# A rover: drive it around before the mission carries on (the next event waits)
-		animation_seconds_left = 100000.0
-		await get_tree().create_timer(2.5).timeout
-		surface_view.driving_finished.connect(_on_driving_finished)
-		surface_view.start_driving()
-		show_caption("Your rover is down! Drive it to the glowing science targets.", 5.0)
-	else:
-		animation_seconds_left = min(animation_seconds_left, 2.0)
+	# A rover sets off once the touchdown checks are done (see _process)
+	rover_state = "waiting" if surface_view.can_drive() else "done"
+
+func start_rover():
+	rover_state = "driving"
+	next_surface_event_drive_seconds = FIRST_SURFACE_EVENT_DRIVE_SECONDS
+	surface_view.driving_finished.connect(_on_driving_finished)
+	surface_view.start_driving()
+	show_caption("Your rover is down! Drive it to the glowing science targets.", 5.0)
 
 func _on_driving_finished(summary):
+	rover_state = "done"
+	seconds_since_last_event = 0.0
 	var lost_rover = summary.begins_with("The ") or summary.begins_with("Too many") or summary.begins_with("Jupiter")
 	GameState.science += surface_view.science_found
 	GameState.mission_log.append({"title": "Rover drive", "text": summary, "ok": not lost_rover})
 	show_caption(summary, 7.0)
-	animation_seconds_left = 3.0
+
+# Each event waits for its moment: trip events for their point along the way, arrival and orbit events for the
+# arrival, landing events for the landing itself (decisions on the way down, checks at touchdown), and surface events
+# for time on the ground: every so often while you drive, or one after another if there's no rover.
+func next_event_ready(event):
+	var phase = event.get("phase", "cruise")
+	if arrival_mode == "":
+		return phase == "cruise" and flight_progress >= progress_at_event(event_index)
+	if phase in ["descent", "surface"] and has_lander():
+		if arrival_mode in ["orbiting", "approaching"]:
+			begin_descent()   # time to go down
+			return false
+		if surface_view == null:
+			return arrival_mode == "landed"   # a giant planet: the probe has dived into its clouds
+		if phase == "descent":
+			if event.has("check"):
+				return surface_view.landed
+			return surface_view.reached_decision_point or surface_view.landed
+		if not surface_view.landed or rover_state == "waiting":
+			return false
+		if rover_state == "driving":
+			return surface_view.drive_seconds >= next_surface_event_drive_seconds
+		return seconds_since_last_event >= 2.5
+	return arrival_mode in ["orbiting", "approaching", "landed"]
 
 # ---------------------------------------------------------------------------
 # Event animations: the general kinds of events get a short animation before their panel opens.
@@ -874,6 +943,7 @@ const EVENT_ANIMATIONS = [
 	["glitch", ["software", "bug", "bit flip", "computer", "reaction wheel", "heater", "glitch", "safe mode", "insulation"]],
 	["burn", ["course correction", "burn", "engine", "gravity assist", "close dive", "fly lower", "aerobraking"]],
 	["quake", ["quake", "creaking", "sinking leg"]],
+	["dust", ["dust devil", "dust storm", "dust"]],
 ]
 
 func event_animation_kind(event):
@@ -885,12 +955,22 @@ func event_animation_kind(event):
 	return ""
 
 func start_event_animation(event):
-	if arrival_mode == "orbiting" and event.get("phase", "") in ["descent", "surface"] and has_lander():
-		begin_descent()
-		return 60.0   # the panel opens once the lander touches down (see _on_touched_down)
 	if event.has("insertion_check"):
-		return 60.0 if arrival_mode == "descending" else 3.5   # let the braking burn (or the dive and landing) play first
-	match event_animation_kind(event):
+		return 3.5 if arrival_mode == "orbiting" else 1.0   # let the braking burn play first
+	var kind = event_animation_kind(event)
+	if surface_view:
+		# At the landing site: the shaking, dust and sounds happen there
+		match kind:
+			"flare":
+				flash(Color(1.0, 0.75, 0.3), 0.3)
+				play_sound("alarm", -4.0)
+			"glitch":
+				flicker_seconds_left = 1.2
+				play_sound("glitch", -4.0)
+			"radio":
+				play_sound("static", -6.0)
+		return surface_view.play_event_effect(kind)
+	match kind:
 		"flare":
 			var sun_direction = Vector3(0, -0.7071, -0.7071)   # the way the scene's sunlight travels
 			var light = get_node_or_null("DirectionalLight3D")
@@ -968,6 +1048,8 @@ func _show_event():
 	var event = GameState.events[event_index]
 	remove_choice_buttons()
 	event_panel.visible = true
+	if surface_view:
+		surface_view.paused = true   # the landing (or the rover) waits for your decision
 	if event.has("choices"):
 		event_title.text = "FLIGHT DECISION  |  " + event["title"]
 		event_text.text = event["text"]
@@ -991,6 +1073,8 @@ func _show_event():
 func _on_choice_pressed(choice_index):
 	var event = GameState.events[event_index]
 	var result = GameState.resolve_choice(event, choice_index)
+	if GameState.lost and surface_view and not surface_view.landed:
+		surface_view.crash_landing = true   # that decision on the way down ends in a crash
 	remove_choice_buttons()
 	event_title.text = ("SYSTEMS NOMINAL  |  " if result["ok"] else "MISSION ALERT  |  ") + event["title"]
 	event_text.text = result["text"]
@@ -999,21 +1083,41 @@ func _on_choice_pressed(choice_index):
 func _on_continue_pressed():
 	event_panel.visible = false
 	event_index += 1
-	if GameState.lost or event_index >= GameState.events.size():
-		if not GameState.lost and has_lander() and arrival_mode == "orbiting":
-			# No landing event came up, but a lander still goes down before the mission ends
-			begin_descent()
+	seconds_since_last_event = 0.0
+	if surface_view:
+		surface_view.paused = false
+		if rover_state == "driving":
+			next_surface_event_drive_seconds = surface_view.drive_seconds + SURFACE_EVENT_SPACING_DRIVE_SECONDS
+	if GameState.lost:
+		if surface_view and not surface_view.landed:
+			# Watch the crash first
+			surface_view.crash_landing = true
 			var waited = 0.0
-			while arrival_mode != "landed" and waited < 30.0:
+			while not surface_view.landed and waited < 30.0:
 				waited += get_process_delta_time()
 				await get_tree().process_frame
-			await get_tree().create_timer(3.0).timeout
-			while surface_view and (surface_view.driving or animation_seconds_left > 50000.0):
-				await get_tree().process_frame   # driving the rover
-			await get_tree().create_timer(2.0).timeout
+			await get_tree().create_timer(2.5).timeout
 		go_to_results()
+	elif event_index >= GameState.events.size():
+		finish_mission()
 	else:
 		fly_to(progress_at_event(event_index))
+
+# Every event is done. A lander still goes down first, and a rover keeps driving until you press "Done driving".
+func finish_mission():
+	if finishing:
+		return
+	finishing = true
+	if has_lander() and arrival_mode in ["orbiting", "approaching"]:
+		begin_descent()
+	var waited = 0.0
+	while has_lander() and arrival_mode != "landed" and waited < 60.0:
+		waited += get_process_delta_time()
+		await get_tree().process_frame
+	while rover_state in ["waiting", "driving"]:
+		await get_tree().process_frame
+	await get_tree().create_timer(2.5 if has_lander() else 0.5).timeout
+	go_to_results()
 
 func audio():
 	return get_node_or_null("/root/AudioManager")
@@ -1023,7 +1127,14 @@ func play_sound(sound_name, volume_db = 0.0):
 		audio().play_effect(sound_name, volume_db)
 
 func go_to_results():
+	if not cruising:
+		return
 	cruising = false
+	if surface_view and surface_view.driving:
+		surface_view.end_driving("")
+	if audio():
+		audio().stop_engine(0.5)
+		audio().stop_ambience(1.5)
 	if GameState.lost and audio():
 		audio().play_voice("houston_problem")   # Apollo 13: "Houston, we've had a problem"
 		await get_tree().create_timer(3.5).timeout

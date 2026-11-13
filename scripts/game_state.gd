@@ -571,7 +571,17 @@ func build_mission():
 	events.append_array(world_events.slice(0, randi_range(4, 6)))
 	events.append({"title": "Braking into orbit", "phase": "arrival", "insertion_check": true})
 	events.append({"title": "Arrival power check", "phase": "arrival", "power_check": true})
-	events.sort_custom(func(first, second): return PHASE_ORDER[first["phase"]] < PHASE_ORDER[second["phase"]])
+	events.sort_custom(func(first, second): return event_order(first) < event_order(second))
+
+# Events go in mission order. Inside a phase: the orbit-insertion burn comes first on arrival, and on the way down the
+# decisions come before the touchdown checks.
+func event_order(event):
+	var order = PHASE_ORDER[event["phase"]] * 3 + 1
+	if event.has("insertion_check"):
+		order -= 1
+	if event["phase"] == "descent" and event.has("check"):
+		order += 1
+	return order
 
 # Events with no choice: the power check and gear checks. Returns {"text", "ok"}.
 func apply_event(event):
@@ -591,7 +601,7 @@ func apply_event(event):
 		var needed = arrival_burn_needed_km_s()
 		var can_do = probe_speed_change_km_s()
 		if direct_entry():
-			text = "Your lander dove straight into %s's air behind its heat shield, like Perseverance did at Mars." % destination
+			text = "No braking burn needed: your lander is lined up to dive straight into %s's air behind its heat shield, like Perseverance did at Mars." % destination
 		elif can_do >= needed:
 			text = "Your engine slowed the probe by %.2f km/s (%s), and %s's gravity captured it." % [needed, arrival_burn_time_text(), destination]
 		else:

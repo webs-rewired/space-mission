@@ -128,6 +128,13 @@ var bump_cooldown = 0.0
 var engine_sound_on = false
 var parachute_sound_played = false
 
+# The journey (launch.gd) pauses the landing or the rover while a decision is on screen, and opens the decisions
+# made on the way down once the landing reaches its tense moment (just before the parachute opens, or on the way in)
+var paused = false
+var reached_decision_point = false
+var crash_landing = false          # a landing check failed or a decision went wrong: it comes down far too hard
+var drive_seconds = 0.0            # time spent driving, so surface events come every so often while you drive
+
 func set_up(destination_name):
 	destination = destination_name
 	landing = GameState.choices.get("landing", "landing_legs")
@@ -283,7 +290,8 @@ func scatter_rocks(world):
 func build_vehicle():
 	vehicle = Node3D.new()
 	lander_holder.add_child(vehicle)
-	var lookalike_id = SpacecraftLookalike.closest()
+	# A rover is NASA's real Perseverance (Curiosity is its near twin); landers are the real lander they're most like
+	var lookalike_id = "perseverance" if can_drive() else SpacecraftLookalike.closest()
 	lander_size = SpacecraftLookalike.LOOKALIKES.get(lookalike_id, {"size": 3.0})["size"]
 	lander = SpacecraftLookalike.load_model(lookalike_id, lander_size)
 	if lander == null:
@@ -360,6 +368,8 @@ func add_capsule():
 # Every frame
 # ---------------------------------------------------------------------------
 func _process(delta):
+	if paused:
+		return
 	update_drifting(delta)
 	shake = max(0.0, shake - delta * 1.5)
 	if driving:
@@ -392,14 +402,20 @@ func update_vehicle(fraction):
 		return
 	var phase = phases[min(phase_index, phases.size() - 1)]
 	var phase_name = phase[0]
-	height = lerp(phase[2], phase[3], eased(fraction))
+	var is_last_phase = phase_index >= phases.size() - 1
+	height = lerp(phase[2], phase[3], fraction if crash_landing and is_last_phase else eased(fraction))
 	match phase_name:
 		"parachute":
-			# The canopy snaps open, and the capsule sways under it
-			var open = smoothstep(0.0, 0.18, phase_time)
-			if not parachute_sound_played:
+			# A moment of free fall (where the decisions on the way down happen), then the mortar fires
+			# and the canopy snaps open, and the capsule sways under it
+			if phase_time >= 0.3:
+				reached_decision_point = true
+			var open = smoothstep(0.75, 0.95, phase_time)
+			if phase_time >= 0.75 and not parachute_sound_played and not crash_landing:
 				parachute_sound_played = true
 				play_sound("thump", -4.0, 1.3)   # the parachute bangs open
+			if crash_landing:
+				open = min(open, 0.15)   # it never opens properly
 			parachute.scale = Vector3.ONE * max(0.05, parachute_full_size / capsule.scale.x * open)
 			parachute.position.y = (2.6 * parachute.scale.y + 3.1)
 			capsule.rotation.z = sin(phase_time * 1.7) * 0.06
@@ -416,6 +432,8 @@ func update_vehicle(fraction):
 			set_flames(lander_flames, true)
 			start_engine_sound()
 			kick_up_dust(fraction)
+			if fraction >= 0.3:
+				reached_decision_point = true
 		"sky_crane":
 			set_flames(crane_flames, true)
 			start_engine_sound()
@@ -503,7 +521,12 @@ func spawn_dust(place, size):
 
 func touchdown():
 	landed = true
+	reached_decision_point = true
 	vehicle.position.y = 0.0
+	if crash_landing:
+		crash()
+		touched_down.emit()
+		return
 	if parachute and is_instance_valid(parachute):
 		parachute.visible = false   # the canopy collapses onto the ground
 	set_flames(lander_flames, false)
@@ -515,6 +538,47 @@ func touchdown():
 	if destination == "Moon" and audio():
 		audio().play_voice("eagle_has_landed", 0.0, 1.5)   # Apollo 11: "Houston, Tranquility Base here. The Eagle has landed."
 	touched_down.emit()
+
+# Far too fast: a cloud of dust, a bang, and a broken lander tipped over in its own crater
+func crash():
+	set_flames(lander_flames, false)
+	set_flames(crane_flames, false)
+	stop_engine_sound()
+	if parachute and is_instance_valid(parachute):
+		parachute.visible = false
+	if airbags and is_instance_valid(airbags):
+		airbags.visible = false
+	if crane and is_instance_valid(crane) and crane.get_parent() == vehicle:
+		crane.visible = false
+	lander.visible = true
+	lander.rotation = Vector3(0.35, lander.rotation.y, -0.55)
+	vehicle.position.y = -lander_size * 0.25
+	shake = 1.6
+	for burst in 3:
+		spawn_dust(Vector3(randf_range(-1.0, 1.0), 0.3, randf_range(-1.0, 1.0)) * lander_size, 8.0 + lander_size * 2.0)
+	play_sound("thump", 6.0, 0.6)
+	play_sound("impact", 2.0, 0.7)
+
+# What a mission event looks like down here. Returns how long to wait before its panel opens.
+func play_event_effect(kind):
+	match kind:
+		"quake":
+			shake = 1.2
+			# A real marsquake that NASA's InSight lander felt (sped up so we can hear it)
+			play_sound("marsquake" if destination == "Mars" else "thump", 4.0)
+			return 1.6
+		"hit":
+			shake = 0.6
+			play_sound("impact", 0.0)
+			return 1.0
+		"dust":
+			if has_air():
+				spawn_dust(vehicle.position + Vector3(lander_size * 3.0, 0.5, -lander_size * 2.0), 6.0)
+				spawn_dust(vehicle.position + Vector3(-lander_size * 2.0, 0.5, lander_size * 3.0), 5.0)
+			else:
+				spawn_dust(vehicle.position + Vector3(0, 0.3, 0), 2.5)   # dust clinging and lifting off the rover
+			return 1.4
+	return 0.4
 
 # ---------------------------------------------------------------------------
 # The camera: tracking the lander down, then slowly circling it on the ground
@@ -568,7 +632,7 @@ func start_driving():
 		height_image = noise_texture.get_image()
 	var conditions = CONDITIONS[destination]
 	var temperature = conditions[1]
-	$DriveScreen/DrivePanel/Column/DriveTitle.text = "%s ON %s" % [SpacecraftLookalike.LOOKALIKES.get(SpacecraftLookalike.closest(), {"name": "ROVER"})["name"].to_upper(), destination.to_upper()]
+	$DriveScreen/DrivePanel/Column/DriveTitle.text = "PERSEVERANCE ON %s" % destination.to_upper()
 	var heat_label = $DriveScreen/DrivePanel/Column/HeatLabel
 	heat_label.text = "Heat soaking in (%d °C outside)" % temperature if temperature > 200 else ("Cold soaking in (%d °C outside)" % temperature if temperature < -100 else "Temperature: %d °C (fine)" % temperature)
 	var shows_radiation = conditions[2] > 0
@@ -696,6 +760,7 @@ func ground_height(place):
 	return (noise_at(place * 0.0035) - 0.5) * hill_height * keep_flat + (noise_at(place * 0.03) - 0.5) * 0.5
 
 func update_driving(delta):
+	drive_seconds += delta
 	var conditions = CONDITIONS[destination]
 	var real_gravity = conditions[0]
 	var gravity = max(real_gravity, 0.25)   # (tiny-gravity hops are shortened, or they'd last minutes)
