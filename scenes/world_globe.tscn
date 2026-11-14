@@ -1,0 +1,96 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/world_globe.gd" id="1_globe"]
+[ext_resource type="Script" path="res://scripts/codex_astrolabe.gd" id="2_astrolabe"]
+
+[sub_resource type="Gradient" id="halo_shape"]
+offsets = PackedFloat32Array(0, 0.22, 0.5, 1)
+colors = PackedColorArray(1, 1, 1, 0.9, 1, 1, 1, 0.45, 1, 1, 1, 0.12, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="halo_texture"]
+gradient = SubResource("halo_shape")
+width = 256
+height = 256
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 0.5)
+
+[node name="WorldGlobe" type="Control"]
+custom_minimum_size = Vector2(0, 250)
+layout_mode = 3
+anchors_preset = 0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 2
+script = ExtResource("1_globe")
+editor_description = "A world turning inside engraved rings. world_globe.gd copies the real world from the solar system into it. Used by the destination codex and the travel screen."
+
+[node name="Astrolabe" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("2_astrolabe")
+
+[node name="Halo" type="TextureRect" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = SubResource("halo_texture")
+expand_mode = 1
+stretch_mode = 5
+editor_description = "A soft glow behind the world: the cloud around a comet, or the Sun's light (world_globe.gd shows and colors it)."
+
+[node name="GlobeView" type="SubViewportContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+stretch = true
+
+[node name="GlobeViewport" type="SubViewport" parent="GlobeView"]
+own_world_3d = true
+transparent_bg = true
+handle_input_locally = false
+msaa_3d = 2
+size = Vector2i(400, 300)
+render_target_update_mode = 4
+
+[node name="GlobeWorld" type="Node3D" parent="GlobeView/GlobeViewport"]
+
+[node name="Camera" type="Camera3D" parent="GlobeView/GlobeViewport/GlobeWorld"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 4.3)
+current = true
+fov = 34.0
+
+[node name="KeyLight" type="DirectionalLight3D" parent="GlobeView/GlobeViewport/GlobeWorld"]
+transform = Transform3D(0.7880, 0.2890, -0.5436, 0.0000, 0.8829, 0.4695, 0.6157, -0.3699, 0.6958, 0, 0, 0)
+light_color = Color(1, 0.96, 0.9, 1)
+light_energy = 1.5
+
+[node name="FillLight" type="DirectionalLight3D" parent="GlobeView/GlobeViewport/GlobeWorld"]
+transform = Transform3D(-0.6428, -0.1330, 0.7544, 0.0000, 0.9848, 0.1736, -0.7660, 0.1116, -0.6330, 0, 0, 0)
+light_color = Color(0.55, 0.65, 0.85, 1)
+light_energy = 0.18
+
+[node name="RimLight" type="DirectionalLight3D" parent="GlobeView/GlobeViewport/GlobeWorld"]
+transform = Transform3D(-1.0000, 0.0000, 0.0000, 0.0000, 0.9781, -0.2079, -0.0000, -0.2079, -0.9781, 0, 0, 0)
+light_color = Color(1, 0.8, 0.55, 1)
+light_energy = 0.45
+
+[node name="GlobeTilt" type="Node3D" parent="GlobeView/GlobeViewport/GlobeWorld"]
+transform = Transform3D(0.9703, 0.2419, 0.0000, -0.2243, 0.8996, -0.3746, -0.0906, 0.3635, 0.9272, 0, 0, 0)
+
+[node name="GlobeSpin" type="Node3D" parent="GlobeView/GlobeViewport/GlobeWorld/GlobeTilt"]
+

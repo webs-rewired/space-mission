@@ -84,7 +84,12 @@ static func slide_in(control: Control, delay := 0.0, offset := Vector2(0, 26), d
 		control.position = resting_place + offset
 		var glide := control.create_tween().set_parallel(true).set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
 		glide.tween_property(control, "position", resting_place, duration)
-		glide.tween_property(control, "modulate:a", 1.0, duration * 0.7))
+		glide.tween_property(control, "modulate:a", 1.0, duration * 0.7)
+		# Inside a container (a list), let the container put it back exactly in its place afterwards, in case
+		# the list changed while it was gliding
+		glide.chain().tween_callback(func():
+			if is_instance_valid(control) and control.get_parent() is Container:
+				control.get_parent().queue_sort()))
 
 # slide_in for several controls, one after another
 static func stagger(controls: Array, delay := 0.0, step := 0.07, offset := Vector2(0, 22), duration := 0.7) -> void:

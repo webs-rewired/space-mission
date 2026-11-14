@@ -5,7 +5,7 @@ extends Control
 # turning in the middle, and its record (numbers) and account (story) on the right.
 #
 # The globe in the middle is the real world from the solar system, not a stand-in: the same surface, clouds,
-# air glow and rings you see out there (copied from the Bodies node, scripts/solar_system_bodies.gd).
+# air glow and rings you see out there (res://scenes/world_globe.tscn copies it from the Bodies node).
 #
 # space_controls.gd makes this menu, calls set_up() once and open() / close(). It listens for:
 #   travel_requested(body_name, follow)   fly there (and keep following it if follow is true)
@@ -24,9 +24,7 @@ const SolarSystemData = preload("res://scripts/solar_system_data.gd")
 const SpaceTextures = preload("res://scripts/space_textures.gd")
 const LoadingScreenScript = preload("res://scripts/loading_screen.gd")
 const OrbitMath = preload("res://scripts/orbit_math.gd")
-const Spacecraft = preload("res://scripts/spacecraft.gd")
 const GOLD = Color(0.78, 0.65, 0.42)
-const GLOBE_TURN_SPEED = 0.22    # radians per second
 const LIVE_REFRESH_SECONDS = 0.5
 
 # The pages of the codex: [kind of body, page title, the tab's node name]
@@ -40,7 +38,7 @@ const PAGES = [
 
 @onready var backdrop: ColorRect = $Backdrop
 @onready var dust: CPUParticles2D = $Dust
-@onready var astrolabe: Control = $Frame/Layout/Body/CenterColumn/GlobeStage/Astrolabe
+@onready var globe_stage: Control = $Frame/Layout/Body/CenterColumn/GlobeStage   # (scripts/world_globe.gd)
 @onready var name_rule: Control = $Frame/Layout/Body/CenterColumn/NameRule
 @onready var frame: Control = $Frame
 @onready var title_label: Label = $Frame/Layout/Header/TitleBlock/Title
@@ -52,8 +50,6 @@ const PAGES = [
 @onready var entry_count: Label = $Frame/Layout/Body/ListColumn/ListHeading/EntryCount
 @onready var list_scroll: ScrollContainer = $Frame/Layout/Body/ListColumn/ListScroll
 @onready var entry_list: VBoxContainer = $Frame/Layout/Body/ListColumn/ListScroll/EntryList
-@onready var globe_spin: Node3D = $Frame/Layout/Body/CenterColumn/GlobeStage/GlobeView/GlobeViewport/GlobeWorld/GlobeTilt/GlobeSpin
-@onready var key_light: DirectionalLight3D = $Frame/Layout/Body/CenterColumn/GlobeStage/GlobeView/GlobeViewport/GlobeWorld/KeyLight
 @onready var name_label: Label = $Frame/Layout/Body/CenterColumn/NameLabel
 @onready var kind_label: Label = $Frame/Layout/Body/CenterColumn/KindLabel
 @onready var record_scroll: ScrollContainer = $Frame/Layout/Body/RecordColumn/RecordScroll
@@ -124,10 +120,10 @@ func open(kind := ""):
 	# Every gold rule draws itself out from the middle, the rings sweep in around the globe, and dust drifts
 	var rule_number = 0
 	for rule in frame.find_children("*", "Control", true, false):
-		if rule != astrolabe and rule.has_method("draw_in"):
+		if rule.has_method("draw_in") and not globe_stage.is_ancestor_of(rule) and rule != globe_stage:
 			rule.draw_in(0.08 + rule_number * 0.05, 0.8)
 			rule_number += 1
-	astrolabe.draw_in(0.15, 1.2)
+	globe_stage.draw_in(0.15, 1.2)
 	dust.position = size / 2.0
 	dust.emission_rect_extents = size / 2.0
 	dust.restart()
@@ -242,6 +238,7 @@ func place_tab_marker(animate := true):
 
 func fill_list(kind):
 	for entry in entries:
+		entry_list.remove_child(entry)   # (right away, so the new lines are laid out from the top)
 		entry.queue_free()
 	entries.clear()
 	var names = []
@@ -327,16 +324,15 @@ func choose(body_name, quietly := false):
 	var data = SolarSystemData.BODIES[body_name]
 	name_label.text = data["label"].to_upper()
 	kind_label.text = str(data["facts"].get("type", ""))
-	show_globe(body_name)
+	globe_stage.show_world(bodies_node, body_name)
 	fill_record(body_name)
 	update_prompts()
 	# The name rises into place, the rings flash, the globe swells in, and the record comes in line by line
 	UiMotion.reveal_text(name_label, 0.0, 0.6, 0.4)
 	UiMotion.slide_in(kind_label, 0.12, Vector2(0, 10), 0.5)
 	name_rule.draw_in(0.1, 0.6)
-	astrolabe.pulse()
-	globe_spin.scale = Vector3.ONE * 0.8
-	globe_spin.create_tween().tween_property(globe_spin, "scale", Vector3.ONE, 0.55).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	globe_stage.pulse()
+	globe_stage.swell()
 	record_scroll.scroll_vertical = 0
 
 func update_prompts():
@@ -349,60 +345,9 @@ func update_prompts():
 		prompt.modulate.a = 1.0 if shown else 0.35
 	mission_prompt.visible = GameState.DESTINATIONS.has(chosen_name)
 
-# The globe: a copy of the real world from the solar system (its surface, clouds, air glow), with its rings
-func show_globe(body_name):
-	for old in globe_spin.get_children():
-		globe_spin.remove_child(old)
-		old.queue_free()
-	var data = SolarSystemData.BODIES[body_name]
-	var info = real_world(body_name)
-	var copy: Node3D = null
-	if info.has("mesh") and is_instance_valid(info["mesh"]):
-		copy = info["mesh"].duplicate()
-		copy.transform = Transform3D.IDENTITY
-		for child in copy.find_children("*", "Node", true, false):
-			if child is Light3D:
-				child.queue_free()
-	if copy == null:
-		copy = MeshInstance3D.new()
-		var sphere = SphereMesh.new()
-		sphere.radial_segments = 64
-		sphere.rings = 32
-		copy.mesh = sphere
-		var plain = StandardMaterial3D.new()
-		plain.albedo_color = data.get("color", Color(0.6, 0.6, 0.6))
-		copy.material_override = plain
-	globe_spin.add_child(copy)
-	# The air glow and Earth's night lights point at the Sun: here, the Sun is the key light
-	var toward_light = key_light.global_basis.z.normalized()
-	for part in [copy] + copy.find_children("*", "GeometryInstance3D", true, false):
-		if part is GeometryInstance3D and part.material_override is ShaderMaterial:
-			var shader_material: ShaderMaterial = part.material_override
-			if shader_material.shader and "sun_direction" in shader_material.shader.code:
-				part.material_override = shader_material.duplicate()
-				part.material_override.set_shader_parameter("sun_direction", toward_light)
-	var fit_radius = 1.0
-	if data["kind"] == "spacecraft":
-		# Spacecraft models come in every size: make this one fill the view and stand in the middle
-		var box = Spacecraft.model_bounds(copy, Transform3D.IDENTITY, null)
-		if box:
-			var biggest = max(box.size.x, max(box.size.y, box.size.z))
-			copy.scale = Vector3.ONE * (2.0 / max(biggest, 0.0001))
-			copy.position = -box.get_center() * copy.scale.x
-		for part in copy.find_children("*", "VisualInstance3D", true, false):
-			part.layers = 1 | 2
-	else:
-		copy.scale = info["shape"] if info.has("shape") else Vector3.ONE
-		if data.has("rings"):
-			var rings = SpaceTextures.make_rings(data["rings"], 1.0)
-			globe_spin.add_child(rings)
-			fit_radius = SpaceTextures.RING_SIZES[data["rings"]][1]
-	globe_spin.get_parent().scale = Vector3.ONE / fit_radius
-
 func _process(delta):
 	if not visible:
 		return
-	globe_spin.rotate_y(delta * GLOBE_TURN_SPEED)
 	live_seconds -= delta
 	if live_seconds <= 0.0:
 		live_seconds = LIVE_REFRESH_SECONDS
