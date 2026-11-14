@@ -292,7 +292,7 @@ func build_controls():
 	time_row.add_child(make_button("Now", go_to_today))
 	time_row.add_child(make_button("Reset", reset_everything))
 	speed_label = Label.new()
-	speed_label.custom_minimum_size.x = 280
+	speed_label.custom_minimum_size.x = 200   # (narrower, so the time bar doesn't run into the switches on smaller screens)
 	time_row.add_child(speed_label)
 	date_label = Label.new()
 	date_label.custom_minimum_size.x = 210

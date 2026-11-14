@@ -65,7 +65,11 @@ const CAM_BASE = Vector3(20, 2.5, 28)
 #   "saturn_v"  = NASA Saturn V (the Apollo moon rocket)
 #   "random"    = a different one on every launch loop
 const ROCKET_STYLE = "random"
-const ROCKET_STYLES = ["starship", "sls", "saturn_v"]
+const ROCKET_STYLES = ["sls", "saturn_v", "falcon9", "starship"]
+# The real rocket models from the game (the same ones the rocket builder uses) are shown when they're in the
+# project; if one is missing, the simple built-in shape of that rocket is drawn instead
+const REAL_ROCKET_PRESETS = {"sls": "sls", "saturn_v": "saturn5", "falcon9": "falcon9", "starship": "starship"}
+const MENU_ROCKET_HEIGHT = 13.0   # meters in the menu scene (the platform and tower are built for this)
 
 # Overall mood: "moody" = foggy overcast ocean (like a cinematic game menu), "sunrise" = warm clear morning
 const LOOK = "moody"
@@ -367,7 +371,8 @@ func _process(delta: float) -> void:
 	var flicker := randf_range(0.85, 1.25)
 	for f in flames:
 		f.visible = lit
-		f.scale = Vector3(1.0, flicker * randf_range(0.95, 1.05), 1.0) * (0.4 + 0.6 * ramp)
+		var base_scale: Vector3 = f.get_meta("base_scale", Vector3.ONE)   # (a real rocket's flames are sized to its nozzles)
+		f.scale = base_scale * Vector3(1.0, flicker * randf_range(0.95, 1.05), 1.0) * (0.4 + 0.6 * ramp)
 	engine_light.light_energy = 10.0 * ramp * randf_range(0.8, 1.2)
 	exhaust.emitting = lit
 	ground_smoke.emitting = lit and t < LIFTOFF_TIME + 5.0
@@ -675,13 +680,15 @@ func _build_rocket() -> void:
 	if custom:
 		_add_flame(Vector3.ZERO, 0.5, 3.4)
 	else:
-		match _pick_style():
-			"sls":
-				_build_sls()
-			"saturn_v":
-				_build_saturn_v()
-			_:
-				_build_starship()
+		var style := _pick_style()
+		if not _add_real_rocket(style):
+			match style:
+				"sls":
+					_build_sls()
+				"saturn_v":
+					_build_saturn_v()
+				_:
+					_build_starship()
 
 	# Light from the flame that glows on the pad and tower
 	engine_light = OmniLight3D.new()
@@ -696,6 +703,33 @@ func _build_rocket() -> void:
 	rocket.add_child(exhaust)
 	ground_smoke = _make_smoke(Vector3(0, PAD_TOP + 0.5, 0), 140, 5.0, Vector3(0, 1, 0), 80.0, 4.0, 9.0, 2.5, 4.5)
 	world.add_child(ground_smoke)
+
+
+# One of the game's real rocket models (scripts/real_rocket.gd), shrunk to the menu's size, with its own flames
+func _add_real_rocket(style: String) -> bool:
+	if not REAL_ROCKET_PRESETS.has(style):
+		return false
+	var real_rocket_script = load("res://scripts/real_rocket.gd")
+	var rocket_data = load("res://scripts/rocket_data.gd")
+	if real_rocket_script == null or rocket_data == null or not rocket_data.STARTING_ROCKETS.has(REAL_ROCKET_PRESETS[style]):
+		return false
+	var built = real_rocket_script.build(rocket_data.STARTING_ROCKETS[REAL_ROCKET_PRESETS[style]].duplicate())
+	if built == null:
+		return false
+	var model: Node3D = built["root"]
+	rocket.add_child(model)
+	var box = real_rocket_script.solid_bounds(model, Transform3D.IDENTITY, null)
+	if box == null or box.size.y <= 0.0:
+		model.queue_free()
+		return false
+	var shrink: float = MENU_ROCKET_HEIGHT / box.size.y
+	model.scale = Vector3.ONE * shrink
+	model.position = Vector3(-box.get_center().x * shrink, -box.position.y * shrink, -box.get_center().z * shrink)
+	for flame in built["bottom_flames"] + built["booster_flames"]:
+		flame.set_meta("base_scale", flame.scale)
+		flame.visible = false
+		flames.append(flame)
+	return true
 
 
 func _add_custom_model() -> bool:
