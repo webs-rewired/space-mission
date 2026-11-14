@@ -132,8 +132,8 @@ func load_real_model(lookalike):
 	if box == null:
 		return null
 	var shrink = lookalike["size"] / max(box.size.x, max(box.size.y, box.size.z), 0.001)
+	var center = Spacecraft.body_center(model) * shrink   # the body sits on the turntable's middle, not the box
 	model.scale = model.scale * shrink
-	var center = box.get_center() * shrink
 	model.position = Vector3(-center.x, -box.position.y * shrink, -center.z)   # bottom of the model at the holder
 	return {"root": holder, "height": box.size.y * shrink}
 
@@ -315,6 +315,8 @@ func build_screen():
 	summary_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	summary_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	summary_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	summary_label.clip_text = true   # on a narrow screen the summary gets cut short ("...") instead of pushing the buttons off
+	summary_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	bottom_bar.add_child(summary_label)
 	var hint = make_label("Drag to turn the probe, scroll to zoom", 12, Color(0.25, 0.28, 0.33))
 	hint.autowrap_mode = TextServer.AUTOWRAP_OFF

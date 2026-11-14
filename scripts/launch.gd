@@ -177,6 +177,29 @@ func _ready():
 	build_abort_button()
 	build_scenery()
 	start_liftoff()
+	warm_up_effects()
+
+# The first time Godot draws a new kind of effect it has to build its shaders, which can freeze the game for a
+# moment (sparks from a rock strike, the solar wind, radio waves). Drawing each one once right in front of the
+# camera now, while the loading screen still covers the picture, gets that done before you can see it.
+func warm_up_effects():
+	await get_tree().process_frame
+	var view_camera = get_viewport().get_camera_3d()
+	if view_camera == null:
+		return
+	var warmed = []
+	for scene in [SPARKS_SCENE, SOLAR_WIND_SCENE, RADIO_WAVES_SCENE]:
+		var effect = scene.instantiate()
+		add_child(effect)
+		effect.global_position = view_camera.global_position - view_camera.global_basis.z * 3.0
+		if effect is GPUParticles3D or effect is CPUParticles3D:
+			effect.emitting = true
+		warmed.append(effect)
+	for frame in 4:
+		await get_tree().process_frame
+	for effect in warmed:
+		if is_instance_valid(effect):
+			effect.queue_free()
 
 # ---------------------------------------------------------------------------
 # Liftoff first
@@ -783,16 +806,7 @@ func steer_through_belt(delta, belt):
 	if belt.is_empty():
 		steer = steer.move_toward(Vector2.ZERO, delta * 1.5)
 		return
-	var push = Vector2.ZERO
-	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
-		push.x += 1.0
-	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
-		push.x -= 1.0
-	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
-		push.y += 1.0
-	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
-		push.y -= 1.0
-	steer += push * STEER_SPEED * delta
+	steer += steering_keys_push() * STEER_SPEED * delta
 	if steer.length() > STEER_LIMIT:
 		steer = steer.normalized() * STEER_LIMIT
 	for index in scenery.dodge_rocks.size():
@@ -816,6 +830,33 @@ func steer_through_belt(delta, belt):
 			play_sound("impact", -2.0)
 			if hit_flash:
 				hit_flash.color.a = 0.45
+
+# Which way the steering keys push the probe, as (along the path's side, along the path's up).
+# The keys work the way you see it on screen: A or Left moves the probe to the left of the picture, D or Right to
+# the right, W or Up moves it up and S or Down moves it down, wherever the camera happens to be looking from.
+func steering_keys_push():
+	var screen_push = Vector2.ZERO   # x: right on screen, y: up on screen
+	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
+		screen_push.x -= 1.0
+	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
+		screen_push.x += 1.0
+	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
+		screen_push.y += 1.0
+	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
+		screen_push.y -= 1.0
+	if screen_push == Vector2.ZERO:
+		return Vector2.ZERO
+	var frame = path_frame(flight_progress)
+	var plain_push = Vector2(screen_push.x, screen_push.y)   # side is to the right when looking along the path
+	if camera == null:
+		return plain_push
+	var wanted_direction = camera.global_basis.x * screen_push.x + camera.global_basis.y * screen_push.y
+	var path_push = Vector2(wanted_direction.dot(frame["side"]), wanted_direction.dot(frame["up"]))
+	# If the camera looks at the path from straight beside it, left and right on screen run along the path (which
+	# the player can't steer), so fall back to steering as if the camera were behind the probe
+	if path_push.length() < 0.35:
+		return plain_push
+	return path_push.normalized() * min(screen_push.length(), 1.0)
 
 # ---------------------------------------------------------------------------
 # Mission clock and time controls

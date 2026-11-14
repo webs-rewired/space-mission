@@ -37,6 +37,17 @@ func _ready():
 	load_settings()
 	apply_all()
 	get_tree().node_added.connect(_on_node_added)
+	set_up_cursor()
+
+# The mouse pointer: a thin ring with a dot in the middle (the dot is the exact point you click), which fills in
+# over anything you can click, like the cursor on the Webs With U site
+func set_up_cursor():
+	var ring = load("res://assets/ui/cursor.png") if ResourceLoader.exists("res://assets/ui/cursor.png") else null
+	var filled_ring = load("res://assets/ui/cursor_hover.png") if ResourceLoader.exists("res://assets/ui/cursor_hover.png") else null
+	if ring:
+		Input.set_custom_mouse_cursor(ring, Input.CURSOR_ARROW, ring.get_size() / 2.0)
+	if filled_ring:
+		Input.set_custom_mouse_cursor(filled_ring, Input.CURSOR_POINTING_HAND, filled_ring.get_size() / 2.0)
 
 # ---------------------------------------------------------------------------
 # Saving and loading
@@ -159,6 +170,26 @@ func apply_graphics():
 func _on_node_added(node):
 	if node is WorldEnvironment or node is Light3D or node is GPUParticles3D or node is CPUParticles3D or node is SubViewport:
 		tune_node.call_deferred(node)
+	elif node is BaseButton or node is Slider:
+		tune_control.call_deferred(node)
+
+# Buttons and sliders all over the game:
+# - They don't keep the keyboard focus after you click them. Before, the last button you clicked kept it, and the
+#   next time you pressed Space (to fly up, or to take a photo in orbit) it pressed that button again: often the
+#   time "Pause" button or "Abort mission", which is why the game seemed to pause by itself. Sliders kept the arrow
+#   keys the same way.
+# - They work the moment the mouse button goes down, not when it comes back up, so a click always counts even if
+#   the game is busy or the mouse moves a little while clicking.
+# The main menu's own buttons keep keyboard focus (marked "keeps_keyboard_focus"), so Enter still starts the game.
+func tune_control(control):
+	if not is_instance_valid(control):
+		return
+	control.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND   # the filled ring (see set_up_cursor)
+	if control.has_meta("keeps_keyboard_focus"):
+		return
+	control.focus_mode = Control.FOCUS_NONE
+	if control is BaseButton and not (control is OptionButton or control is MenuButton):
+		control.action_mode = BaseButton.ACTION_MODE_BUTTON_PRESS
 
 func tune_node(node):
 	if not is_instance_valid(node):
