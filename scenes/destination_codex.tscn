@@ -1,0 +1,577 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/destination_codex.gd" id="1_codex"]
+[ext_resource type="Theme" path="res://assets/ui/codex_theme.tres" id="2_theme"]
+[ext_resource type="Script" path="res://scripts/ornament_line.gd" id="3_rule"]
+[ext_resource type="Script" path="res://scripts/codex_astrolabe.gd" id="4_astrolabe"]
+[ext_resource type="Shader" path="res://shaders/codex_backdrop.gdshader" id="5_backdrop"]
+
+[sub_resource type="ShaderMaterial" id="backdrop_material"]
+shader = ExtResource("5_backdrop")
+
+[sub_resource type="Gradient" id="dust_fade"]
+offsets = PackedFloat32Array(0, 0.2, 0.75, 1)
+colors = PackedColorArray(0.9, 0.75, 0.5, 0, 0.9, 0.75, 0.5, 0.55, 0.9, 0.75, 0.5, 0.35, 0.9, 0.75, 0.5, 0)
+
+[sub_resource type="Gradient" id="dot_shape"]
+offsets = PackedFloat32Array(0, 0.35, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0.6, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="dot_texture"]
+gradient = SubResource("dot_shape")
+width = 16
+height = 16
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 0.5)
+
+[node name="DestinationCodex" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_codex")
+editor_description = "The Go to... menu of the solar system: a codex of every world, styled like an old engraved record book (Lies of P style menus). space_controls.gd opens it; destination_codex.gd fills it from the real solar system."
+
+[node name="Backdrop" type="ColorRect" parent="."]
+material = SubResource("backdrop_material")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Dust" type="CPUParticles2D" parent="."]
+position = Vector2(576, 324)
+amount = 70
+texture = SubResource("dot_texture")
+lifetime = 14.0
+preprocess = 14.0
+emission_shape = 3
+emission_rect_extents = Vector2(576, 324)
+direction = Vector2(0.15, -1)
+spread = 35.0
+gravity = Vector2(0, 0)
+initial_velocity_min = 4.0
+initial_velocity_max = 14.0
+scale_amount_min = 0.12
+scale_amount_max = 0.32
+color_ramp = SubResource("dust_fade")
+editor_description = "Slow gold dust drifting up behind the codex. destination_codex.gd stretches it over the whole screen."
+
+[node name="Frame" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 16
+
+[node name="Layout" type="VBoxContainer" parent="Frame"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="Header" type="HBoxContainer" parent="Frame/Layout"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="TitleBlock" type="VBoxContainer" parent="Frame/Layout/Header"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = -2
+
+[node name="Overline" type="Label" parent="Frame/Layout/Header/TitleBlock"]
+layout_mode = 2
+theme_type_variation = &"CodexKey"
+text = "THE SOLAR SYSTEM   ·   A RECORD OF WORLDS"
+
+[node name="Title" type="Label" parent="Frame/Layout/Header/TitleBlock"]
+layout_mode = 2
+theme_type_variation = &"CodexTitle"
+text = "DESTINATIONS"
+
+[node name="Spacer" type="Control" parent="Frame/Layout/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="DateBlock" type="VBoxContainer" parent="Frame/Layout/Header"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_constants/separation = 0
+
+[node name="DateKey" type="Label" parent="Frame/Layout/Header/DateBlock"]
+layout_mode = 2
+theme_type_variation = &"CodexKey"
+text = "SKY DATE"
+horizontal_alignment = 2
+
+[node name="DateValue" type="Label" parent="Frame/Layout/Header/DateBlock"]
+layout_mode = 2
+theme_type_variation = &"CodexValue"
+text = "November 14, 2026"
+horizontal_alignment = 2
+
+[node name="TabsStage" type="Control" parent="Frame/Layout"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="TabsRow" type="HBoxContainer" parent="Frame/Layout/TabsStage"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_bottom = -6.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 22
+alignment = 1
+
+[node name="PreviousKey" type="PanelContainer" parent="Frame/Layout/TabsStage/TabsRow"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"CodexKeycap"
+
+[node name="Letter" type="Label" parent="Frame/Layout/TabsStage/TabsRow/PreviousKey"]
+layout_mode = 2
+theme_type_variation = &"CodexKeycapLabel"
+text = "Q"
+horizontal_alignment = 1
+
+[node name="Tabs" type="HBoxContainer" parent="Frame/Layout/TabsStage/TabsRow"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 30
+
+[node name="PlanetsTab" type="Button" parent="Frame/Layout/TabsStage/TabsRow/Tabs"]
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_type_variation = &"CodexTab"
+text = "PLANETS"
+
+[node name="MoonsTab" type="Button" parent="Frame/Layout/TabsStage/TabsRow/Tabs"]
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_type_variation = &"CodexTab"
+text = "MOONS"
+
+[node name="DwarfTab" type="Button" parent="Frame/Layout/TabsStage/TabsRow/Tabs"]
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_type_variation = &"CodexTab"
+text = "DWARF PLANETS"
+
+[node name="CometsTab" type="Button" parent="Frame/Layout/TabsStage/TabsRow/Tabs"]
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_type_variation = &"CodexTab"
+text = "COMETS"
+
+[node name="SpacecraftTab" type="Button" parent="Frame/Layout/TabsStage/TabsRow/Tabs"]
+layout_mode = 2
+mouse_default_cursor_shape = 2
+theme_type_variation = &"CodexTab"
+text = "SPACECRAFT"
+
+[node name="NextKey" type="PanelContainer" parent="Frame/Layout/TabsStage/TabsRow"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"CodexKeycap"
+
+[node name="Letter" type="Label" parent="Frame/Layout/TabsStage/TabsRow/NextKey"]
+layout_mode = 2
+theme_type_variation = &"CodexKeycapLabel"
+text = "E"
+horizontal_alignment = 1
+
+[node name="TabMarker" type="Control" parent="Frame/Layout/TabsStage"]
+layout_mode = 0
+offset_top = 32.0
+offset_right = 100.0
+offset_bottom = 40.0
+mouse_filter = 2
+script = ExtResource("3_rule")
+fade_toward_ends = false
+diamond_in_middle = true
+
+[node name="TopRule" type="Control" parent="Frame/Layout"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("3_rule")
+diamond_in_middle = false
+diamonds_at_ends = true
+
+[node name="Body" type="HBoxContainer" parent="Frame/Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+theme_override_constants/separation = 28
+
+[node name="ListColumn" type="VBoxContainer" parent="Frame/Layout/Body"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="ListHeading" type="HBoxContainer" parent="Frame/Layout/Body/ListColumn"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="CategoryName" type="Label" parent="Frame/Layout/Body/ListColumn/ListHeading"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"CodexHeading"
+text = "PLANETS"
+
+[node name="EntryCount" type="Label" parent="Frame/Layout/Body/ListColumn/ListHeading"]
+layout_mode = 2
+theme_type_variation = &"CodexKey"
+text = "9 RECORDS"
+vertical_alignment = 1
+
+[node name="ListRule" type="Control" parent="Frame/Layout/Body/ListColumn"]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("3_rule")
+diamond_in_middle = false
+diamonds_at_ends = false
+
+[node name="ListScroll" type="ScrollContainer" parent="Frame/Layout/Body/ListColumn"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="EntryList" type="VBoxContainer" parent="Frame/Layout/Body/ListColumn/ListScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="CenterColumn" type="VBoxContainer" parent="Frame/Layout/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 0
+
+[node name="GlobeStage" type="Control" parent="Frame/Layout/Body/CenterColumn"]
+custom_minimum_size = Vector2(0, 250)
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="Astrolabe" type="Control" parent="Frame/Layout/Body/CenterColumn/GlobeStage"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("4_astrolabe")
+
+[node name="GlobeView" type="SubViewportContainer" parent="Frame/Layout/Body/CenterColumn/GlobeStage"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+stretch = true
+
+[node name="GlobeViewport" type="SubViewport" parent="Frame/Layout/Body/CenterColumn/GlobeStage/GlobeView"]
+own_world_3d = true
+transparent_bg = true
+handle_input_locally = false
+msaa_3d = 2
+size = Vector2i(400, 300)
+render_target_update_mode = 4
+
+[node name="GlobeWorld" type="Node3D" parent="Frame/Layout/Body/CenterColumn/GlobeStage/GlobeView/GlobeViewport"]
+
+[node name="Camera" type="Camera3D" parent="Frame/Layout/Body/CenterColumn/GlobeStage/GlobeView/GlobeViewport/GlobeWorld"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 4.3)
+current = true
+fov = 34.0
+
+[node name="KeyLight" type="DirectionalLight3D" parent="Frame/Layout/Body/CenterColumn/GlobeStage/GlobeView/GlobeViewport/GlobeWorld"]
+transform = Transform3D(0.7880, 0.2890, -0.5436, 0.0000, 0.8829, 0.4695, 0.6157, -0.3699, 0.6958, 0, 0, 0)
+light_color = Color(1, 0.96, 0.9, 1)
+light_energy = 1.5
+
+[node name="FillLight" type="DirectionalLight3D" parent="Frame/Layout/Body/CenterColumn/GlobeStage/GlobeView/GlobeViewport/GlobeWorld"]
+transform = Transform3D(-0.6428, -0.1330, 0.7544, 0.0000, 0.9848, 0.1736, -0.7660, 0.1116, -0.6330, 0, 0, 0)
+light_color = Color(0.55, 0.65, 0.85, 1)
+light_energy = 0.18
+
+[node name="RimLight" type="DirectionalLight3D" parent="Frame/Layout/Body/CenterColumn/GlobeStage/GlobeView/GlobeViewport/GlobeWorld"]
+transform = Transform3D(-1.0000, 0.0000, 0.0000, 0.0000, 0.9781, -0.2079, -0.0000, -0.2079, -0.9781, 0, 0, 0)
+light_color = Color(1, 0.8, 0.55, 1)
+light_energy = 0.45
+
+[node name="GlobeTilt" type="Node3D" parent="Frame/Layout/Body/CenterColumn/GlobeStage/GlobeView/GlobeViewport/GlobeWorld"]
+transform = Transform3D(0.9703, 0.2419, 0.0000, -0.2243, 0.8996, -0.3746, -0.0906, 0.3635, 0.9272, 0, 0, 0)
+
+[node name="GlobeSpin" type="Node3D" parent="Frame/Layout/Body/CenterColumn/GlobeStage/GlobeView/GlobeViewport/GlobeWorld/GlobeTilt"]
+
+[node name="NameLabel" type="Label" parent="Frame/Layout/Body/CenterColumn"]
+layout_mode = 2
+theme_type_variation = &"CodexName"
+text = "MARS"
+horizontal_alignment = 1
+
+[node name="KindLabel" type="Label" parent="Frame/Layout/Body/CenterColumn"]
+layout_mode = 2
+theme_type_variation = &"CodexItalic"
+theme_override_font_sizes/font_size = 18
+text = "Rocky planet"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="NameRule" type="Control" parent="Frame/Layout/Body/CenterColumn"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("3_rule")
+diamond_in_middle = true
+diamonds_at_ends = false
+
+[node name="RecordColumn" type="VBoxContainer" parent="Frame/Layout/Body"]
+custom_minimum_size = Vector2(330, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="RecordHeading" type="Label" parent="Frame/Layout/Body/RecordColumn"]
+layout_mode = 2
+theme_type_variation = &"CodexHeading"
+text = "RECORD"
+
+[node name="RecordRule" type="Control" parent="Frame/Layout/Body/RecordColumn"]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("3_rule")
+diamond_in_middle = false
+diamonds_at_ends = false
+
+[node name="RecordScroll" type="ScrollContainer" parent="Frame/Layout/Body/RecordColumn"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="RecordContent" type="VBoxContainer" parent="Frame/Layout/Body/RecordColumn/RecordScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="LiveLabel" type="Label" parent="Frame/Layout/Body/RecordColumn/RecordScroll/RecordContent"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_type_variation = &"CodexItalic"
+theme_override_colors/font_color = Color(0.85, 0.72, 0.47, 1)
+theme_override_font_sizes/font_size = 15
+text = "Right now: 1.38 AU from Earth"
+autowrap_mode = 3
+
+[node name="StatsGrid" type="GridContainer" parent="Frame/Layout/Body/RecordColumn/RecordScroll/RecordContent"]
+layout_mode = 2
+theme_override_constants/h_separation = 14
+theme_override_constants/v_separation = 7
+columns = 2
+
+[node name="AccountHeading" type="Label" parent="Frame/Layout/Body/RecordColumn/RecordScroll/RecordContent"]
+layout_mode = 2
+theme_type_variation = &"CodexHeading"
+text = "ACCOUNT"
+
+[node name="AccountRule" type="Control" parent="Frame/Layout/Body/RecordColumn/RecordScroll/RecordContent"]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("3_rule")
+diamond_in_middle = false
+diamonds_at_ends = false
+
+[node name="AccountText" type="RichTextLabel" parent="Frame/Layout/Body/RecordColumn/RecordScroll/RecordContent"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_font_sizes/normal_font_size = 16
+theme_override_font_sizes/italics_font_size = 16
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
+
+[node name="BottomRule" type="Control" parent="Frame/Layout"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("3_rule")
+diamond_in_middle = false
+diamonds_at_ends = true
+
+[node name="Footer" type="HBoxContainer" parent="Frame/Layout"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 18
+
+[node name="Hint" type="Label" parent="Frame/Layout/Footer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"CodexItalic"
+theme_override_font_sizes/font_size = 14
+text = "W / S to choose, click again to travel   ·   Q / E to turn the page"
+vertical_alignment = 1
+clip_text = true
+
+[node name="TravelPrompt" type="Button" parent="Frame/Layout/Footer"]
+custom_minimum_size = Vector2(118, 32)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+
+[node name="Row" type="HBoxContainer" parent="Frame/Layout/Footer/TravelPrompt"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="Key" type="PanelContainer" parent="Frame/Layout/Footer/TravelPrompt/Row"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"CodexKeycap"
+
+[node name="Letter" type="Label" parent="Frame/Layout/Footer/TravelPrompt/Row/Key"]
+layout_mode = 2
+theme_type_variation = &"CodexKeycapLabel"
+text = "Enter"
+horizontal_alignment = 1
+
+[node name="Action" type="Label" parent="Frame/Layout/Footer/TravelPrompt/Row"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "Travel"
+vertical_alignment = 1
+
+[node name="FollowPrompt" type="Button" parent="Frame/Layout/Footer"]
+custom_minimum_size = Vector2(104, 32)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+
+[node name="Row" type="HBoxContainer" parent="Frame/Layout/Footer/FollowPrompt"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="Key" type="PanelContainer" parent="Frame/Layout/Footer/FollowPrompt/Row"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"CodexKeycap"
+
+[node name="Letter" type="Label" parent="Frame/Layout/Footer/FollowPrompt/Row/Key"]
+layout_mode = 2
+theme_type_variation = &"CodexKeycapLabel"
+text = "F"
+horizontal_alignment = 1
+
+[node name="Action" type="Label" parent="Frame/Layout/Footer/FollowPrompt/Row"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "Follow"
+vertical_alignment = 1
+
+[node name="MissionPrompt" type="Button" parent="Frame/Layout/Footer"]
+custom_minimum_size = Vector2(170, 32)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+
+[node name="Row" type="HBoxContainer" parent="Frame/Layout/Footer/MissionPrompt"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="Key" type="PanelContainer" parent="Frame/Layout/Footer/MissionPrompt/Row"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"CodexKeycap"
+
+[node name="Letter" type="Label" parent="Frame/Layout/Footer/MissionPrompt/Row/Key"]
+layout_mode = 2
+theme_type_variation = &"CodexKeycapLabel"
+text = "M"
+horizontal_alignment = 1
+
+[node name="Action" type="Label" parent="Frame/Layout/Footer/MissionPrompt/Row"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "Plan a mission"
+vertical_alignment = 1
+
+[node name="BackPrompt" type="Button" parent="Frame/Layout/Footer"]
+custom_minimum_size = Vector2(100, 32)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+
+[node name="Row" type="HBoxContainer" parent="Frame/Layout/Footer/BackPrompt"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="Key" type="PanelContainer" parent="Frame/Layout/Footer/BackPrompt/Row"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_type_variation = &"CodexKeycap"
+
+[node name="Letter" type="Label" parent="Frame/Layout/Footer/BackPrompt/Row/Key"]
+layout_mode = 2
+theme_type_variation = &"CodexKeycapLabel"
+text = "Esc"
+horizontal_alignment = 1
+
+[node name="Action" type="Label" parent="Frame/Layout/Footer/BackPrompt/Row"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "Back"
+vertical_alignment = 1

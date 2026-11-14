@@ -45,16 +45,11 @@ var message_label: Label      # short messages above the time bar, like "Slower:
 var message_time_left = 0.0
 var name_tags = {}            # body name -> Button
 
-# --- Go To selection screen ---
-var goto_panel: Control
+# --- Go To: the destination codex (res://scenes/destination_codex.tscn) ---
+const DESTINATION_CODEX_SCENE = preload("res://scenes/destination_codex.tscn")
+var goto_panel: Control       # the codex
 var goto_open := false
 var goto_selected: String = ""
-var goto_preview_name: Label
-var goto_preview_kind: Label
-var goto_preview_desc: Label
-var goto_list: VBoxContainer
-var goto_category_buttons: Dictionary = {}
-var current_goto_category := "planet"
 var loading_panel: Control
 var loading_status: Label
 var loading_body_name: Label
@@ -67,8 +62,6 @@ const LOADING_MESSAGES = [
 	"Confirming orbital insertion parameters...",
 	"Final systems check complete. Preparing departure.",
 ]
-var goto_globe_pivot: Node3D
-var goto_globe_mat: StandardMaterial3D
 var loading_globe_pivot: Node3D
 var loading_globe_mat: StandardMaterial3D
 var globe_spin_speed := 0.35
@@ -95,9 +88,7 @@ func _process(delta):
 	if message_time_left > 0:
 		message_time_left -= delta
 		message_label.modulate.a = clamp(message_time_left, 0.0, 1.0)
-	# Slow spin on the 3D globe previews
-	if goto_open and goto_globe_pivot:
-		goto_globe_pivot.rotation.y += delta * globe_spin_speed
+	# Slow spin on the 3D globe of the "flying there" screen
 	if is_loading and loading_globe_pivot:
 		loading_globe_pivot.rotation.y += delta * globe_spin_speed * 1.2
 	if bodies_node == null or not bodies_node.is_built:
@@ -114,18 +105,7 @@ func _unhandled_input(event):
 		return
 
 	if goto_open:
-		if event is InputEventKey and event.pressed and not event.echo:
-			match event.keycode:
-				KEY_ESCAPE:
-					close_goto()
-					get_viewport().set_input_as_handled()
-					return
-				KEY_F:
-					if goto_selected != "":
-						_start_loading_then_go(goto_selected, true)
-						get_viewport().set_input_as_handled()
-						return
-		return
+		return   # the codex handles its own keys (destination_codex.gd)
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		var clicked_body = body_at(event.position)
@@ -399,136 +379,20 @@ func toggle_fullscreen():
 # ---------------------------------------------------------------------------
 # Go To selection screen + 3D globe + loading screen
 # ---------------------------------------------------------------------------
+# The Go to... menu: the destination codex scene, filled from the real solar system
 func build_goto_panel():
-	goto_panel = Control.new()
-	goto_panel.visible = false
-	goto_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	goto_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	goto_panel = DESTINATION_CODEX_SCENE.instantiate()
 	controls_layer.add_child(goto_panel)
-
-	var dim = ColorRect.new()
-	dim.color = Color(0.02, 0.03, 0.06, 0.82)
-	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	goto_panel.add_child(dim)
-
-	var main = PanelContainer.new()
-	main.set_anchors_preset(Control.PRESET_CENTER)
-	main.custom_minimum_size = Vector2(920, 560)
-	main.offset_left = -460
-	main.offset_top = -280
-	main.offset_right = 460
-	main.offset_bottom = 280
-	goto_panel.add_child(main)
-
-	var margin = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 20)
-	margin.add_theme_constant_override("margin_right", 20)
-	margin.add_theme_constant_override("margin_top", 16)
-	margin.add_theme_constant_override("margin_bottom", 16)
-	main.add_child(margin)
-
-	var root_vbox = VBoxContainer.new()
-	root_vbox.add_theme_constant_override("separation", 12)
-	margin.add_child(root_vbox)
-
-	var title_row = HBoxContainer.new()
-	root_vbox.add_child(title_row)
-	var title = Label.new()
-	title.text = "SELECT DESTINATION"
-	title.add_theme_font_size_override("font_size", 26)
-	title.add_theme_color_override("font_color", Color(0.92, 0.94, 0.98))
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title_row.add_child(title)
-	title_row.add_child(make_button("Close  (Esc)", close_goto))
-
-	var cat_row = HBoxContainer.new()
-	cat_row.add_theme_constant_override("separation", 6)
-	root_vbox.add_child(cat_row)
-	var categories = [
-		["planet", "Planets"],
-		["moon", "Moons"],
-		["dwarf", "Dwarf planets"],
-		["comet", "Comets"],
-		["spacecraft", "Spacecraft"],
-	]
-	for cat in categories:
-		var btn = Button.new()
-		btn.text = cat[1]
-		btn.focus_mode = Control.FOCUS_NONE
-		btn.toggle_mode = true
-		btn.button_pressed = (cat[0] == "planet")
-		btn.pressed.connect(_on_goto_category.bind(cat[0]))
-		cat_row.add_child(btn)
-		goto_category_buttons[cat[0]] = btn
-
-	var content = HBoxContainer.new()
-	content.add_theme_constant_override("separation", 18)
-	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root_vbox.add_child(content)
-
-	var scroll = ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(280, 0)
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	content.add_child(scroll)
-
-	goto_list = VBoxContainer.new()
-	goto_list.add_theme_constant_override("separation", 2)
-	goto_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(goto_list)
-
-	var preview_box = VBoxContainer.new()
-	preview_box.add_theme_constant_override("separation", 10)
-	preview_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	preview_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	content.add_child(preview_box)
-
-	var goto_globe = _make_globe_viewport(360, 280)
-	goto_globe_pivot = goto_globe["pivot"]
-	goto_globe_mat = goto_globe["material"]
-	preview_box.add_child(goto_globe["container"])
-
-	goto_preview_name = Label.new()
-	goto_preview_name.add_theme_font_size_override("font_size", 28)
-	goto_preview_name.add_theme_color_override("font_color", Color(0.95, 0.96, 0.98))
-	goto_preview_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	preview_box.add_child(goto_preview_name)
-
-	goto_preview_kind = Label.new()
-	goto_preview_kind.add_theme_font_size_override("font_size", 14)
-	goto_preview_kind.add_theme_color_override("font_color", Color(0.65, 0.7, 0.78))
-	goto_preview_kind.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	preview_box.add_child(goto_preview_kind)
-
-	goto_preview_desc = Label.new()
-	goto_preview_desc.add_theme_font_size_override("font_size", 13)
-	goto_preview_desc.add_theme_color_override("font_color", Color(0.75, 0.78, 0.82))
-	goto_preview_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	goto_preview_desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	preview_box.add_child(goto_preview_desc)
-
-	var action_row = HBoxContainer.new()
-	action_row.add_theme_constant_override("separation", 12)
-	action_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	preview_box.add_child(action_row)
-
-	var travel_btn = make_button("Travel  (click name)", func():
-		if goto_selected != "":
-			_start_loading_then_go(goto_selected, false)
-	)
-	travel_btn.custom_minimum_size = Vector2(180, 36)
-	action_row.add_child(travel_btn)
-
-	var follow_btn = make_button("Follow  (F)", func():
-		if goto_selected != "":
-			_start_loading_then_go(goto_selected, true)
-	)
-	follow_btn.custom_minimum_size = Vector2(140, 36)
-	action_row.add_child(follow_btn)
-
-	_populate_goto_list("planet")
-	_show_goto_preview("")
+	goto_panel.set_up(bodies_node, scene_root)
+	goto_panel.travel_requested.connect(func(body_name, follow):
+		goto_selected = body_name
+		_start_loading_then_go(body_name, follow))
+	goto_panel.mission_requested.connect(func(body_name):
+		if scene_root.has_method("show_planet_info"):
+			scene_root.show_planet_info(body_name)
+		if scene_root.has_method("_on_mission_pressed"):
+			scene_root._on_mission_pressed())
+	goto_panel.closed.connect(func(): goto_open = false)
 	_build_loading_screen()
 
 func _make_globe_viewport(width: int, height: int) -> Dictionary:
@@ -627,102 +491,16 @@ func _build_loading_screen():
 	loading_panel.add_child(loading_status)
 
 func open_goto():
+	if bodies_node and goto_panel.bodies_node == null:
+		goto_panel.set_up(bodies_node, scene_root)
 	goto_open = true
-	goto_panel.visible = true
-	_populate_goto_list(current_goto_category)
+	goto_panel.open()
 
 func close_goto():
 	goto_open = false
-	goto_panel.visible = false
 	goto_selected = ""
-
-func _on_goto_category(kind: String):
-	current_goto_category = kind
-	for k in goto_category_buttons:
-		goto_category_buttons[k].button_pressed = (k == kind)
-	_populate_goto_list(kind)
-	_show_goto_preview("")
-
-func _populate_goto_list(kind: String):
-	for child in goto_list.get_children():
-		child.queue_free()
-
-	if kind == "planet":
-		_add_goto_entry("Sun")
-
-	for body_name in SolarSystemData.BODY_ORDER:
-		if not SolarSystemData.BODIES.has(body_name):
-			continue
-		var data = SolarSystemData.BODIES[body_name]
-		if data["kind"] == kind:
-			_add_goto_entry(body_name)
-
-func _add_goto_entry(body_name: String):
-	if not SolarSystemData.BODIES.has(body_name):
-		return
-	var data = SolarSystemData.BODIES[body_name]
-	var btn = Button.new()
-	btn.text = "  " + str(data.get("label", body_name))
-	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	btn.focus_mode = Control.FOCUS_NONE
-	btn.custom_minimum_size.y = 32
-	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var normal = StyleBoxFlat.new()
-	normal.bg_color = Color(0.12, 0.14, 0.18, 0.6)
-	normal.set_content_margin_all(6)
-	var hover = StyleBoxFlat.new()
-	hover.bg_color = Color(0.22, 0.28, 0.38, 0.9)
-	hover.set_content_margin_all(6)
-	var pressed = StyleBoxFlat.new()
-	pressed.bg_color = Color(0.3, 0.4, 0.55, 1.0)
-	pressed.set_content_margin_all(6)
-	btn.add_theme_stylebox_override("normal", normal)
-	btn.add_theme_stylebox_override("hover", hover)
-	btn.add_theme_stylebox_override("pressed", pressed)
-	btn.add_theme_stylebox_override("focus", hover)
-
-	btn.mouse_entered.connect(_show_goto_preview.bind(body_name))
-	btn.pressed.connect(func():
-		goto_selected = body_name
-		_start_loading_then_go(body_name, false)
-	)
-	goto_list.add_child(btn)
-
-func _show_goto_preview(body_name: String):
-	goto_selected = body_name
-	if body_name == "" or not SolarSystemData.BODIES.has(body_name):
-		_apply_globe_material(goto_globe_mat, "")
-		goto_preview_name.text = "Hover over a destination"
-		goto_preview_kind.text = ""
-		goto_preview_desc.text = "Select a body from the list.\nClick name = Travel    |    Press F = Follow"
-		return
-
-	var data = SolarSystemData.BODIES[body_name]
-	goto_preview_name.text = str(data.get("label", body_name))
-	var kind_label = str(data.get("kind", "")).capitalize()
-	if data.get("kind") == "star":
-		kind_label = "Star"
-	elif data.get("kind") == "dwarf":
-		kind_label = "Dwarf planet"
-	goto_preview_kind.text = kind_label
-	_apply_globe_material(goto_globe_mat, body_name)
-
-	var desc = ""
-	match data.get("kind"):
-		"star":
-			desc = "The center of the solar system."
-		"planet":
-			desc = "A major planet orbiting the Sun."
-		"moon":
-			desc = "A natural satellite."
-		"dwarf":
-			desc = "A dwarf planet in the outer solar system."
-		"comet":
-			desc = "An icy body with a highly elliptical orbit."
-		"spacecraft":
-			desc = "A human-made probe or craft."
-	goto_preview_desc.text = desc + "\n\nClick name = Travel    |    Press F = Follow"
+	if goto_panel.is_open():
+		goto_panel.close()
 
 func _apply_globe_material(mat: StandardMaterial3D, body_name: String) -> void:
 	if mat == null:

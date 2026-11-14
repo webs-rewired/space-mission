@@ -16,3 +16,6 @@ In code: `label.theme_type_variation = "DataLabel"`
 
 All five are free to use and ship in a game under the SIL Open Font License (the `OFL_*.txt` files here),
 from Google Fonts (https://fonts.google.com).
+
+The destination codex (the solar system's Go to... menu) uses the same fonts with its own colors and sizes,
+in `assets/ui/codex_theme.tres` (Space Grotesk titles, JetBrains Mono labels, Inter text, slanted Inter for notes).
