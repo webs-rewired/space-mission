@@ -52,6 +52,32 @@ func _ready():
 	play_ending_sound()
 	try_again_button.pressed.connect(_on_try_again_pressed)
 	new_destination_button.pressed.connect(_on_new_destination_pressed)
+	play_entrance()
+
+# The report builds itself on screen like the Webs With U site (scripts/ui_motion.gd): the report panel glides in
+# from the left, the headline's letters rise into place, the patch and grade pop in, and the numbers count up.
+# (Because of this, the loading screen doesn't slide this scene's panels in itself.)
+func plays_own_entrance():
+	return true
+
+func play_entrance():
+	var start = 0.45   # the loading screen is still lifting away until about then
+	UiMotion.slide_in($Layout/ReportPanel, start, Vector2(-50, 0), 0.8)
+	UiMotion.reveal_text(kicker_label, start + 0.2, 0.6, 0.3)
+	UiMotion.reveal_text(outcome_label, start + 0.3, 0.9, 0.5)
+	UiMotion.slide_in(score_label, start + 0.55, Vector2(0, 16), 0.6)
+	UiMotion.slide_in($Layout/ReportPanel/VBox/Scroll, start + 0.7, Vector2(0, 20), 0.7)
+	UiMotion.slide_in($Layout/ReportPanel/VBox/Buttons, start + 0.85, Vector2(0, 14), 0.6)
+	UiMotion.pop_in(patch, start + 0.3, 0.7)
+	UiMotion.slide_in($Layout/Side/GradeTile, start + 0.55, Vector2(40, 0), 0.7)
+	UiMotion.pop_in(grade_label, start + 0.8, 0.6)
+	UiMotion.stagger(stats_grid.get_children(), start + 0.7, 0.07, Vector2(30, 0), 0.6)
+	if not GameState.lost:
+		var tiles = stats_grid.get_children()
+		if tiles.size() >= 2:
+			UiMotion.count_up(tiles[0].get_child(0).get_child(1), GameState.science, func(value): return "%d points" % int(value), start + 0.8, 1.4)
+			UiMotion.count_up(tiles[1].get_child(0).get_child(1), GameState.data_share * 100.0, func(value): return "%d %%" % int(value), start + 0.9, 1.4)
+		UiMotion.count_up(score_label, GameState.score, func(value): return "Score: %d / 100\n%s" % [int(value), GameState.ending], start + 0.55, 1.4)
 
 func _process(delta):
 	planet.rotate_y(delta * 0.04)

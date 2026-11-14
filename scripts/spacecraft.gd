@@ -251,7 +251,7 @@ static func make_model(data):
 		var biggest = max(box.size.x, max(box.size.y, box.size.z))
 		var shrink = 2.0 / max(biggest, 0.000001)
 		model.scale = model.scale * shrink
-		model.position = -box.get_center() * shrink
+		model.position = -body_center(model) * shrink
 	# Put every part on light layer 2 too, so the spacecraft's own little sunlight lights only the spacecraft
 	for part in holder.find_children("*", "VisualInstance3D", true, false):
 		part.layers = part.layers | 2
@@ -292,6 +292,47 @@ static func model_bounds(node, parent_transform, box):
 	for child in node.get_children():
 		box = model_bounds(child, here, box)
 	return box
+
+# The middle of a model's main body, seen from above (x and z; y is the middle of the box). A plain box around
+# the model gets pulled toward long wings and booms (Juno's three solar wings and its magnetometer arm, a dish on
+# one side), so models centered on their box sat off-center on the turntable and in front of the camera. The body
+# is where most of a model's points are (wings and booms are mostly flat panels with few points), so the middle of
+# the points, half on each side, lands on the body.
+static func body_center(model):
+	var points = PackedVector3Array()
+	collect_points(model, Transform3D.IDENTITY, points)
+	var box = model_bounds(model, Transform3D.IDENTITY, null)
+	if points.size() < 8 or box == null:
+		return box.get_center() if box != null else Vector3.ZERO
+	var across = []
+	var deep = []
+	for point in points:
+		across.append(point.x)
+		deep.append(point.z)
+	across.sort()
+	deep.sort()
+	var middle = Vector3(across[across.size() / 2], box.get_center().y, deep[deep.size() / 2])
+	# Stay inside the box (a model made of a few big flat panels could pull the middle out to an edge)
+	middle.x = clamp(middle.x, box.position.x + box.size.x * 0.2, box.end.x - box.size.x * 0.2)
+	middle.z = clamp(middle.z, box.position.z + box.size.z * 0.2, box.end.z - box.size.z * 0.2)
+	return middle
+
+# Every point of every mesh in a model (only some of them for very detailed meshes), placed where it is in the model
+static func collect_points(node, parent_transform, points):
+	var here = parent_transform
+	if node is Node3D:
+		here = parent_transform * node.transform
+	if node is MeshInstance3D and node.mesh != null:
+		for surface in node.mesh.get_surface_count():
+			var arrays = node.mesh.surface_get_arrays(surface)
+			if arrays.size() <= Mesh.ARRAY_VERTEX or arrays[Mesh.ARRAY_VERTEX] == null:
+				continue
+			var vertices = arrays[Mesh.ARRAY_VERTEX]
+			var step = max(1, vertices.size() / 3000)
+			for index in range(0, vertices.size(), step):
+				points.append(here * vertices[index])
+	for child in node.get_children():
+		collect_points(child, here, points)
 
 # A simple stand-in probe (gold box, white dish pointing along +Y, and a boom), used when a model file is missing
 static func build_simple_probe():

@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://scripts/loading_screen.gd" id="1_loading"]
+[ext_resource type="Script" path="res://scripts/orbit_spinner.gd" id="2_orbit"]
 
 [sub_resource type="StyleBoxFlat" id="bar_back"]
 bg_color = Color(0.1, 0.13, 0.2, 1)
@@ -42,6 +43,12 @@ custom_minimum_size = Vector2(560, 0)
 layout_mode = 2
 theme_override_constants/separation = 14
 
+[node name="Orbit" type="Control" parent="Cover/Center/Column"]
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_orbit")
+
 [node name="Kicker" type="Label" parent="Cover/Center/Column"]
 theme_type_variation = &"DataLabel"
 layout_mode = 2
@@ -55,6 +62,13 @@ theme_type_variation = &"TitleLabel"
 layout_mode = 2
 theme_override_font_sizes/font_size = 48
 text = "SOLAR SYSTEM"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Cover/Center/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.76, 0.85, 1)
+theme_override_font_sizes/font_size = 16
+text = "Every world is where it really is today"
 horizontal_alignment = 1
 
 [node name="Progress" type="ProgressBar" parent="Cover/Center/Column"]
@@ -91,3 +105,14 @@ theme_override_font_sizes/font_size = 17
 text = "A launch window opens when the planets line up."
 horizontal_alignment = 1
 autowrap_mode = 3
+
+[node name="Wipe" type="ColorRect" parent="."]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.45, 0.8, 1, 1)
+editor_description = "The blue sheet that sweeps up the screen at the start of every scene change (loading_screen.gd)."

@@ -348,6 +348,10 @@ func build_controls():
 	update_scale_note(false)
 	switch_panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_MINSIZE, 12)
 	switch_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	# Sit above the time bar's row, so on smaller screens the long time bar can't slide under this panel
+	# (it used to, and then the panel caught the clicks meant for the Reverse button)
+	switch_panel.offset_top -= 52
+	switch_panel.offset_bottom -= 52
 
 	# Key help in the top left
 	var help_panel = PanelContainer.new()

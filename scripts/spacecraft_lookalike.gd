@@ -119,8 +119,9 @@ static func load_model(lookalike_id, size):
 		model.free()
 		return null
 	var shrink = size / max(box.size.x, max(box.size.y, box.size.z), 0.001)
+	var middle = Spacecraft.body_center(model)   # the body, not the middle of the box (see Spacecraft.body_center)
 	model.scale = model.scale * shrink
-	model.position = -Vector3(box.get_center().x, box.position.y, box.get_center().z) * shrink
+	model.position = -Vector3(middle.x, box.position.y, middle.z) * shrink
 	var holder = Node3D.new()
 	holder.add_child(model)
 	return holder

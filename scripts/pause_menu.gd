@@ -86,6 +86,11 @@ func open():
 	confirm_box.visible = false
 	buttons.visible = true
 	screen.visible = true
+	# The screen dims, the panel pops in and its buttons come up one after another (scripts/ui_motion.gd)
+	screen.modulate.a = 0.0
+	screen.create_tween().tween_property(screen, "modulate:a", 1.0, 0.2)
+	UiMotion.pop_in($Screen/Center/Panel, 0.0, 0.4)
+	UiMotion.stagger(buttons.get_children(), 0.08, 0.04, Vector2(0, 12), 0.45)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	if not get_tree().paused:
 		get_tree().paused = true

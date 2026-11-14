@@ -57,6 +57,8 @@ const FADE_OUT_TIME = 14.0   # screen fades to black...
 const LOOP_TIME = 15.5       # ...then the launch starts over
 
 const PAD_TOP = 2.2   # height of the launch platform deck above the water
+const LAUNCH_MOUNT_HEIGHT = 1.1   # the launch mount the rocket stands on, on top of the deck
+const LAUNCH_MOUNT_TOP = PAD_TOP + LAUNCH_MOUNT_HEIGHT
 const CAM_BASE = Vector3(20, 2.5, 28)
 
 # Which rocket to show:
@@ -78,6 +80,9 @@ const LOOK = "moody"
 const HEAVY_EFFECTS = true
 # Size of the black cinematic bars at the top and bottom (fraction of screen height)
 const BAR_SIZE = 0.12
+const ROCKET_DISPLAY_NAMES = {
+	"sls": "SPACE LAUNCH SYSTEM", "saturn_v": "SATURN V", "falcon9": "FALCON 9", "starship": "STARSHIP", "custom": "LAUNCH VEHICLE",
+}
 const FOCUS_START = 9.0   # camera aims at this height at the start of each launch
 
 # OPTIONAL: use your own 3D model instead of the built-in rocket.
@@ -280,6 +285,9 @@ var sky_mat: ShaderMaterial
 var star_mat: StandardMaterial3D
 var env: Environment
 var fade: ColorRect
+var launch_clock: Label        # the countdown clock in the top bar
+var launch_clock_tag: Label    # the event and team name in the top bar
+var current_style := ""        # which rocket is on the pad right now
 var start_button: Button
 var message: Label
 var menu_buttons: VBoxContainer
@@ -370,7 +378,7 @@ func _process(delta: float) -> void:
 	var shake := ramp * clampf(1.0 - altitude / 80.0, 0.0, 1.0)
 
 	# Rocket, flame, light and smoke
-	rocket.position = Vector3(randf_range(-1.0, 1.0) * 0.02 * shake, PAD_TOP + altitude, 0.0)
+	rocket.position = Vector3(randf_range(-1.0, 1.0) * 0.02 * shake, LAUNCH_MOUNT_TOP + altitude, 0.0)
 	var flicker := randf_range(0.85, 1.25)
 	for f in flames:
 		f.visible = lit
@@ -411,11 +419,23 @@ func _process(delta: float) -> void:
 		message.visible = true
 		settings.notice = ""
 
+	_update_launch_clock()
 	# Fade in at the start and out at the end of each loop
 	if not starting:
 		fade.color = Color(0, 0, 0, _fade_alpha())
 		if t >= LOOP_TIME:
 			_reset_launch()
+
+
+# The countdown clock in the top bar: T- before liftoff, T+ after, with the rocket's name and where it flies from
+func _update_launch_clock() -> void:
+	if launch_clock == null:
+		return
+	var seconds_from_liftoff := t - LIFTOFF_TIME
+	var sign_text := "T+" if seconds_from_liftoff >= 0.0 else "T-"
+	var whole := int(absf(seconds_from_liftoff))
+	var status := "HOLD-DOWN RELEASE" if absf(seconds_from_liftoff) < 0.6 else ("IGNITION" if t >= IGNITE_TIME and seconds_from_liftoff < 0.0 else ("LIFTOFF" if seconds_from_liftoff < 3.0 and seconds_from_liftoff >= 0.0 else ("TERMINAL COUNT" if seconds_from_liftoff < 0.0 else "ASCENT")))
+	launch_clock.text = "%s   //   %s   //   %s 00:00:%02d" % [ROCKET_DISPLAY_NAMES.get(current_style, "LAUNCH VEHICLE"), status, sign_text, whole]
 
 
 func _fade_alpha() -> float:
@@ -607,15 +627,57 @@ func _build_scenery() -> void:
 	ocean.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	world.add_child(ocean)
 
-	# Offshore launch platform: a deck standing on four legs in the water
+	# Offshore launch platform, built like the Sea Launch platform Odyssey: a deck on thick columns standing on two
+	# long floats. Under the middle of the deck is a solid flame trench housing (the rocket's exhaust is turned
+	# sideways and out through the two openings), so there is no open gap under the rocket.
 	var concrete := Color(0.5, 0.52, 0.55)
+	var dark_steel := Color(0.22, 0.23, 0.25)
 	_add_mesh(world, _box_mesh(Vector3(14, 0.8, 14)), concrete, Vector3(0, PAD_TOP - 0.4, 0), 0.0, 0.9)
-	for sx in [-1, 1]:
-		for sz in [-1, 1]:
-			_add_mesh(world, _cyl_mesh(0.9, 0.9, PAD_TOP + 6.0), concrete.darkened(0.2), Vector3(sx * 5.8, (PAD_TOP - 6.0) * 0.5, sz * 5.8), 0.0, 0.9)
-	for s_ in [-1, 1]:
-		_add_mesh(world, _box_mesh(Vector3(11.6, 0.35, 0.35)), concrete.darkened(0.3), Vector3(0, -1.5, s_ * 5.8), 0.0, 0.9)
-		_add_mesh(world, _box_mesh(Vector3(0.35, 0.35, 11.6)), concrete.darkened(0.3), Vector3(s_ * 5.8, -1.5, 0), 0.0, 0.9)
+	for side in [-1, 1]:
+		# The floats, half under the water
+		_add_mesh(world, _box_mesh(Vector3(17.0, 2.4, 3.2)), concrete.darkened(0.25), Vector3(0, -1.6, side * 5.8), 0.0, 0.9)
+		for along in [-1, 0, 1]:
+			_add_mesh(world, _cyl_mesh(1.0, 1.0, PAD_TOP + 1.0), concrete.darkened(0.15), Vector3(along * 5.6, (PAD_TOP - 1.0) * 0.5, side * 5.8), 0.0, 0.9)
+		_add_mesh(world, _box_mesh(Vector3(11.2, 0.4, 0.4)), concrete.darkened(0.3), Vector3(0, 0.4, side * 5.8), 0.0, 0.9)
+	# The flame trench housing under the rocket, with an exhaust opening on each side
+	_add_mesh(world, _box_mesh(Vector3(5.2, PAD_TOP + 0.6, 6.0)), concrete.darkened(0.1), Vector3(0, (PAD_TOP - 0.8) * 0.5 - 0.1, 0), 0.0, 0.95)
+	for side in [-1, 1]:
+		_add_mesh(world, _box_mesh(Vector3(3.0, 1.3, 0.1)), Color(0.04, 0.04, 0.045), Vector3(0, 0.75, side * 3.01), 0.0, 1.0)
+	# The launch mount: a raised steel table with a hole the engines fire down through, and hold-down clamps
+	_add_mesh(world, _box_mesh(Vector3(4.4, LAUNCH_MOUNT_HEIGHT, 4.4)), dark_steel, Vector3(0, PAD_TOP + LAUNCH_MOUNT_HEIGHT * 0.5, 0), 0.5, 0.55)
+	_add_mesh(world, _box_mesh(Vector3(2.5, 0.04, 2.5)), Color(0.02, 0.02, 0.02), Vector3(0, LAUNCH_MOUNT_TOP + 0.005, 0), 0.0, 1.0)
+	for corner in [Vector2(-1, -1), Vector2(-1, 1), Vector2(1, -1), Vector2(1, 1)]:
+		_add_mesh(world, _box_mesh(Vector3(0.35, 0.45, 0.35)), Color(0.75, 0.6, 0.12), Vector3(corner.x * 1.45, LAUNCH_MOUNT_TOP + 0.2, corner.y * 1.45), 0.4, 0.5)
+	# Yellow and black hazard stripes around the mount, and a safety railing around the deck edge
+	for index in 16:
+		var stripe_color := Color(0.85, 0.68, 0.1) if index % 2 == 0 else Color(0.06, 0.06, 0.06)
+		var along := -3.0 + (index % 8) * 0.75 + 0.375
+		var edge := -3.0 if index < 8 else 3.0
+		_add_mesh(world, _box_mesh(Vector3(0.75, 0.03, 0.3)), stripe_color, Vector3(along, PAD_TOP + 0.015, edge), 0.0, 0.8)
+		_add_mesh(world, _box_mesh(Vector3(0.3, 0.03, 0.75)), stripe_color, Vector3(edge, PAD_TOP + 0.015, along), 0.0, 0.8)
+	var railing := Color(0.85, 0.75, 0.2)
+	for side in [-1, 1]:
+		_add_mesh(world, _box_mesh(Vector3(14.0, 0.06, 0.06)), railing, Vector3(0, PAD_TOP + 1.0, side * 6.95), 0.5, 0.5)
+		_add_mesh(world, _box_mesh(Vector3(0.06, 0.06, 14.0)), railing, Vector3(side * 6.95, PAD_TOP + 1.0, 0), 0.5, 0.5)
+		for post in 8:
+			var spot := -6.95 + post * (13.9 / 7.0)
+			_add_mesh(world, _box_mesh(Vector3(0.06, 1.0, 0.06)), railing, Vector3(spot, PAD_TOP + 0.5, side * 6.95), 0.5, 0.5)
+			_add_mesh(world, _box_mesh(Vector3(0.06, 1.0, 0.06)), railing, Vector3(side * 6.95, PAD_TOP + 0.5, spot), 0.5, 0.5)
+	# Water deluge pipes that run to the mount (they flood the pad with water at ignition to soak up the noise)
+	for side in [-1, 1]:
+		_add_mesh(world, _cyl_mesh(0.14, 0.14, 4.6), Color(0.6, 0.62, 0.66), Vector3(side * 4.6, PAD_TOP + 0.15, 0), 0.6, 0.4).rotation_degrees = Vector3(90, 0, 0)
+	# A lightning mast at each far corner, like the masts around real launch pads
+	for corner in [Vector2(5.9, -5.9), Vector2(5.9, 5.9)]:
+		_add_mesh(world, _cyl_mesh(0.1, 0.04, 16.0), Color(0.38, 0.4, 0.43), Vector3(corner.x, PAD_TOP + 8.0, corner.y), 0.7, 0.5)
+		var beacon := _add_mesh(world, SphereMesh.new(), Color(1.0, 0.15, 0.1), Vector3(corner.x, PAD_TOP + 16.1, corner.y), 0.0, 0.4)
+		beacon.scale = Vector3.ONE * 0.22
+		var beacon_material := beacon.material_override as StandardMaterial3D
+		beacon_material.emission_enabled = true
+		beacon_material.emission = Color(1.0, 0.1, 0.05)
+		beacon_material.emission_energy_multiplier = 4.0
+	# A small blockhouse on the deck where the pad crew works before they leave the platform
+	_add_mesh(world, _box_mesh(Vector3(2.6, 1.8, 2.2)), Color(0.82, 0.83, 0.85), Vector3(4.8, PAD_TOP + 0.9, -4.6), 0.0, 0.7)
+	_add_mesh(world, _box_mesh(Vector3(1.6, 0.4, 0.05)), Color(0.15, 0.3, 0.45), Vector3(4.8, PAD_TOP + 1.2, -3.48), 0.6, 0.2)
 
 	# Launch tower (4 posts and cross beams)
 	var tower := Node3D.new()
@@ -633,7 +695,7 @@ func _build_scenery() -> void:
 
 	# Swing arm that reaches the rocket and then swings away at ignition
 	arm_pivot = Node3D.new()
-	arm_pivot.position = Vector3(-4.6, PAD_TOP + 6.0, 0)
+	arm_pivot.position = Vector3(-4.6, LAUNCH_MOUNT_TOP + 6.0, 0)
 	world.add_child(arm_pivot)
 	_add_mesh(arm_pivot, _box_mesh(Vector3(3.0, 0.3, 0.5)), Color(0.8, 0.3, 0.1), Vector3(1.5, 0, 0), 0.3, 0.6)
 
@@ -675,7 +737,7 @@ func _pick_style() -> String:
 
 func _build_rocket() -> void:
 	rocket = Node3D.new()
-	rocket.position = Vector3(0, PAD_TOP, 0)
+	rocket.position = Vector3(0, LAUNCH_MOUNT_TOP, 0)
 	world.add_child(rocket)
 
 	# Your own model if ROCKET_MODEL is set, otherwise one of the built-in rockets
@@ -684,6 +746,7 @@ func _build_rocket() -> void:
 		_add_flame(Vector3.ZERO, 0.5, 3.4)
 	else:
 		var style := _pick_style()
+		current_style = style
 		if not _add_real_rocket(style):
 			match style:
 				"sls":
@@ -728,6 +791,11 @@ func _add_real_rocket(style: String) -> bool:
 	var shrink: float = MENU_ROCKET_HEIGHT / box.size.y
 	model.scale = Vector3.ONE * shrink
 	model.position = Vector3(-box.get_center().x * shrink, -box.position.y * shrink, -box.get_center().z * shrink)
+	# Every flame on the model starts hidden (the upper stages' flames too: they used to hang below the rocket
+	# and through the platform). Only the first stage and boosters light for this launch.
+	for node in model.find_children("*", "", true, false):
+		if node.has_meta("is_flame"):
+			node.visible = false
 	for flame in built["bottom_flames"] + built["booster_flames"]:
 		flame.set_meta("base_scale", flame.scale)
 		flame.visible = false
@@ -1163,19 +1231,22 @@ func _black_bar(top: bool) -> void:
 
 
 # The game's fonts (assets/fonts, set up in assets/ui/orbit_lab_theme.tres), with extra letter spacing.
-# role: "logo" (Orbitron, for the title), "heading" (Barlow Condensed) or "body" (Inter).
+# role: "logo" (Space Grotesk bold, for the title), "heading" (Space Grotesk) or "body" (Inter).
 # If the font files are missing, Godot's built-in font is used instead.
 const FONT_FILES = {
-	"logo": "res://assets/fonts/Orbitron-Variable.ttf",
-	"heading": "res://assets/fonts/BarlowCondensed-SemiBold.ttf",
+	"logo": "res://assets/fonts/SpaceGrotesk-Variable.ttf",
+	"heading": "res://assets/fonts/SpaceGrotesk-Variable.ttf",
 	"body": "res://assets/fonts/Inter-Variable.ttf",
 }
 func _menu_font(spacing: int, role := "heading") -> FontVariation:
 	var font := FontVariation.new()
 	var path: String = FONT_FILES.get(role, "")
 	font.base_font = load(path) if path != "" and ResourceLoader.exists(path) else ThemeDB.fallback_font
+	var weight_tag = TextServerManager.get_primary_interface().name_to_tag("wght")
 	if role == "logo":
-		font.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 700}
+		font.variation_opentype = {weight_tag: 700}
+	elif role == "heading":
+		font.variation_opentype = {weight_tag: 500}
 	font.spacing_glyph = spacing
 	return font
 
@@ -1195,13 +1266,14 @@ func _menu_button(text: String, size: int, action: Callable) -> Button:
 	button.add_theme_color_override("font_disabled_color", Color(0.6, 0.65, 0.7))
 	button.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.45))   # readable over the bright sky
 	button.add_theme_constant_override("outline_size", 4)
-	for style_name in ["normal", "hover", "pressed", "focus", "disabled"]:
-		button.add_theme_stylebox_override(style_name, StyleBoxEmpty.new())
+	UiMotion.add_hover_slide(button)   # on hover the text slides right and an accent bar grows (scripts/ui_motion.gd)
 	button.pressed.connect(action)
+	button.set_meta("keeps_keyboard_focus", true)   # (scripts/game_settings.gd leaves these buttons' focus alone)
 	return button
 
 
 func _build_ui() -> void:
+	var first_ui_index := layer.get_child_count()
 	# Cinematic black bars, like a movie
 	_black_bar(true)
 	_black_bar(false)
@@ -1226,6 +1298,45 @@ func _build_ui() -> void:
 	layer.add_child(tagline)
 	_place(tagline, 0.068, 0.2, 0.068, 0.2)
 	tagline.offset_top = 84.0
+	# A thin accent line under the tagline that draws itself in
+	var tagline_line := ColorRect.new()
+	tagline_line.color = Color(0.45, 0.8, 1.0, 0.8)
+	tagline_line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(tagline_line)
+	_place(tagline_line, 0.068, 0.2, 0.068, 0.2)
+	tagline_line.offset_top = 118.0
+	tagline_line.offset_bottom = 120.0
+	tagline_line.offset_right = 0.0
+
+	# Launch telemetry along the top bar: the countdown clock (T- before liftoff, T+ after), the rocket and the pad
+	launch_clock = Label.new()
+	launch_clock.theme_type_variation = "DataLabel"
+	launch_clock.add_theme_font_size_override("font_size", 14)
+	launch_clock.add_theme_color_override("font_color", Color(0.75, 0.82, 0.9, 0.9))
+	launch_clock.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	launch_clock.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	launch_clock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(launch_clock)
+	_place(launch_clock, 0.4, 0.0, 0.97, BAR_SIZE)
+	launch_clock_tag = Label.new()
+	launch_clock_tag.theme_type_variation = "DataLabel"
+	launch_clock_tag.add_theme_font_size_override("font_size", 14)
+	launch_clock_tag.add_theme_color_override("font_color", Color(0.45, 0.8, 1.0, 0.9))
+	launch_clock_tag.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	launch_clock_tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	launch_clock_tag.text = "NASA SPACE APPS CHALLENGE 2026   //   ASTRA VANGUARD"
+	layer.add_child(launch_clock_tag)
+	_place(launch_clock_tag, 0.03, 0.0, 0.5, BAR_SIZE)
+	# The menu opens like the Webs With U site: the title's letters rise into place one after another, then
+	# the tagline, the accent line and each menu item
+	UiMotion.reveal_text(title, 0.25, 1.2, 0.7)
+	UiMotion.reveal_text(tagline, 0.8, 0.9, 0.5)
+	var line_tween := tagline_line.create_tween().set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT)
+	line_tween.tween_interval(1.2)
+	line_tween.tween_property(tagline_line, "offset_right", 260.0, 1.0)
+	for label in [launch_clock, launch_clock_tag]:
+		label.modulate.a = 0.0
+		label.create_tween().tween_property(label, "modulate:a", 1.0, 1.2).set_delay(1.6)
 
 	# The menu: small spaced-out white text on the left, no boxes (like "PRESS ANY BUTTON")
 	menu_buttons = VBoxContainer.new()
@@ -1240,6 +1351,10 @@ func _build_ui() -> void:
 	menu_buttons.add_child(_menu_button("Credits", 18, _open_panel.bind("credits")))
 	menu_buttons.add_child(_menu_button("Quit", 18, _on_quit_pressed))
 	start_button.grab_focus()   # Enter / Space also works
+	var item_number := 0
+	for button in menu_buttons.get_children():
+		UiMotion.reveal_text(button, 1.1 + item_number * 0.09, 0.8, 0.35)
+		item_number += 1
 
 	# Shows a hint if START_SCENE is wrong (instead of crashing), and any notice from the settings
 	message = Label.new()
@@ -1261,6 +1376,8 @@ func _build_ui() -> void:
 	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(fade)
 	fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# The fade at the end of each launch only darkens the launch behind the menu, not the menu itself
+	layer.move_child(fade, first_ui_index)
 
 
 # A dark see-through panel on the right side of the screen, with a heading and a Close button
@@ -1454,12 +1571,20 @@ func _build_credits_panel() -> void:
 func _open_panel(which: String) -> void:
 	if starting:
 		return
+	var was_open := {"settings": settings_panel.visible, "credits": credits_panel.visible, "how_to_play": how_to_play_panel.visible, "archive": archive_panel.visible}
 	settings_panel.visible = which == "settings"
 	credits_panel.visible = which == "credits"
 	how_to_play_panel.visible = which == "how_to_play"
 	archive_panel.visible = which == "archive"
 	if which == "archive":
 		_fill_archive()
+	var opened: Control = {"settings": settings_panel, "credits": credits_panel, "how_to_play": how_to_play_panel, "archive": archive_panel}.get(which, null)
+	if opened and not was_open.get(which, false):
+		# The panel glides in from the right, then its heading and rows come up one after another
+		UiMotion.slide_in(opened, 0.0, Vector2(60, 0), 0.6)
+		var column := opened.get_child(0)
+		UiMotion.reveal_text(column.get_child(0), 0.12, 0.7)
+		UiMotion.stagger(column.get_child(1).get_children(), 0.2, 0.05, Vector2(0, 16), 0.6)
 
 
 func _on_quit_pressed() -> void:
