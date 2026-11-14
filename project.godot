@@ -29,13 +29,13 @@ window/size/mode=2
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
-[physics]
-
-3d/physics_engine="Jolt Physics"
-
 [gui]
 
 theme/custom="res://assets/ui/orbit_lab_theme.tres"
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
 
 [rendering]
 
