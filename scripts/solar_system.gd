@@ -70,32 +70,8 @@ func _ready():
 	stats_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	fit_panel()
 	bodies_node = get_tree().get_first_node_in_group("solar_system_world")
-	add_start_prompt()
-
-# Until a world is picked, a prompt across the top says what to do first (it goes away once you click one)
-var start_prompt: Label = null
-func add_start_prompt():
-	var layer = get_node_or_null("CanvasLayer")
-	if layer == null:
-		return
-	start_prompt = Label.new()
-	start_prompt.text = "CHOOSE A DESTINATION\nClick any planet or moon (or its name) to read about it and plan a mission"
-	start_prompt.theme_type_variation = "TitleLabel"
-	start_prompt.add_theme_font_size_override("font_size", 24)
-	start_prompt.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
-	start_prompt.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
-	start_prompt.add_theme_constant_override("outline_size", 8)
-	start_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	start_prompt.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	start_prompt.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	start_prompt.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	start_prompt.offset_top = 70
-	layer.add_child(start_prompt)
 
 func _process(delta):
-	if start_prompt:
-		start_prompt.visible = selected_planet == ""
-		start_prompt.modulate.a = 0.7 + 0.3 * sin(Time.get_ticks_msec() / 1000.0 * 2.5)
 	# Keep the "Right now" line live while the stats are open
 	if info_panel.visible and selected_planet != "":
 		seconds_until_refresh -= delta
