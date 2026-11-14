@@ -285,6 +285,7 @@ var message: Label
 var menu_buttons: VBoxContainer
 var settings_panel: PanelContainer
 var credits_panel: PanelContainer
+var how_to_play_panel: PanelContainer
 var settings: Node = null   # scripts/game_settings.gd (null if the game was started without GameState)
 
 
@@ -1231,6 +1232,7 @@ func _build_ui() -> void:
 	_place(menu_buttons, 0.066, 0.52, 0.066, 0.52)
 	start_button = _menu_button(BUTTON_TEXT, 24, _on_start_pressed)
 	menu_buttons.add_child(start_button)
+	menu_buttons.add_child(_menu_button("How to play", 18, _open_panel.bind("how_to_play")))
 	menu_buttons.add_child(_menu_button("Settings", 18, _open_panel.bind("settings")))
 	menu_buttons.add_child(_menu_button("Credits", 18, _open_panel.bind("credits")))
 	menu_buttons.add_child(_menu_button("Quit", 18, _on_quit_pressed))
@@ -1247,6 +1249,7 @@ func _build_ui() -> void:
 
 	_build_settings_panel()
 	_build_credits_panel()
+	_build_how_to_play_panel()
 
 	# Black overlay for the fades (added last so it draws on top)
 	fade = ColorRect.new()
@@ -1351,6 +1354,38 @@ func _build_settings_panel() -> void:
 	body.add_child(keys)
 
 
+# How to play: the five steps of a mission, the same way NASA builds a real one
+const HOW_TO_PLAY = [
+	["1  CHOOSE A DESTINATION", "The solar system shows where every planet, moon and spacecraft really is today. Click a world to read about it, then press \"Plan a mission\". Far worlds take longer and need more power and money."],
+	["2  DESIGN THE SPACECRAFT", "In the clean room, pick the power source, battery, antenna, engine, shield, instruments and how to land. The Flight Readiness Review on the right checks it like NASA does: every line must be GO or WATCH. You'll see which real NASA spacecraft your design is most like."],
+	["3  PICK A ROCKET", "In the Vehicle Assembly Building, start from a real rocket (Saturn V, SLS, Falcon 9...) or design your own. It needs enough thrust to lift off and enough speed to reach your destination, inside your budget."],
+	["4  LAUNCH AND FLY", "Watch the launch, then speed up time for the trip. Steer through the asteroid belt, make the team's decisions when something goes wrong, and map your world from orbit or land and drive."],
+	["5  THE SCIENCE", "The mission report grades your mission and shows how NASA did it for real. Then try again, or pick a new world."],
+]
+
+
+func _build_how_to_play_panel() -> void:
+	var made := _side_panel("HOW TO PLAY")
+	how_to_play_panel = made[0]
+	var body: VBoxContainer = made[1]
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	body.add_child(scroll)
+	var text := RichTextLabel.new()
+	text.bbcode_enabled = true
+	text.fit_content = true
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.add_theme_font_size_override("normal_font_size", 15)
+	text.add_theme_font_size_override("bold_font_size", 16)
+	var lines := ""
+	for step in HOW_TO_PLAY:
+		lines += "[b][color=#ffcc59]%s[/color][/b]\n%s\n\n" % [step[0], step[1]]
+	lines += "[color=#8fd4ff]Press Esc (or the Menu button) any time for the controls, settings and the main menu.[/color]"
+	text.text = lines
+	scroll.add_child(text)
+
+
 func _build_credits_panel() -> void:
 	var made := _side_panel("CREDITS")
 	credits_panel = made[0]
@@ -1384,6 +1419,7 @@ func _open_panel(which: String) -> void:
 		return
 	settings_panel.visible = which == "settings"
 	credits_panel.visible = which == "credits"
+	how_to_play_panel.visible = which == "how_to_play"
 
 
 func _on_quit_pressed() -> void:
@@ -1405,6 +1441,7 @@ func _on_start_pressed() -> void:
 	starting = true
 	settings_panel.visible = false
 	credits_panel.visible = false
+	how_to_play_panel.visible = false
 	for button in menu_buttons.get_children():
 		button.disabled = true
 	if START_SCENE != "" and GameState.has_method("go_to_scene"):

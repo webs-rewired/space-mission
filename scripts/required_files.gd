@@ -168,6 +168,7 @@ const FILES = [
 	"res://scripts/orbit_math.gd",
 	"res://scripts/orbit_path.gd",
 	"res://scripts/orbit_science.gd",
+	"res://scripts/mission_patch.gd",
 	"res://scripts/pause_menu.gd",
 	"res://scripts/planet_click.gd",
 	"res://scripts/probe_builder.gd",

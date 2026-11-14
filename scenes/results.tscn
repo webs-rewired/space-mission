@@ -1,6 +1,51 @@
 [gd_scene format=3 uid="uid://bdfmkv313vgpn"]
 
 [ext_resource type="Script" uid="uid://bfon5dt3im7oo" path="res://scripts/results.gd" id="1_qh7lt"]
+[ext_resource type="Script" path="res://scripts/mission_patch.gd" id="2_patch"]
+
+[sub_resource type="Environment" id="space_environment"]
+background_mode = 1
+background_color = Color(0, 0, 0, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.35, 0.4, 0.5, 1)
+ambient_light_energy = 0.25
+tonemap_mode = 2
+glow_enabled = true
+glow_intensity = 0.4
+
+[sub_resource type="SphereMesh" id="planet_mesh"]
+radial_segments = 96
+rings = 48
+
+[sub_resource type="StandardMaterial3D" id="planet_material"]
+roughness = 0.95
+
+[sub_resource type="StyleBoxFlat" id="panel_style"]
+content_margin_left = 22.0
+content_margin_top = 18.0
+content_margin_right = 22.0
+content_margin_bottom = 18.0
+bg_color = Color(0.03, 0.05, 0.09, 0.88)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.45, 0.8, 1, 0.35)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="tile_style"]
+content_margin_left = 12.0
+content_margin_top = 8.0
+content_margin_right = 12.0
+content_margin_bottom = 8.0
+bg_color = Color(0.06, 0.09, 0.15, 0.9)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
 
 [node name="Results" type="Control" unique_id=1590452666]
 layout_mode = 3
@@ -10,6 +55,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_qh7lt")
+editor_description = "The mission report. Behind it, a 3D view of the world you visited with your spacecraft in front of it (results.gd puts in the right planet picture and spacecraft model)."
 
 [node name="ColorRect" type="ColorRect" parent="." unique_id=2005121368]
 layout_mode = 1
@@ -20,64 +66,172 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0, 0, 0, 1)
 
-[node name="CenterContainer" type="CenterContainer" parent="." unique_id=933016739]
+[node name="View" type="SubViewportContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
+stretch = true
 
-[node name="PanelContainer" type="PanelContainer" parent="CenterContainer" unique_id=1587938545]
-custom_minimum_size = Vector2(640, 0)
+[node name="Viewport" type="SubViewport" parent="View"]
+own_world_3d = true
+handle_input_locally = false
+msaa_3d = 2
+size = Vector2i(1280, 720)
+render_target_update_mode = 4
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="View/Viewport"]
+environment = SubResource("space_environment")
+
+[node name="Sun" type="DirectionalLight3D" parent="View/Viewport"]
+transform = Transform3D(0.5, -0.4, 0.766, 0, 0.887, 0.462, -0.866, -0.231, 0.442, 0, 0, 0)
+light_energy = 1.4
+
+[node name="Camera" type="Camera3D" parent="View/Viewport"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 10)
+fov = 40.0
+
+[node name="Planet" type="MeshInstance3D" parent="View/Viewport"]
+transform = Transform3D(5, 0, 0, 0, 5, 0, 0, 0, 5, 3.2, -1.2, -6)
+mesh = SubResource("planet_mesh")
+surface_material_override/0 = SubResource("planet_material")
+
+[node name="ProbeHolder" type="Node3D" parent="View/Viewport"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 0.4, 3)
+
+[node name="Layout" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 28.0
+offset_top = 24.0
+offset_right = -28.0
+offset_bottom = -24.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 24
+
+[node name="ReportPanel" type="PanelContainer" parent="Layout"]
+custom_minimum_size = Vector2(560, 0)
 layout_mode = 2
+theme_override_styles/panel = SubResource("panel_style")
 
-[node name="VBox" type="VBoxContainer" parent="CenterContainer/PanelContainer" unique_id=256449889]
+[node name="VBox" type="VBoxContainer" parent="Layout/ReportPanel" unique_id=256449889]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="OutcomeLabel" type="Label" parent="CenterContainer/PanelContainer/VBox" unique_id=1709843989]
+[node name="Kicker" type="Label" parent="Layout/ReportPanel/VBox"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 13
+text = "MISSION REPORT"
+
+[node name="OutcomeLabel" type="Label" parent="Layout/ReportPanel/VBox" unique_id=1709843989]
+layout_mode = 2
 theme_type_variation = &"TitleLabel"
-layout_mode = 2
-theme_override_font_sizes/font_size = 36
-horizontal_alignment = 1
+theme_override_font_sizes/font_size = 40
 autowrap_mode = 3
 
-[node name="ScoreLabel" type="Label" parent="CenterContainer/PanelContainer/VBox" unique_id=887121710]
+[node name="ScoreLabel" type="Label" parent="Layout/ReportPanel/VBox" unique_id=887121710]
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
-horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.82, 0.86, 0.92, 1)
+theme_override_font_sizes/font_size = 17
 autowrap_mode = 3
 
-[node name="Scroll" type="ScrollContainer" parent="CenterContainer/PanelContainer/VBox" unique_id=721978134]
-custom_minimum_size = Vector2(0, 380)
+[node name="Scroll" type="ScrollContainer" parent="Layout/ReportPanel/VBox" unique_id=721978134]
 layout_mode = 2
+size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="ScrollColumn" type="VBoxContainer" parent="CenterContainer/PanelContainer/VBox/Scroll" unique_id=1168173626]
+[node name="ScrollColumn" type="VBoxContainer" parent="Layout/ReportPanel/VBox/Scroll" unique_id=1168173626]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 12
 
-[node name="EventsLabel" type="RichTextLabel" parent="CenterContainer/PanelContainer/VBox/Scroll/ScrollColumn" unique_id=1972951000]
+[node name="EventsLabel" type="RichTextLabel" parent="Layout/ReportPanel/VBox/Scroll/ScrollColumn" unique_id=1972951000]
 layout_mode = 2
 size_flags_horizontal = 3
 bbcode_enabled = true
 fit_content = true
 
-[node name="RealMissionLabel" type="Label" parent="CenterContainer/PanelContainer/VBox/Scroll/ScrollColumn" unique_id=513164485]
+[node name="RealMissionLabel" type="Label" parent="Layout/ReportPanel/VBox/Scroll/ScrollColumn" unique_id=513164485]
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.8, 0.84, 0.9, 1)
 autowrap_mode = 3
 
-[node name="Buttons" type="HBoxContainer" parent="CenterContainer/PanelContainer/VBox" unique_id=1675420819]
+[node name="Buttons" type="HBoxContainer" parent="Layout/ReportPanel/VBox" unique_id=1675420819]
 layout_mode = 2
-alignment = 1
+theme_override_constants/separation = 10
 
-[node name="TryAgainButton" type="Button" parent="CenterContainer/PanelContainer/VBox/Buttons" unique_id=1795504851]
+[node name="TryAgainButton" type="Button" parent="Layout/ReportPanel/VBox/Buttons" unique_id=1795504851]
+custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
+size_flags_horizontal = 3
 text = "Try again!"
 
-[node name="NewDestinationButton" type="Button" parent="CenterContainer/PanelContainer/VBox/Buttons" unique_id=1045068697]
+[node name="NewDestinationButton" type="Button" parent="Layout/ReportPanel/VBox/Buttons" unique_id=1045068697]
+custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
+size_flags_horizontal = 3
 text = "New destination"
+
+[node name="Spacer" type="Control" parent="Layout"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Side" type="VBoxContainer" parent="Layout"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_constants/separation = 12
+alignment = 2
+
+[node name="Patch" type="Control" parent="Layout/Side"]
+custom_minimum_size = Vector2(0, 220)
+layout_mode = 2
+script = ExtResource("2_patch")
+
+[node name="GradeTile" type="PanelContainer" parent="Layout/Side"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("tile_style")
+
+[node name="Row" type="HBoxContainer" parent="Layout/Side/GradeTile"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Grade" type="Label" parent="Layout/Side/GradeTile/Row"]
+custom_minimum_size = Vector2(78, 0)
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 60
+text = "A"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Words" type="VBoxContainer" parent="Layout/Side/GradeTile/Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+
+[node name="GradeTitle" type="Label" parent="Layout/Side/GradeTile/Row/Words"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.6, 0.66, 0.75, 1)
+theme_override_font_sizes/font_size = 12
+text = "MISSION GRADE"
+
+[node name="GradeWords" type="Label" parent="Layout/Side/GradeTile/Row/Words"]
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="Stats" type="GridContainer" parent="Layout/Side"]
+layout_mode = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 10
+columns = 2
