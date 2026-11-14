@@ -1,0 +1,805 @@
+[gd_scene load_steps=60 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/places/concrete.png" id="ext_1"]
+[ext_resource type="Texture2D" path="res://assets/places/gravel.png" id="ext_2"]
+[ext_resource type="Texture2D" path="res://assets/places/sign_pad.png" id="ext_3"]
+[ext_resource type="Texture2D" path="res://assets/places/flag.png" id="ext_4"]
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_1"]
+albedo_color = Color(0.7, 0.7, 0.68, 1)
+roughness = 0.9
+metallic = 0
+albedo_texture = ExtResource("ext_1")
+uv1_scale = Vector3(0.07143, 0.07143, 0.07143)
+uv1_triplanar = true
+uv1_world_triplanar = true
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_2"]
+albedo_color = Color(0.16, 0.15, 0.15, 1)
+roughness = 0.9
+metallic = 0
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_3"]
+albedo_color = Color(0.62, 0.64, 0.67, 1)
+roughness = 0.45
+metallic = 0.7
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_4"]
+albedo_color = Color(0.93, 0.94, 0.95, 1)
+roughness = 0.4
+metallic = 0.1
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_5"]
+albedo_color = Color(0.75, 0.16, 0.12, 1)
+roughness = 0.5
+metallic = 0.3
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_6"]
+albedo_color = Color(1, 1, 1, 1)
+roughness = 1
+metallic = 0
+albedo_texture = ExtResource("ext_2")
+uv1_scale = Vector3(0.16667, 0.16667, 0.16667)
+uv1_triplanar = true
+uv1_world_triplanar = true
+
+[sub_resource type="CylinderMesh" id="cylindermesh_7"]
+top_radius = 140
+bottom_radius = 150
+height = 0.5
+radial_segments = 8
+rings = 1
+
+[sub_resource type="BoxMesh" id="boxmesh_8"]
+size = Vector3(18, 0.1, 290)
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_9"]
+albedo_color = Color(0.3, 0.27, 0.25, 1)
+roughness = 0.8
+metallic = 0.3
+
+[sub_resource type="BoxMesh" id="boxmesh_10"]
+size = Vector3(17, 5, 12)
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_11"]
+albedo_color = Color(1, 1, 1, 1)
+roughness = 0.7
+metallic = 0
+albedo_texture = ExtResource("ext_3")
+cull_mode = 2
+
+[sub_resource type="QuadMesh" id="quadmesh_12"]
+size = Vector2(26, 6.5)
+
+[sub_resource type="CylinderMesh" id="cylindermesh_13"]
+top_radius = 0.25
+bottom_radius = 0.25
+height = 5
+radial_segments = 6
+rings = 1
+
+[sub_resource type="BoxMesh" id="boxmesh_14"]
+size = Vector3(0.9, 0.9, 150.18738)
+
+[sub_resource type="CylinderMesh" id="cylindermesh_15"]
+top_radius = 7.75
+bottom_radius = 7.75
+height = 0.5
+radial_segments = 3
+rings = 1
+
+[sub_resource type="CylinderMesh" id="cylindermesh_16"]
+top_radius = 6.5
+bottom_radius = 6.5
+height = 0.5
+radial_segments = 3
+rings = 1
+
+[sub_resource type="CylinderMesh" id="cylindermesh_17"]
+top_radius = 5.25
+bottom_radius = 5.25
+height = 0.5
+radial_segments = 3
+rings = 1
+
+[sub_resource type="CylinderMesh" id="cylindermesh_18"]
+top_radius = 4
+bottom_radius = 4
+height = 0.5
+radial_segments = 3
+rings = 1
+
+[sub_resource type="CylinderMesh" id="cylindermesh_19"]
+top_radius = 2.75
+bottom_radius = 2.75
+height = 0.5
+radial_segments = 3
+rings = 1
+
+[sub_resource type="CylinderMesh" id="cylindermesh_20"]
+top_radius = 0.2
+bottom_radius = 0.7
+height = 31
+radial_segments = 8
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_21"]
+albedo_color = Color(0.3, 0.3, 0.32, 1)
+roughness = 0.5
+metallic = 0.8
+
+[sub_resource type="BoxMesh" id="boxmesh_22"]
+size = Vector3(0.18, 0.18, 128.76723)
+
+[sub_resource type="BoxMesh" id="boxmesh_23"]
+size = Vector3(0.18, 0.18, 104.19213)
+
+[sub_resource type="BoxMesh" id="boxmesh_24"]
+size = Vector3(0.18, 0.18, 166.97605)
+
+[sub_resource type="SphereMesh" id="spheremesh_25"]
+radius = 13
+height = 26
+radial_segments = 24
+rings = 12
+
+[sub_resource type="CylinderMesh" id="cylindermesh_26"]
+top_radius = 1.8
+bottom_radius = 2.6
+height = 70
+radial_segments = 16
+rings = 1
+
+[sub_resource type="BoxMesh" id="boxmesh_27"]
+size = Vector3(0.9, 0.9, 70.45566)
+
+[sub_resource type="CylinderMesh" id="cylindermesh_28"]
+top_radius = 0.5
+bottom_radius = 0.5
+height = 18
+radial_segments = 6
+rings = 1
+
+[sub_resource type="BoxMesh" id="boxmesh_29"]
+size = Vector3(0.8, 0.8, 380)
+
+[sub_resource type="SphereMesh" id="spheremesh_30"]
+radius = 10
+height = 20
+radial_segments = 24
+rings = 12
+
+[sub_resource type="CylinderMesh" id="cylindermesh_31"]
+top_radius = 0.5
+bottom_radius = 0.5
+height = 15
+radial_segments = 6
+rings = 1
+
+[sub_resource type="CylinderMesh" id="cylindermesh_32"]
+top_radius = 0.6
+bottom_radius = 0.6
+height = 30
+radial_segments = 8
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_33"]
+albedo_color = Color(1, 1, 1, 1)
+roughness = 0.4
+metallic = 0
+emission_enabled = true
+emission = Color(1, 0.97, 0.9, 1)
+emission_energy_multiplier = 3
+
+[sub_resource type="CylinderMesh" id="cylindermesh_34"]
+top_radius = 0.4
+bottom_radius = 0.7
+height = 50
+radial_segments = 8
+rings = 1
+
+[sub_resource type="BoxMesh" id="boxmesh_35"]
+size = Vector3(9, 4, 0.8)
+
+[sub_resource type="BoxMesh" id="boxmesh_36"]
+size = Vector3(8.2, 3.2, 0.2)
+
+[sub_resource type="BoxMesh" id="boxmesh_37"]
+size = Vector3(12, 0.06, 4126.34244)
+
+[sub_resource type="BoxMesh" id="boxmesh_38"]
+size = Vector3(46, 0.3, 120)
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_39"]
+albedo_color = Color(0.2, 0.2, 0.21, 1)
+roughness = 0.9
+metallic = 0
+
+[sub_resource type="CylinderMesh" id="cylindermesh_40"]
+top_radius = 330
+bottom_radius = 330
+height = 0.05
+radial_segments = 48
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_41"]
+albedo_color = Color(0.2, 0.26, 0.12, 1)
+roughness = 1
+metallic = 0
+
+[sub_resource type="CylinderMesh" id="cylindermesh_42"]
+top_radius = 322
+bottom_radius = 322
+height = 0.06
+radial_segments = 48
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_43"]
+albedo_color = Color(0.88, 0.89, 0.9, 1)
+roughness = 0.8
+metallic = 0
+
+[sub_resource type="BoxMesh" id="boxmesh_44"]
+size = Vector3(218, 160, 158)
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_45"]
+albedo_color = Color(0.84, 0.85, 0.86, 1)
+roughness = 0.8
+metallic = 0
+
+[sub_resource type="BoxMesh" id="boxmesh_46"]
+size = Vector3(135, 64, 84)
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_47"]
+albedo_color = Color(0.45, 0.47, 0.5, 1)
+roughness = 0.7
+metallic = 0
+
+[sub_resource type="BoxMesh" id="boxmesh_48"]
+size = Vector3(22, 139, 1)
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_49"]
+albedo_color = Color(1, 1, 1, 1)
+roughness = 0.8
+metallic = 0
+albedo_texture = ExtResource("ext_4")
+
+[sub_resource type="QuadMesh" id="quadmesh_50"]
+size = Vector2(121.6, 64)
+
+[sub_resource type="BoxMesh" id="boxmesh_51"]
+size = Vector3(115, 23, 55)
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_52"]
+albedo_color = Color(0.05, 0.2, 0.32, 1)
+roughness = 0.12
+metallic = 0.2
+
+[sub_resource type="PlaneMesh" id="planemesh_53"]
+size = Vector2(24000, 30000)
+
+[sub_resource type="StandardMaterial3D" id="standardmaterial3d_54"]
+albedo_color = Color(0.82, 0.76, 0.6, 1)
+roughness = 1
+metallic = 0
+
+[sub_resource type="BoxMesh" id="boxmesh_55"]
+size = Vector3(90, 0.08, 30000)
+
+[node name="LaunchComplex" type="Node3D"]
+editor_description = "The launch site, laid out like Launch Complex 39B at Kennedy Space Center: flame trench, three lightning towers, the water tower, fuel spheres, the crawlerway to the Vehicle Assembly Building and the Atlantic. The script adds the rocket and its mobile launcher. Made by tools/make_places.py."
+
+[node name="Pad" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+
+[node name="Hardstand" type="MeshInstance3D" parent="Pad"]
+transform = Transform3D(0.92388, 0, 0.38268, 0, 1, 0, -0.38268, 0, 0.92388, 0, 0.25, 0)
+mesh = SubResource("cylindermesh_7")
+surface_material_override/0 = SubResource("standardmaterial3d_1")
+
+[node name="FlameTrench" type="MeshInstance3D" parent="Pad"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0)
+mesh = SubResource("boxmesh_8")
+surface_material_override/0 = SubResource("standardmaterial3d_2")
+cast_shadow = 0
+
+[node name="FlameDeflector" type="MeshInstance3D" parent="Pad"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+mesh = SubResource("boxmesh_10")
+surface_material_override/0 = SubResource("standardmaterial3d_9")
+
+[node name="PadSign" type="MeshInstance3D" parent="Pad"]
+transform = Transform3D(0.64279, 0, -0.76604, 0, 1, 0, 0.76604, 0, 0.64279, -40, 5, 205)
+mesh = SubResource("quadmesh_12")
+surface_material_override/0 = SubResource("standardmaterial3d_11")
+cast_shadow = 0
+
+[node name="SignPost" type="MeshInstance3D" parent="Pad"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -46.4, 2.5, 197.3)
+mesh = SubResource("cylindermesh_13")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="SignPost2" type="MeshInstance3D" parent="Pad"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -33.6, 2.5, 212.7)
+mesh = SubResource("cylindermesh_13")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="LightningTowers" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+
+[node name="Tower" type="Node3D" parent="LightningTowers"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 150, 0, 50)
+
+[node name="Leg" type="MeshInstance3D" parent="LightningTowers/Tower"]
+transform = Transform3D(0, 0.99875, -0.04994, 0, 0.04994, 0.99875, 1, 0, 0, 5.25, 75, 0)
+mesh = SubResource("boxmesh_14")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+cast_shadow = 0
+
+[node name="Leg2" type="MeshInstance3D" parent="LightningTowers/Tower"]
+transform = Transform3D(-0.86603, -0.49938, 0.02497, 0, 0.04994, 0.99875, -0.5, 0.86494, -0.04325, -2.625, 75, 4.54663)
+mesh = SubResource("boxmesh_14")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+cast_shadow = 0
+
+[node name="Leg3" type="MeshInstance3D" parent="LightningTowers/Tower"]
+transform = Transform3D(0.86603, -0.49938, 0.02497, 0, 0.04994, 0.99875, -0.5, -0.86494, 0.04325, -2.625, 75, -4.54663)
+mesh = SubResource("boxmesh_14")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+cast_shadow = 0
+
+[node name="Ring" type="MeshInstance3D" parent="LightningTowers/Tower"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 25, 0)
+mesh = SubResource("cylindermesh_15")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Ring2" type="MeshInstance3D" parent="LightningTowers/Tower"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 50, 0)
+mesh = SubResource("cylindermesh_16")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Ring3" type="MeshInstance3D" parent="LightningTowers/Tower"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 75, 0)
+mesh = SubResource("cylindermesh_17")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Ring4" type="MeshInstance3D" parent="LightningTowers/Tower"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 100, 0)
+mesh = SubResource("cylindermesh_18")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Ring5" type="MeshInstance3D" parent="LightningTowers/Tower"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 125, 0)
+mesh = SubResource("cylindermesh_19")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Mast" type="MeshInstance3D" parent="LightningTowers/Tower"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 165.5, 0)
+mesh = SubResource("cylindermesh_20")
+surface_material_override/0 = SubResource("standardmaterial3d_4")
+
+[node name="Tower2" type="Node3D" parent="LightningTowers"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, -170)
+
+[node name="Leg" type="MeshInstance3D" parent="LightningTowers/Tower2"]
+transform = Transform3D(0, 0.99875, -0.04994, 0, 0.04994, 0.99875, 1, 0, 0, 5.25, 75, 0)
+mesh = SubResource("boxmesh_14")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+cast_shadow = 0
+
+[node name="Leg2" type="MeshInstance3D" parent="LightningTowers/Tower2"]
+transform = Transform3D(-0.86603, -0.49938, 0.02497, 0, 0.04994, 0.99875, -0.5, 0.86494, -0.04325, -2.625, 75, 4.54663)
+mesh = SubResource("boxmesh_14")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+cast_shadow = 0
+
+[node name="Leg3" type="MeshInstance3D" parent="LightningTowers/Tower2"]
+transform = Transform3D(0.86603, -0.49938, 0.02497, 0, 0.04994, 0.99875, -0.5, -0.86494, 0.04325, -2.625, 75, -4.54663)
+mesh = SubResource("boxmesh_14")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+cast_shadow = 0
+
+[node name="Ring" type="MeshInstance3D" parent="LightningTowers/Tower2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 25, 0)
+mesh = SubResource("cylindermesh_15")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Ring2" type="MeshInstance3D" parent="LightningTowers/Tower2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 50, 0)
+mesh = SubResource("cylindermesh_16")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Ring3" type="MeshInstance3D" parent="LightningTowers/Tower2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 75, 0)
+mesh = SubResource("cylindermesh_17")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Ring4" type="MeshInstance3D" parent="LightningTowers/Tower2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 100, 0)
+mesh = SubResource("cylindermesh_18")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Ring5" type="MeshInstance3D" parent="LightningTowers/Tower2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 125, 0)
+mesh = SubResource("cylindermesh_19")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Mast" type="MeshInstance3D" parent="LightningTowers/Tower2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 165.5, 0)
+mesh = SubResource("cylindermesh_20")
+surface_material_override/0 = SubResource("standardmaterial3d_4")
+
+[node name="Tower3" type="Node3D" parent="LightningTowers"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -160, 0, -70)
+
+[node name="Leg" type="MeshInstance3D" parent="LightningTowers/Tower3"]
+transform = Transform3D(0, 0.99875, -0.04994, 0, 0.04994, 0.99875, 1, 0, 0, 5.25, 75, 0)
+mesh = SubResource("boxmesh_14")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+cast_shadow = 0
+
+[node name="Leg2" type="MeshInstance3D" parent="LightningTowers/Tower3"]
+transform = Transform3D(-0.86603, -0.49938, 0.02497, 0, 0.04994, 0.99875, -0.5, 0.86494, -0.04325, -2.625, 75, 4.54663)
+mesh = SubResource("boxmesh_14")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+cast_shadow = 0
+
+[node name="Leg3" type="MeshInstance3D" parent="LightningTowers/Tower3"]
+transform = Transform3D(0.86603, -0.49938, 0.02497, 0, 0.04994, 0.99875, -0.5, -0.86494, 0.04325, -2.625, 75, -4.54663)
+mesh = SubResource("boxmesh_14")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+cast_shadow = 0
+
+[node name="Ring" type="MeshInstance3D" parent="LightningTowers/Tower3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 25, 0)
+mesh = SubResource("cylindermesh_15")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Ring2" type="MeshInstance3D" parent="LightningTowers/Tower3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 50, 0)
+mesh = SubResource("cylindermesh_16")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Ring3" type="MeshInstance3D" parent="LightningTowers/Tower3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 75, 0)
+mesh = SubResource("cylindermesh_17")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Ring4" type="MeshInstance3D" parent="LightningTowers/Tower3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 100, 0)
+mesh = SubResource("cylindermesh_18")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Ring5" type="MeshInstance3D" parent="LightningTowers/Tower3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 125, 0)
+mesh = SubResource("cylindermesh_19")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Mast" type="MeshInstance3D" parent="LightningTowers/Tower3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 165.5, 0)
+mesh = SubResource("cylindermesh_20")
+surface_material_override/0 = SubResource("standardmaterial3d_4")
+
+[node name="Wire" type="MeshInstance3D" parent="LightningTowers"]
+transform = Transform3D(-0.86093, -0.06321, -0.50479, 0, 0.99225, -0.12426, 0.50873, -0.10697, -0.85425, 117.5, 173, -5)
+mesh = SubResource("boxmesh_22")
+surface_material_override/0 = SubResource("standardmaterial3d_21")
+cast_shadow = 0
+
+[node name="Wire2" type="MeshInstance3D" parent="LightningTowers"]
+transform = Transform3D(-0.86093, 0.06321, -0.50479, 0, 0.99225, 0.12426, 0.50873, 0.10697, -0.85425, 52.5, 173, -115)
+mesh = SubResource("boxmesh_22")
+surface_material_override/0 = SubResource("standardmaterial3d_21")
+cast_shadow = 0
+
+[node name="Wire3" type="MeshInstance3D" parent="LightningTowers"]
+transform = Transform3D(0.48564, -0.13424, -0.86379, 0, 0.98814, -0.15356, 0.87416, 0.07458, 0.47988, -25, 173, -145)
+mesh = SubResource("boxmesh_23")
+surface_material_override/0 = SubResource("standardmaterial3d_21")
+cast_shadow = 0
+
+[node name="Wire4" type="MeshInstance3D" parent="LightningTowers"]
+transform = Transform3D(0.48564, 0.13424, -0.86379, 0, 0.98814, 0.15356, 0.87416, -0.07458, 0.47988, -115, 173, -95)
+mesh = SubResource("boxmesh_23")
+surface_material_override/0 = SubResource("standardmaterial3d_21")
+cast_shadow = 0
+
+[node name="Wire5" type="MeshInstance3D" parent="LightningTowers"]
+transform = Transform3D(0.36099, 0.08936, 0.92828, 0, 0.9954, -0.09582, -0.93257, 0.03459, 0.35933, -82.5, 173, -40)
+mesh = SubResource("boxmesh_24")
+surface_material_override/0 = SubResource("standardmaterial3d_21")
+cast_shadow = 0
+
+[node name="Wire6" type="MeshInstance3D" parent="LightningTowers"]
+transform = Transform3D(0.36099, -0.08936, 0.92828, 0, 0.9954, 0.09582, -0.93257, -0.03459, 0.35933, 72.5, 173, 20)
+mesh = SubResource("boxmesh_24")
+surface_material_override/0 = SubResource("standardmaterial3d_21")
+cast_shadow = 0
+
+[node name="WaterTower" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 210, 0, -150)
+
+[node name="Tank" type="MeshInstance3D" parent="WaterTower"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 78, 0)
+mesh = SubResource("spheremesh_25")
+surface_material_override/0 = SubResource("standardmaterial3d_4")
+
+[node name="Column" type="MeshInstance3D" parent="WaterTower"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 35, 0)
+mesh = SubResource("cylindermesh_26")
+surface_material_override/0 = SubResource("standardmaterial3d_4")
+
+[node name="Leg" type="MeshInstance3D" parent="WaterTower"]
+transform = Transform3D(-0.38942, 0.9151, -0.10458, 0, 0.11355, 0.99353, 0.92106, 0.3869, -0.04422, 9.21061, 35, 3.89418)
+mesh = SubResource("boxmesh_27")
+surface_material_override/0 = SubResource("standardmaterial3d_4")
+cast_shadow = 0
+
+[node name="Leg2" type="MeshInstance3D" parent="WaterTower"]
+transform = Transform3D(-0.92106, -0.3869, 0.04422, 0, 0.11355, 0.99353, -0.38942, 0.9151, -0.10458, -3.89418, 35, 9.21061)
+mesh = SubResource("boxmesh_27")
+surface_material_override/0 = SubResource("standardmaterial3d_4")
+cast_shadow = 0
+
+[node name="Leg3" type="MeshInstance3D" parent="WaterTower"]
+transform = Transform3D(0.38942, -0.9151, 0.10458, 0, 0.11355, 0.99353, -0.92106, -0.3869, 0.04422, -9.21061, 35, -3.89418)
+mesh = SubResource("boxmesh_27")
+surface_material_override/0 = SubResource("standardmaterial3d_4")
+cast_shadow = 0
+
+[node name="Leg4" type="MeshInstance3D" parent="WaterTower"]
+transform = Transform3D(0.92106, 0.3869, -0.04422, 0, 0.11355, 0.99353, 0.38942, -0.9151, 0.10458, 3.89418, 35, -9.21061)
+mesh = SubResource("boxmesh_27")
+surface_material_override/0 = SubResource("standardmaterial3d_4")
+cast_shadow = 0
+
+[node name="LiquidHydrogenTank" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 420, 0, -330)
+
+[node name="Sphere" type="MeshInstance3D" parent="LiquidHydrogenTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 17, 0)
+mesh = SubResource("spheremesh_25")
+surface_material_override/0 = SubResource("standardmaterial3d_4")
+
+[node name="Leg" type="MeshInstance3D" parent="LiquidHydrogenTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.4, 9, 0)
+mesh = SubResource("cylindermesh_28")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Leg2" type="MeshInstance3D" parent="LiquidHydrogenTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.2, 9, 9.00666)
+mesh = SubResource("cylindermesh_28")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Leg3" type="MeshInstance3D" parent="LiquidHydrogenTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.2, 9, 9.00666)
+mesh = SubResource("cylindermesh_28")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Leg4" type="MeshInstance3D" parent="LiquidHydrogenTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.4, 9, 0)
+mesh = SubResource("cylindermesh_28")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Leg5" type="MeshInstance3D" parent="LiquidHydrogenTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.2, 9, -9.00666)
+mesh = SubResource("cylindermesh_28")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Leg6" type="MeshInstance3D" parent="LiquidHydrogenTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.2, 9, -9.00666)
+mesh = SubResource("cylindermesh_28")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Pipe" type="MeshInstance3D" parent="LiquidHydrogenTank"]
+transform = Transform3D(0.61782, 0, -0.78632, 0, 1, 0, 0.78632, 0, 0.61782, -176.4, 1.2, 138.6)
+mesh = SubResource("boxmesh_29")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+cast_shadow = 0
+
+[node name="LiquidOxygenTank" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -380, 0, -360)
+
+[node name="Sphere" type="MeshInstance3D" parent="LiquidOxygenTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 14, 0)
+mesh = SubResource("spheremesh_30")
+surface_material_override/0 = SubResource("standardmaterial3d_4")
+
+[node name="Leg" type="MeshInstance3D" parent="LiquidOxygenTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 7.5, 0)
+mesh = SubResource("cylindermesh_31")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Leg2" type="MeshInstance3D" parent="LiquidOxygenTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 7.5, 6.9282)
+mesh = SubResource("cylindermesh_31")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Leg3" type="MeshInstance3D" parent="LiquidOxygenTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 7.5, 6.9282)
+mesh = SubResource("cylindermesh_31")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Leg4" type="MeshInstance3D" parent="LiquidOxygenTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 7.5, 0)
+mesh = SubResource("cylindermesh_31")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Leg5" type="MeshInstance3D" parent="LiquidOxygenTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 7.5, -6.9282)
+mesh = SubResource("cylindermesh_31")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Leg6" type="MeshInstance3D" parent="LiquidOxygenTank"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 7.5, -6.9282)
+mesh = SubResource("cylindermesh_31")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Pipe" type="MeshInstance3D" parent="LiquidOxygenTank"]
+transform = Transform3D(0.68774, 0, 0.72595, 0, 1, 0, -0.72595, 0, 0.68774, 159.6, 1.2, 151.2)
+mesh = SubResource("boxmesh_29")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+cast_shadow = 0
+
+[node name="HydrogenFlareStack" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 520, 0, -180)
+
+[node name="Stack" type="MeshInstance3D" parent="HydrogenFlareStack"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 15, 0)
+mesh = SubResource("cylindermesh_32")
+surface_material_override/0 = SubResource("standardmaterial3d_5")
+
+[node name="Floodlights" type="Node3D" parent="."]
+transform = Transform3D(-0.63688, 0, -0.77096, 0, 1, 0, 0.77096, 0, -0.63688, 230, 0, 190)
+
+[node name="Pole" type="MeshInstance3D" parent="Floodlights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 25, 0)
+mesh = SubResource("cylindermesh_34")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Rack" type="MeshInstance3D" parent="Floodlights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 51, 0)
+mesh = SubResource("boxmesh_35")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Lamps" type="MeshInstance3D" parent="Floodlights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 51, 0.5)
+mesh = SubResource("boxmesh_36")
+surface_material_override/0 = SubResource("standardmaterial3d_33")
+cast_shadow = 0
+
+[node name="Floodlights2" type="Node3D" parent="."]
+transform = Transform3D(-0.5145, 0, 0.85749, 0, 1, 0, -0.85749, 0, -0.5145, -250, 0, 150)
+
+[node name="Pole" type="MeshInstance3D" parent="Floodlights2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 25, 0)
+mesh = SubResource("cylindermesh_34")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Rack" type="MeshInstance3D" parent="Floodlights2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 51, 0)
+mesh = SubResource("boxmesh_35")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Lamps" type="MeshInstance3D" parent="Floodlights2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 51, 0.5)
+mesh = SubResource("boxmesh_36")
+surface_material_override/0 = SubResource("standardmaterial3d_33")
+cast_shadow = 0
+
+[node name="Floodlights3" type="Node3D" parent="."]
+transform = Transform3D(0.90796, 0, -0.41906, 0, 1, 0, 0.41906, 0, 0.90796, 120, 0, -260)
+
+[node name="Pole" type="MeshInstance3D" parent="Floodlights3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 25, 0)
+mesh = SubResource("cylindermesh_34")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Rack" type="MeshInstance3D" parent="Floodlights3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 51, 0)
+mesh = SubResource("boxmesh_35")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Lamps" type="MeshInstance3D" parent="Floodlights3"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 51, 0.5)
+mesh = SubResource("boxmesh_36")
+surface_material_override/0 = SubResource("standardmaterial3d_33")
+cast_shadow = 0
+
+[node name="Floodlights4" type="Node3D" parent="."]
+transform = Transform3D(0.69122, 0, 0.72264, 0, 1, 0, -0.72264, 0, 0.69122, -230, 0, -220)
+
+[node name="Pole" type="MeshInstance3D" parent="Floodlights4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 25, 0)
+mesh = SubResource("cylindermesh_34")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Rack" type="MeshInstance3D" parent="Floodlights4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 51, 0)
+mesh = SubResource("boxmesh_35")
+surface_material_override/0 = SubResource("standardmaterial3d_3")
+
+[node name="Lamps" type="MeshInstance3D" parent="Floodlights4"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 51, 0.5)
+mesh = SubResource("boxmesh_36")
+surface_material_override/0 = SubResource("standardmaterial3d_33")
+cast_shadow = 0
+
+[node name="Crawlerway" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+
+[node name="Lane" type="MeshInstance3D" parent="Crawlerway"]
+transform = Transform3D(-0.68394, 0, 0.72954, 0, 1, 0, -0.72954, 0, -0.68394, 1624.16592, 0.03, -1503.4653)
+mesh = SubResource("boxmesh_37")
+surface_material_override/0 = SubResource("standardmaterial3d_6")
+cast_shadow = 0
+
+[node name="Lane2" type="MeshInstance3D" parent="Crawlerway"]
+transform = Transform3D(-0.68394, 0, 0.72954, 0, 1, 0, -0.72954, 0, -0.68394, 1605.01557, 0.03, -1523.89234)
+mesh = SubResource("boxmesh_37")
+surface_material_override/0 = SubResource("standardmaterial3d_6")
+cast_shadow = 0
+
+[node name="Ramp" type="MeshInstance3D" parent="Crawlerway"]
+transform = Transform3D(-0.68394, 0, 0.72954, 0, 1, 0, -0.72954, 0, -0.68394, 82.07294, 0.3, -76.94338)
+mesh = SubResource("boxmesh_38")
+surface_material_override/0 = SubResource("standardmaterial3d_1")
+cast_shadow = 0
+
+[node name="PerimeterRoad" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)
+mesh = SubResource("cylindermesh_40")
+surface_material_override/0 = SubResource("standardmaterial3d_39")
+
+[node name="Grass" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.025, 0)
+mesh = SubResource("cylindermesh_42")
+surface_material_override/0 = SubResource("standardmaterial3d_41")
+
+[node name="VehicleAssemblyBuilding" type="Node3D" parent="."]
+transform = Transform3D(0.68394, 0, -0.72954, 0, 1, 0, 0.72954, 0, 0.68394, 3200, 0, -3000)
+
+[node name="HighBay" type="MeshInstance3D" parent="VehicleAssemblyBuilding"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 80, 0)
+mesh = SubResource("boxmesh_44")
+surface_material_override/0 = SubResource("standardmaterial3d_43")
+
+[node name="LowBay" type="MeshInstance3D" parent="VehicleAssemblyBuilding"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 32, 121)
+mesh = SubResource("boxmesh_46")
+surface_material_override/0 = SubResource("standardmaterial3d_45")
+
+[node name="Door" type="MeshInstance3D" parent="VehicleAssemblyBuilding"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -54, 69.5, -79.2)
+mesh = SubResource("boxmesh_48")
+surface_material_override/0 = SubResource("standardmaterial3d_47")
+cast_shadow = 0
+
+[node name="Door2" type="MeshInstance3D" parent="VehicleAssemblyBuilding"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 54, 69.5, -79.2)
+mesh = SubResource("boxmesh_48")
+surface_material_override/0 = SubResource("standardmaterial3d_47")
+cast_shadow = 0
+
+[node name="Flag" type="MeshInstance3D" parent="VehicleAssemblyBuilding"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -109.2, 105, 30)
+mesh = SubResource("quadmesh_50")
+surface_material_override/0 = SubResource("standardmaterial3d_49")
+cast_shadow = 0
+
+[node name="LaunchControlCenter" type="MeshInstance3D" parent="VehicleAssemblyBuilding"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 190, 11.5, -40)
+mesh = SubResource("boxmesh_51")
+surface_material_override/0 = SubResource("standardmaterial3d_4")
+
+[node name="AtlanticOcean" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16500, 0.04, 0)
+mesh = SubResource("planemesh_53")
+surface_material_override/0 = SubResource("standardmaterial3d_52")
+cast_shadow = 0
+
+[node name="Beach" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4470, 0.03, 0)
+mesh = SubResource("boxmesh_55")
+surface_material_override/0 = SubResource("standardmaterial3d_54")
+cast_shadow = 0

@@ -21,6 +21,8 @@ const EARTH_SPIN_BONUS = 408        # m/s: Earth's spin pushes a rocket launched
 const LIFTOFF_PUSH_NEEDED = 1.15    # thrust-to-weight a rocket needs to climb away from the pad (Saturn V lifted off at about 1.17)
 const TOP_STAGE_PUSH_NEEDED = 0.4   # thrust-to-weight a top stage needs to reach orbit before falling back
 const SAFE_SQUEEZE_G = 6.0          # most spacecraft are built to handle about 6 g of launch push
+const ASSEMBLY_BUILDING_SCENE = preload("res://scenes/places/vehicle_assembly_building.tscn")
+const MOST_CAMERA_DISTANCE = 420.0   # the camera can back out through the walls (they only show from inside)
 const TOWER_SCALE = 47.2            # NASA's Mobile Launcher model is 2.46 units tall; the real one is 116 m
 
 @onready var rocket_holder: Node3D = $LaunchPad/RocketHolder
@@ -65,12 +67,22 @@ var dragging = false
 var turning_by_itself = true
 
 func _ready():
+	enter_assembly_building()
 	place_launch_tower()
 	var destination_label = SolarSystemData.BODIES.get(GameState.destination, {}).get("label", GameState.destination)
 	goal_label.text = "Lift your %s kg probe off Earth and throw it toward %s." % [format_number(GameState.total_mass()), destination_label]
 	fill_choices()
 	sync_controls()
 	refresh()
+
+# The rocket is stacked indoors, in the Vehicle Assembly Building (res://scenes/places/vehicle_assembly_building.tscn),
+# standing on its mobile launcher. The outdoor pad that used to be here is hidden; the launch itself happens outside.
+func enter_assembly_building():
+	for outdoor_name in ["Ground", "Ocean", "Sun", "WorldEnvironment", "LaunchPad/Hardstand", "LaunchPad/FlameTrench", "LaunchPad/LightningTower1", "LaunchPad/LightningTower2", "LaunchPad/LightningTower3"]:
+		var outdoor = get_node_or_null(outdoor_name)
+		if outdoor:
+			outdoor.queue_free()
+	add_child(ASSEMBLY_BUILDING_SCENE.instantiate())
 
 # NASA's Mobile Launcher (the tower SLS launches from). The scene expects it in res://assets/rockets/; if it was put
 # somewhere else in the project, find it there. With no tower at all, the rocket stands right on the concrete.
@@ -106,7 +118,7 @@ func _unhandled_input(event):
 		elif event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
 			wanted_distance = max(25.0, wanted_distance * 0.88)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
-			wanted_distance = min(900.0, wanted_distance * 1.14)
+			wanted_distance = min(MOST_CAMERA_DISTANCE, wanted_distance * 1.14)
 	elif event is InputEventMouseMotion and dragging:
 		camera_pivot.rotation.y -= event.relative.x * 0.006
 		camera_pivot.rotation.x = clamp(camera_pivot.rotation.x - event.relative.y * 0.004, deg_to_rad(-60), deg_to_rad(15))

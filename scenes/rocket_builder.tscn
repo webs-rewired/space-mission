@@ -472,6 +472,17 @@ size_flags_horizontal = 4
 focus_mode = 0
 text = "Show my parts"
 
+[node name="BottomBarBackground" type="ColorRect" parent="Screen"]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -66.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+color = Color(0.02, 0.03, 0.06, 0.82)
+
 [node name="BottomBar" type="HBoxContainer" parent="Screen" unique_id=116251261]
 anchors_preset = 12
 anchor_top = 1.0

@@ -4,6 +4,7 @@ const AUDIO_MANAGER_SCENE = "res://scenes/audio_manager.tscn"
 const LOADING_SCREEN_SCENE = "res://scenes/loading_screen.tscn"
 const GAME_SETTINGS_SCRIPT = "res://scripts/game_settings.gd"
 const REQUIRED_FILES_SCRIPT = "res://scripts/required_files.gd"
+const PAUSE_MENU_SCENE = "res://scenes/pause_menu.tscn"
 
 var settings: Node = null          # graphics quality, fullscreen and volumes (scripts/game_settings.gd)
 var loading_screen: Node = null    # the screen shown between scenes (scenes/loading_screen.tscn)
@@ -24,6 +25,10 @@ func _ready():
 		loading_screen = load(LOADING_SCREEN_SCENE).instantiate()
 		loading_screen.name = "LoadingScreen"
 		get_tree().root.add_child.call_deferred(loading_screen)
+	if ResourceLoader.exists(PAUSE_MENU_SCENE) and get_tree().root.get_node_or_null("PauseMenu") == null:
+		var pause_menu = load(PAUSE_MENU_SCENE).instantiate()
+		pause_menu.name = "PauseMenu"
+		get_tree().root.add_child.call_deferred(pause_menu)
 	check_game_files()
 
 # Checks that every file the game needs is in the project, and says so on screen if one isn't

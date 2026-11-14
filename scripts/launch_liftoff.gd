@@ -18,7 +18,10 @@ const SpaceTextures = preload("res://scripts/space_textures.gd")
 const RealRocket = preload("res://scripts/real_rocket.gd")
 const Spacecraft = preload("res://scripts/spacecraft.gd")
 const SEPARATION_SCENE = preload("res://scenes/effects/separation_burst.tscn")
+const LAUNCH_COMPLEX_SCENE = preload("res://scenes/places/launch_complex.tscn")
 const VAPOR_SCENE = preload("res://scenes/effects/vapor_cone.tscn")
+const DELUGE_SCENE = preload("res://scenes/effects/water_deluge.tscn")
+const DELUGE_SECONDS = -5.0   # the pad's water starts a few seconds before the engines light
 const ICE_SCENE = preload("res://scenes/effects/ice_shedding.tscn")
 const CLOUD_SHADER = preload("res://shaders/cloud_puff.gdshader")
 const SMOKE_SHADER = preload("res://shaders/smoke_puff.gdshader")
@@ -330,6 +333,9 @@ func build_pad_world():
 	grass.roughness = 1.0
 	ground.material_override = grass
 	pad_world.add_child(ground)
+	# The launch site around the pad (lightning towers, water tower, fuel spheres, crawlerway, the Vehicle Assembly
+	# Building on the horizon, the ocean) is a scene you can open and edit: res://scenes/places/launch_complex.tscn
+	pad_world.add_child(LAUNCH_COMPLEX_SCENE.instantiate())
 	var pad = MeshInstance3D.new()
 	var pad_mesh = CylinderMesh.new()
 	pad_mesh.top_radius = 70
@@ -667,6 +673,8 @@ func _process(delta):
 			show_caption(str(int(count_now)))
 		if before < -6.0 and mission_seconds >= -6.0:
 			show_caption("Access arm retracting")
+		if before < DELUGE_SECONDS and mission_seconds >= DELUGE_SECONDS:
+			start_deluge()
 		if before < IGNITION_SECONDS and mission_seconds >= IGNITION_SECONDS:
 			show_caption("Ignition!")
 			start_roar()
@@ -905,6 +913,25 @@ func run_event(event_name):
 func play_sound(sound_name, volume_db = 0.0):
 	if audio():
 		audio().play_effect(sound_name, volume_db)
+
+# The sound suppression system: water floods the deck and flame trench (scenes/effects/water_deluge.tscn), then
+# boils off as steam once the engines light. Not in the high shot, where the pad is far below.
+func start_deluge():
+	if in_high_shot or pad_world == null:
+		return
+	var deluge = DELUGE_SCENE.instantiate()
+	pad_world.add_child(deluge)
+	deluge.position = Vector3(0, deck_height + 0.5, 0)
+	var size = max(pieces["width"] * 1.6, 8.0) / 12.0
+	deluge.scale = Vector3.ONE * size
+	deluge.get_node("Spray").emitting = true
+	play_sound("thump", -12.0)
+	get_tree().create_timer(4.5).timeout.connect(func():
+		if is_instance_valid(deluge):
+			deluge.get_node("Steam").emitting = true)
+	get_tree().create_timer(10.0).timeout.connect(func():
+		if is_instance_valid(deluge):
+			deluge.get_node("Spray").emitting = false)
 
 # Frost and ice that built up on the cold fuel tanks shakes loose and rains down as the rocket lifts off
 func shed_ice():

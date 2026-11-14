@@ -13,6 +13,7 @@ const STATUS_LINES = {
 	"rocket_builder": ["Rolling out to the launch pad", "Stacking the stages", "Checking engines and tanks"],
 	"launch": ["Fueling the rocket", "Computing the trajectory", "Pointing the Deep Space Network dishes", "Polling the launch team: GO / NO-GO"],
 	"results": ["Downlinking mission data", "Scoring the science"],
+	"main_menu (2)": ["Returning to the main menu"],
 }
 const DEFAULT_LINES = ["Loading assets", "Warming up the engines"]
 const FACTS = [
@@ -65,7 +66,7 @@ func go_to(scene_path):
 	shown_progress = 0.0
 	var scene_name = scene_path.get_file().get_basename()
 	status_lines = STATUS_LINES.get(scene_name, DEFAULT_LINES)
-	title_label.text = {"solar_system": "SOLAR SYSTEM", "probe_builder": "SPACECRAFT ASSEMBLY", "rocket_builder": "LAUNCH VEHICLE", "launch": "LAUNCH CONTROL", "results": "MISSION REPORT"}.get(scene_name, "ORBIT LAB")
+	title_label.text = {"solar_system": "SOLAR SYSTEM", "probe_builder": "SPACECRAFT ASSEMBLY", "rocket_builder": "LAUNCH VEHICLE", "launch": "LAUNCH CONTROL", "results": "MISSION REPORT", "main_menu (2)": "ORBIT LAB"}.get(scene_name, "ORBIT LAB")
 	fact_label.text = FACTS[randi() % FACTS.size()]
 	status_label.text = status_lines[0] + "..."
 	progress_bar.value = 0.0

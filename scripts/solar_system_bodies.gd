@@ -52,6 +52,7 @@ const EDGE_AU = 125000.0
 const CLOSEST_CAMERA = {"viewable": 0.05, "true": 0.0002}
 const DAYS_BEFORE_REBUILDING_PATHS = 36525.0   # orbits slowly change shape over centuries
 const SPACECRAFT_RADIUS = {"viewable": 0.05, "true": 0.00004}   # spacecraft are drawn this big (much bigger than real)
+const SPACECRAFT_LARGEST_NEXT_TO_ITS_WORLD = 0.07   # an enlarged spacecraft is at most this share of the size of the world it circles
 const SPACECRAFT_SMALLEST_LOOK = 0.004      # but never smaller on screen than this share of their distance from the camera
 const SPACECRAFT_FUTURE_DAYS = 365.25 * 40  # how far ahead the escaping spacecraft's paths are drawn
 
@@ -822,7 +823,14 @@ func size_spacecraft(info):
 	var camera = get_viewport().get_camera_3d()
 	var toward_camera = Vector3.UP
 	if camera:
-		drawn_radius = max(drawn_radius, camera.global_position.distance_to(marker.global_position) * SPACECRAFT_SMALLEST_LOOK)
+		var enlarged = camera.global_position.distance_to(marker.global_position) * SPACECRAFT_SMALLEST_LOOK
+		# A spacecraft is never drawn bigger than a small share of the nearest world (the planet it circles, or the
+		# planet or Sun it's flying past), however far away the camera is. Before, the ISS could look bigger than
+		# Earth, and Parker Solar Probe bigger than Mercury. From far away its name still shows where it is.
+		var nearest = nearest_world(marker.global_position)
+		if nearest != null:
+			enlarged = min(enlarged, nearest["radius"] * SPACECRAFT_LARGEST_NEXT_TO_ITS_WORLD)
+		drawn_radius = max(drawn_radius, enlarged)
 		toward_camera = (camera.global_position - marker.global_position).normalized()
 	info["mesh"].transform = Transform3D(info["facing"].scaled(Vector3.ONE * drawn_radius), Vector3.ZERO)
 	var craft_light = info["craft_light"]
@@ -830,6 +838,20 @@ func size_spacecraft(info):
 	craft_light.omni_range = drawn_radius * 6.0
 	info["fill_light"].position = toward_camera * drawn_radius * 3.0
 	info["fill_light"].omni_range = drawn_radius * 6.0
+
+# The planet, dwarf planet or Sun closest to a point (moons and small bodies don't count)
+func nearest_world(place):
+	var nearest = null
+	var nearest_distance = INF
+	for body_name in bodies:
+		var info = bodies[body_name]
+		if not info["kind"] in ["planet", "dwarf", "star"]:
+			continue
+		var distance = info["marker"].global_position.distance_to(place)
+		if distance < nearest_distance:
+			nearest_distance = distance
+			nearest = info
+	return nearest
 
 func size_all_spacecraft():
 	for body_name in bodies:

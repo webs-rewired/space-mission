@@ -61,6 +61,9 @@ const MOONS_TO_SHOW = {"Jupiter": ["Io", "Europa", "Ganymede", "Callisto"], "Sat
 # What launch.gd reads
 var sights = []          # {"name", "progress", "distance_au", "near", "node"}, in order along the route
 var belts = []           # {"name", "start", "end"} as trip progress
+var route_km = []        # where the probe is (km from the Sun) at each step of the trip, for launch.gd's live telemetry
+var route_launch_date = 0.0
+var route_days = 0.0
 var dodge_rocks = []     # [position, radius, node, progress] of rocks close to the path (the ones you can hit)
 var probe_progress = 0.0 # where the probe is along the trip (launch.gd keeps this up to date), for the warning rings
 const WARNING_DISTANCE = 0.06   # a rock gets its warning ring when the probe is this share of the trip away from it
@@ -82,6 +85,9 @@ func set_up(destination, launch_date, trip_days, path_point_function, path_frame
 	var start = body_km("Earth", launch_date)
 	var finish = body_km(target_name, launch_date + trip_days)
 	var route = make_route(start, finish, seconds)
+	route_km = route
+	route_launch_date = launch_date
+	route_days = trip_days
 	var heading_out = Spacecraft.length(finish) > Spacecraft.length(start)
 	var shown = {}
 	for step in ROUTE_STEPS + 1:
@@ -193,6 +199,16 @@ func tidy_belts():
 			belt["end"] = belt["start"] + SHORTEST_BELT
 		belt["start"] = max(belt["start"], 0.1)   # never during the departure from Earth
 	belts = tidy
+
+# Where the probe is (km from the Sun) at a point of the trip (0 to 1), between the route's steps
+func probe_km(progress):
+	if route_km.is_empty():
+		return []
+	var step = clamp(progress, 0.0, 1.0) * (route_km.size() - 1)
+	var before = route_km[int(floor(step))]
+	var after = route_km[min(int(floor(step)) + 1, route_km.size() - 1)]
+	var share = step - floor(step)
+	return [lerp(before[0], after[0], share), lerp(before[1], after[1], share), lerp(before[2], after[2], share)]
 
 func body_km(body_name, julian_date):
 	var au = OrbitMath.ecliptic_xyz(SolarSystemData.BODIES[body_name]["orbit"], julian_date)

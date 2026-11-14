@@ -1,0 +1,82 @@
+[gd_scene format=3]
+
+[ext_resource type="Texture2D" path="res://assets/surface/textures/soft_puff.png" id="1_puff"]
+
+[sub_resource type="Gradient" id="fade"]
+offsets = PackedFloat32Array(0, 0.1, 0.7, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 0.9, 1, 1, 1, 0.6, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="fade_texture"]
+gradient = SubResource("fade")
+
+[sub_resource type="Curve" id="grow"]
+_data = [Vector2(0, 0.3), 0.0, 0.0, 0, 0, Vector2(1, 1), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="grow_texture"]
+curve = SubResource("grow")
+
+[sub_resource type="ParticleProcessMaterial" id="spray"]
+emission_shape = 6
+emission_ring_axis = Vector3(0, 1, 0)
+emission_ring_height = 0.5
+emission_ring_radius = 14.0
+emission_ring_inner_radius = 10.0
+direction = Vector3(0, 1, 0)
+spread = 25.0
+initial_velocity_min = 12.0
+initial_velocity_max = 22.0
+gravity = Vector3(0, -9.8, 0)
+scale_min = 1.5
+scale_max = 3.5
+scale_curve = SubResource("grow_texture")
+color = Color(0.92, 0.95, 1, 0.75)
+color_ramp = SubResource("fade_texture")
+
+[sub_resource type="ParticleProcessMaterial" id="steam"]
+emission_shape = 3
+emission_box_extents = Vector3(18, 1, 18)
+direction = Vector3(0, 1, 0)
+spread = 35.0
+initial_velocity_min = 3.0
+initial_velocity_max = 8.0
+gravity = Vector3(0, 0.6, 0)
+damping_min = 0.5
+damping_max = 1.0
+scale_min = 6.0
+scale_max = 12.0
+scale_curve = SubResource("grow_texture")
+color = Color(0.96, 0.97, 1, 0.5)
+color_ramp = SubResource("fade_texture")
+
+[sub_resource type="StandardMaterial3D" id="puff_material"]
+transparency = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_texture = ExtResource("1_puff")
+billboard_mode = 3
+billboard_keep_scale = true
+
+[sub_resource type="QuadMesh" id="puff_quad"]
+material = SubResource("puff_material")
+
+[node name="WaterDeluge" type="Node3D"]
+editor_description = "The pad's sound suppression system: water floods the deck and flame trench just before ignition, to soak up the sound and heat of the engines (otherwise the noise could damage the rocket). Then it boils off as steam."
+
+[node name="Spray" type="GPUParticles3D" parent="."]
+emitting = false
+amount = 500
+lifetime = 2.2
+local_coords = false
+visibility_aabb = AABB(-60, -10, -60, 120, 80, 120)
+process_material = SubResource("spray")
+draw_pass_1 = SubResource("puff_quad")
+
+[node name="Steam" type="GPUParticles3D" parent="."]
+emitting = false
+amount = 160
+lifetime = 7.0
+local_coords = false
+visibility_aabb = AABB(-80, -10, -80, 160, 120, 160)
+process_material = SubResource("steam")
+draw_pass_1 = SubResource("puff_quad")

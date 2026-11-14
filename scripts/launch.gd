@@ -831,7 +831,8 @@ func build_flight_controls():
 	flight_controls.name = "FlightControls"
 	flight_controls.visible = false
 	flight_controls.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	flight_controls.offset_left = -330.0
+	flight_controls.offset_left = -350.0
+	flight_controls.grow_horizontal = Control.GROW_DIRECTION_BEGIN   # if anything is wider, it grows to the left, not off the screen
 	flight_controls.offset_top = 18.0
 	flight_controls.offset_right = -18.0
 	flight_controls.offset_bottom = 190.0
@@ -859,7 +860,23 @@ func build_flight_controls():
 	mission_progress_bar.min_value = 0.0
 	mission_progress_bar.max_value = 100.0
 	mission_progress_bar.show_percentage = true
+	mission_progress_bar.visible = false   # (the timeline below shows the same thing, with more in it)
 	column.add_child(mission_progress_bar)
+
+	# The mission timeline: launch on the left, arrival on the right, the belts and planets passed along the way
+	mission_timeline = Control.new()
+	mission_timeline.custom_minimum_size = Vector2(0, 34)
+	mission_timeline.draw.connect(draw_mission_timeline)
+	mission_timeline.tooltip_text = "Mission timeline: launch on the left, arrival on the right.\nAmber bands: asteroid or Kuiper belt. Blue ticks: planets passed. Gold diamonds: events."
+	column.add_child(mission_timeline)
+
+	# Live readouts, worked out from the real route: distance, speed, sunlight, radio delay and which Deep Space
+	# Network dish is listening
+	telemetry_label = Label.new()
+	telemetry_label.theme_type_variation = "DataLabel"
+	telemetry_label.add_theme_font_size_override("font_size", 13)
+	telemetry_label.add_theme_color_override("font_color", Color(0.75, 0.85, 0.95))
+	column.add_child(telemetry_label)
 
 	time_mode_label = Label.new()
 	time_mode_label.theme_type_variation = "DataLabel"
@@ -943,9 +960,132 @@ func update_flight_hud():
 		mission_status_label.text += "\nPhase: Arrival / braking"
 
 	mission_progress_bar.value = flight_progress * 100.0
+	update_telemetry()
+	if mission_timeline:
+		mission_timeline.queue_redraw()
 	if scenery and not scenery.belt_at(flight_progress).is_empty():
 		mission_status_label.text += "\nIn the %s: YOU have control" % scenery.belt_at(flight_progress)["name"].replace("Asteroid", "asteroid")
 
+
+# ---------------------------------------------------------------------------
+# Live telemetry and the mission timeline
+# ---------------------------------------------------------------------------
+# NASA's Deep Space Network: three sites about 120 degrees apart around the world, so as Earth turns one of them
+# can always see the spacecraft. [name, east longitude in degrees]
+const DEEP_SPACE_NETWORK = [["Goldstone, California", -116.89], ["Madrid, Spain", -4.25], ["Canberra, Australia", 148.98]]
+const KILOMETERS_PER_AU = 149597870.7
+const LIGHT_SECONDS_PER_AU = 499.005
+const EARTH_TILT_DEGREES = 23.4393
+var mission_timeline: Control = null
+var telemetry_label: Label = null
+var last_probe_km = []
+var last_probe_days = 0.0
+var probe_speed_km_s = 0.0
+
+func update_telemetry():
+	if telemetry_label == null:
+		return
+	if scenery == null or scenery.route_km.is_empty() or arrival_mode != "":
+		telemetry_label.visible = false
+		return
+	telemetry_label.visible = true
+	var now = scenery.route_launch_date + elapsed_flight_days
+	var here = scenery.probe_km(flight_progress)
+	var earth = scenery.body_km("Earth", now)
+	var from_earth = Vector3(here[0] - earth[0], here[1] - earth[1], here[2] - earth[2])
+	var sun_distance_au = Vector3(here[0], here[1], here[2]).length() / KILOMETERS_PER_AU
+	var earth_distance_au = from_earth.length() / KILOMETERS_PER_AU
+	# Speed around the Sun, from how far it moved since the last update
+	if not last_probe_km.is_empty() and elapsed_flight_days - last_probe_days > 0.0001:
+		var moved = Vector3(here[0] - last_probe_km[0], here[1] - last_probe_km[1], here[2] - last_probe_km[2]).length()
+		var measured = moved / ((elapsed_flight_days - last_probe_days) * 86400.0)
+		probe_speed_km_s = measured if probe_speed_km_s == 0.0 else lerp(probe_speed_km_s, measured, 0.2)
+	last_probe_km = here
+	last_probe_days = elapsed_flight_days
+	var delay_seconds = earth_distance_au * LIGHT_SECONDS_PER_AU
+	var lines = []
+	lines.append("From Earth  %s" % distance_text(earth_distance_au))
+	lines.append("From Sun    %.2f AU, %s sunlight" % [sun_distance_au, sunlight_text(sun_distance_au)])
+	if probe_speed_km_s > 0.0:
+		lines.append("Speed       %.1f km/s (around Sun)" % probe_speed_km_s)
+	lines.append("Signal      %s each way" % delay_text(delay_seconds))
+	lines.append("DSN         %s" % listening_station(from_earth, now))
+	telemetry_label.text = "\n".join(lines)
+
+func distance_text(au):
+	var kilometers = au * KILOMETERS_PER_AU
+	if kilometers < 2000000.0:
+		return "%s km" % format_thousands(int(kilometers))
+	if kilometers < 1000000000.0:
+		return "%.2f AU, %d million km" % [au, int(kilometers / 1000000.0)]
+	return "%.1f AU, %.1f billion km" % [au, kilometers / 1000000000.0]
+
+func sunlight_text(au):
+	var share = 1.0 / (au * au)
+	return "%d%%" % int(round(share * 100.0)) if share >= 0.1 else "%.1f%%" % (share * 100.0)
+
+func delay_text(seconds):
+	if seconds < 90.0:
+		return "%.1f s" % seconds
+	if seconds < 5400.0:
+		return "%.1f min" % (seconds / 60.0)
+	return "%.1f hours" % (seconds / 3600.0)
+
+func format_thousands(number):
+	var text = str(number)
+	var grouped = ""
+	while text.length() > 3:
+		grouped = "," + text.substr(text.length() - 3) + grouped
+		text = text.substr(0, text.length() - 3)
+	return text + grouped
+
+# Which of the three Deep Space Network sites has the spacecraft overhead right now: the one where the
+# spacecraft's direction in the sky is closest to due south (smallest hour angle), as Earth turns
+func listening_station(from_earth, julian_date):
+	if time_rate_days_per_second > 0.5:
+		return "3 sites taking turns"   # (at this speed Earth spins too fast to say which)
+	var tilt = deg_to_rad(EARTH_TILT_DEGREES)
+	# Ecliptic to Earth's equator (route coordinates are ecliptic, in km)
+	var equator_x = from_earth.x
+	var equator_y = from_earth.y * cos(tilt) - from_earth.z * sin(tilt)
+	var right_ascension = rad_to_deg(atan2(equator_y, equator_x))
+	var sidereal_degrees = 280.46061837 + 360.98564736629 * (julian_date - 2451545.0)
+	var best = DEEP_SPACE_NETWORK[0]
+	var best_angle = 999.0
+	for site in DEEP_SPACE_NETWORK:
+		var hour_angle = abs(wrapf(sidereal_degrees + site[1] - right_ascension, -180.0, 180.0))
+		if hour_angle < best_angle:
+			best_angle = hour_angle
+			best = site
+	return "%s (70 m)" % best[0]
+
+func draw_mission_timeline():
+	var size = mission_timeline.size
+	var top = 8.0
+	var height = 10.0
+	mission_timeline.draw_rect(Rect2(0, top, size.x, height), Color(0.12, 0.16, 0.24))
+	if scenery:
+		for belt in scenery.belts:
+			mission_timeline.draw_rect(Rect2(size.x * belt["start"], top, size.x * (belt["end"] - belt["start"]), height), Color(1.0, 0.7, 0.25, 0.55))
+		for sight in scenery.sights:
+			var x = size.x * sight["progress"]
+			mission_timeline.draw_line(Vector2(x, top - 4), Vector2(x, top + height + 4), Color(0.5, 0.8, 1.0), 2.0)
+	# Cruise events: where the decisions come up (done ones bright, coming ones dim)
+	for index in GameState.events.size():
+		if GameState.events[index].get("phase", "cruise") != "cruise":
+			continue
+		var at = progress_at_event(index)
+		if at >= 0.0 and at <= 1.0:
+			var x = size.x * at
+			var shade = Color(1.0, 0.85, 0.35) if index < event_index else Color(1.0, 0.85, 0.35, 0.35)
+			mission_timeline.draw_colored_polygon(PackedVector2Array([Vector2(x, top - 1), Vector2(x + 4, top + height / 2), Vector2(x, top + height + 1), Vector2(x - 4, top + height / 2)]), shade)
+	# Done so far, and where the probe is now
+	mission_timeline.draw_rect(Rect2(0, top, size.x * flight_progress, height), Color(0.45, 0.85, 1.0, 0.55))
+	var now_x = size.x * flight_progress
+	mission_timeline.draw_circle(Vector2(now_x, top + height / 2), 5.0, Color.WHITE)
+	var font = mission_timeline.get_theme_default_font()
+	mission_timeline.draw_string(font, Vector2(0, top + height + 15), "LAUNCH", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(0.6, 0.66, 0.75))
+	mission_timeline.draw_string(font, Vector2(size.x - 80, top + height + 15), world_name().to_upper(), HORIZONTAL_ALIGNMENT_RIGHT, 80, 10, Color(0.6, 0.66, 0.75))
 
 # ---------------------------------------------------------------------------
 # Arriving: orbit insertion, then (for landers) the trip down to the surface
