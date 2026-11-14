@@ -71,6 +71,7 @@ func show_grade():
 				words = entry[2]
 				break
 	grade_label.text = grade
+	GameState.archive_mission(grade, SpacecraftLookalike.LOOKALIKES.get(SpacecraftLookalike.closest(), {}).get("name", "your own design"))
 	grade_label.add_theme_font_size_override("font_size", 40 if grade == "LOST" else 60)
 	grade_label.add_theme_color_override("font_color", GRADE_COLORS.get(grade, Color.WHITE))
 	grade_words.text = words

@@ -286,6 +286,8 @@ var menu_buttons: VBoxContainer
 var settings_panel: PanelContainer
 var credits_panel: PanelContainer
 var how_to_play_panel: PanelContainer
+var archive_panel: PanelContainer
+var archive_text: RichTextLabel
 var settings: Node = null   # scripts/game_settings.gd (null if the game was started without GameState)
 
 
@@ -1229,10 +1231,11 @@ func _build_ui() -> void:
 	menu_buttons = VBoxContainer.new()
 	menu_buttons.add_theme_constant_override("separation", 2)
 	layer.add_child(menu_buttons)
-	_place(menu_buttons, 0.066, 0.52, 0.066, 0.52)
+	_place(menu_buttons, 0.066, 0.43, 0.066, 0.43)
 	start_button = _menu_button(BUTTON_TEXT, 24, _on_start_pressed)
 	menu_buttons.add_child(start_button)
 	menu_buttons.add_child(_menu_button("How to play", 18, _open_panel.bind("how_to_play")))
+	menu_buttons.add_child(_menu_button("Mission archive", 18, _open_panel.bind("archive")))
 	menu_buttons.add_child(_menu_button("Settings", 18, _open_panel.bind("settings")))
 	menu_buttons.add_child(_menu_button("Credits", 18, _open_panel.bind("credits")))
 	menu_buttons.add_child(_menu_button("Quit", 18, _on_quit_pressed))
@@ -1250,6 +1253,7 @@ func _build_ui() -> void:
 	_build_settings_panel()
 	_build_credits_panel()
 	_build_how_to_play_panel()
+	_build_archive_panel()
 
 	# Black overlay for the fades (added last so it draws on top)
 	fade = ColorRect.new()
@@ -1386,6 +1390,39 @@ func _build_how_to_play_panel() -> void:
 	scroll.add_child(text)
 
 
+# Every mission flown on this computer (saved by the results screen through GameState)
+func _build_archive_panel() -> void:
+	var made := _side_panel("MISSION ARCHIVE")
+	archive_panel = made[0]
+	var body: VBoxContainer = made[1]
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	body.add_child(scroll)
+	archive_text = RichTextLabel.new()
+	archive_text.bbcode_enabled = true
+	archive_text.fit_content = true
+	archive_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	archive_text.add_theme_font_size_override("normal_font_size", 15)
+	scroll.add_child(archive_text)
+
+
+func _fill_archive() -> void:
+	var missions: Array = GameState.load_archive() if GameState.has_method("load_archive") else []
+	if missions.is_empty():
+		archive_text.text = "No missions flown yet.\n\nEvery mission you finish is saved here with its grade, so you can see how your designs improve."
+		return
+	var grade_colors := {"A+": "#66ff99", "A": "#73f299", "B": "#8cd9ff", "C": "#ffd966", "D": "#ffa659", "F": "#ff7366", "LOST": "#ff6659"}
+	var best := 0
+	var lines := ""
+	for mission in missions:
+		best = max(best, int(mission.get("score", 0)))
+		var grade: String = mission.get("grade", "?")
+		lines += "[b][color=%s]%s[/color][/b]   [b]%s[/b]   %s\n" % [grade_colors.get(grade, "#ffffff"), grade, str(mission.get("destination", "?")).to_upper(), mission.get("date", "")]
+		lines += "[color=#aab4c3]%s   |   score %d   |   %d science   |   like %s[/color]\n\n" % [GameState.money_text(mission.get("cost", 0)), int(mission.get("score", 0)), int(mission.get("science", 0)), mission.get("spacecraft", "?")]
+	archive_text.text = "[color=#8fd4ff]%d mission%s flown. Best score: %d / 100[/color]\n\n" % [missions.size(), "" if missions.size() == 1 else "s", best] + lines
+
+
 func _build_credits_panel() -> void:
 	var made := _side_panel("CREDITS")
 	credits_panel = made[0]
@@ -1420,6 +1457,9 @@ func _open_panel(which: String) -> void:
 	settings_panel.visible = which == "settings"
 	credits_panel.visible = which == "credits"
 	how_to_play_panel.visible = which == "how_to_play"
+	archive_panel.visible = which == "archive"
+	if which == "archive":
+		_fill_archive()
 
 
 func _on_quit_pressed() -> void:
@@ -1442,6 +1482,7 @@ func _on_start_pressed() -> void:
 	settings_panel.visible = false
 	credits_panel.visible = false
 	how_to_play_panel.visible = false
+	archive_panel.visible = false
 	for button in menu_buttons.get_children():
 		button.disabled = true
 	if START_SCENE != "" and GameState.has_method("go_to_scene"):
