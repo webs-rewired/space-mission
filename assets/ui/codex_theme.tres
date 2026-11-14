@@ -1,48 +1,37 @@
-[gd_resource type="Theme" load_steps=16 format=3]
+[gd_resource type="Theme" format=3 uid="uid://bq55q05mielql"]
 
-[ext_resource type="FontFile" path="res://assets/fonts/SpaceGrotesk-Variable.ttf" id="1_grotesk"]
-[ext_resource type="FontFile" path="res://assets/fonts/Inter-Variable.ttf" id="2_inter"]
-[ext_resource type="FontFile" path="res://assets/fonts/JetBrainsMono-Variable.ttf" id="3_mono"]
-
-[sub_resource type="FontVariation" id="title_font"]
-base_font = ExtResource("1_grotesk")
-variation_opentype = {2003265652: 700}
-spacing_glyph = 6
-
-[sub_resource type="FontVariation" id="heading_font"]
-base_font = ExtResource("1_grotesk")
-variation_opentype = {2003265652: 600}
-spacing_glyph = 3
-
-[sub_resource type="FontVariation" id="name_font"]
-base_font = ExtResource("1_grotesk")
-variation_opentype = {2003265652: 700}
-spacing_glyph = 4
-
-[sub_resource type="FontVariation" id="tab_font"]
-base_font = ExtResource("1_grotesk")
-variation_opentype = {2003265652: 600}
-spacing_glyph = 3
-
-[sub_resource type="FontVariation" id="data_font"]
-base_font = ExtResource("3_mono")
-variation_opentype = {2003265652: 500}
-spacing_glyph = 1
+[ext_resource type="FontFile" uid="uid://ccis61wmjuuhf" path="res://assets/fonts/SpaceGrotesk-Variable.ttf" id="1_grotesk"]
+[ext_resource type="FontFile" uid="uid://c2awdqc5ju4pl" path="res://assets/fonts/Inter-Variable.ttf" id="2_inter"]
+[ext_resource type="FontFile" uid="uid://bbjnpjd52bdba" path="res://assets/fonts/JetBrainsMono-Variable.ttf" id="3_mono"]
 
 [sub_resource type="FontVariation" id="body_font"]
 base_font = ExtResource("2_inter")
-variation_opentype = {2003265652: 450}
+variation_opentype = {
+2003265652: 450
+}
 
-[sub_resource type="FontVariation" id="value_font"]
-base_font = ExtResource("2_inter")
-variation_opentype = {2003265652: 520}
+[sub_resource type="StyleBoxEmpty" id="nothing"]
+
+[sub_resource type="FontVariation" id="heading_font"]
+base_font = ExtResource("1_grotesk")
+variation_opentype = {
+2003265652: 600
+}
+spacing_glyph = 3
 
 [sub_resource type="FontVariation" id="slanted_font"]
 base_font = ExtResource("2_inter")
-variation_opentype = {2003265652: 420}
+variation_opentype = {
+2003265652: 420
+}
 variation_transform = Transform2D(1, 0, 0.18, 1, 0, 0)
 
-[sub_resource type="StyleBoxEmpty" id="nothing"]
+[sub_resource type="FontVariation" id="data_font"]
+base_font = ExtResource("3_mono")
+variation_opentype = {
+2003265652: 500
+}
+spacing_glyph = 1
 
 [sub_resource type="StyleBoxFlat" id="keycap"]
 content_margin_left = 7.0
@@ -59,6 +48,33 @@ corner_radius_top_left = 2
 corner_radius_top_right = 2
 corner_radius_bottom_right = 2
 corner_radius_bottom_left = 2
+
+[sub_resource type="FontVariation" id="name_font"]
+base_font = ExtResource("1_grotesk")
+variation_opentype = {
+2003265652: 700
+}
+spacing_glyph = 4
+
+[sub_resource type="FontVariation" id="tab_font"]
+base_font = ExtResource("1_grotesk")
+variation_opentype = {
+2003265652: 600
+}
+spacing_glyph = 3
+
+[sub_resource type="FontVariation" id="title_font"]
+base_font = ExtResource("1_grotesk")
+variation_opentype = {
+2003265652: 700
+}
+spacing_glyph = 6
+
+[sub_resource type="FontVariation" id="value_font"]
+base_font = ExtResource("2_inter")
+variation_opentype = {
+2003265652: 520
+}
 
 [sub_resource type="StyleBoxFlat" id="scroll_grabber"]
 content_margin_left = 1.0
