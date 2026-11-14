@@ -53,6 +53,7 @@ const SOUNDS = {
 
 # Which music goes with which scene ("" = this scene handles its own sound)
 const SCENE_MUSIC = {
+	"main_menu (2)": "music_menu", "main_menu": "music_menu",   # the music starts on the main menu and carries on into the solar system
 	"solar_system": "music_menu", "solarsystem": "music_menu", "probe_builder": "music_menu",
 	"rocket_builder": "music_menu", "launch": "", "results": "",
 }

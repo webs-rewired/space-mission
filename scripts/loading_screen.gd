@@ -13,6 +13,7 @@ const STATUS_LINES = {
 	"rocket_builder": ["Rolling out to the launch pad", "Stacking the stages", "Checking engines and tanks"],
 	"launch": ["Fueling the rocket", "Computing the trajectory", "Pointing the Deep Space Network dishes", "Polling the launch team: GO / NO-GO"],
 	"results": ["Downlinking mission data", "Scoring the science"],
+	"main_menu (2)": ["Returning to the main menu"],
 }
 const DEFAULT_LINES = ["Loading assets", "Warming up the engines"]
 const FACTS = [
@@ -37,6 +38,18 @@ const SETTLE_FRAMES = 8             # frames the new scene gets to draw before t
 @onready var progress_bar: ProgressBar = $Cover/Center/Column/Progress
 @onready var fact_label: Label = $Cover/Center/Column/Fact
 @onready var title_label: Label = $Cover/Center/Column/Title
+@onready var kicker_label: Label = $Cover/Center/Column/Kicker
+
+# Where each scene sits in the five steps of a mission. The steps follow how NASA builds a science mission
+# ("Design and Develop Science Missions"): the mission concept, the space segment (the spacecraft), the launch
+# segment (the rocket), the ground segment (the dishes that keep in touch), and the user segment (the scientists).
+const MISSION_STEPS = {
+	"solar_system": "STEP 1 OF 5   |   CHOOSE A DESTINATION: THE MISSION CONCEPT",
+	"probe_builder": "STEP 2 OF 5   |   DESIGN THE SPACECRAFT: THE SPACE SEGMENT",
+	"rocket_builder": "STEP 3 OF 5   |   PICK A ROCKET: THE LAUNCH SEGMENT",
+	"launch": "STEP 4 OF 5   |   LAUNCH AND FLY: THE GROUND SEGMENT KEEPS IN TOUCH",
+	"results": "STEP 5 OF 5   |   THE SCIENCE: THE USER SEGMENT",
+}
 
 var wanted_scene = ""
 var loading = false
@@ -65,7 +78,8 @@ func go_to(scene_path):
 	shown_progress = 0.0
 	var scene_name = scene_path.get_file().get_basename()
 	status_lines = STATUS_LINES.get(scene_name, DEFAULT_LINES)
-	title_label.text = {"solar_system": "SOLAR SYSTEM", "probe_builder": "SPACECRAFT ASSEMBLY", "rocket_builder": "LAUNCH VEHICLE", "launch": "LAUNCH CONTROL", "results": "MISSION REPORT"}.get(scene_name, "ORBIT LAB")
+	title_label.text = {"solar_system": "SOLAR SYSTEM", "probe_builder": "SPACECRAFT ASSEMBLY", "rocket_builder": "LAUNCH VEHICLE", "launch": "LAUNCH CONTROL", "results": "MISSION REPORT", "main_menu (2)": "ORBIT LAB"}.get(scene_name, "ORBIT LAB")
+	kicker_label.text = MISSION_STEPS.get(scene_name, "ORBIT LAB   |   MISSION CONTROL")
 	fact_label.text = FACTS[randi() % FACTS.size()]
 	status_label.text = status_lines[0] + "..."
 	progress_bar.value = 0.0

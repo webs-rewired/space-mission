@@ -65,7 +65,11 @@ const CAM_BASE = Vector3(20, 2.5, 28)
 #   "saturn_v"  = NASA Saturn V (the Apollo moon rocket)
 #   "random"    = a different one on every launch loop
 const ROCKET_STYLE = "random"
-const ROCKET_STYLES = ["starship", "sls", "saturn_v"]
+const ROCKET_STYLES = ["sls", "saturn_v", "falcon9", "starship"]
+# The real rocket models from the game (the same ones the rocket builder uses) are shown when they're in the
+# project; if one is missing, the simple built-in shape of that rocket is drawn instead
+const REAL_ROCKET_PRESETS = {"sls": "sls", "saturn_v": "saturn5", "falcon9": "falcon9", "starship": "starship"}
+const MENU_ROCKET_HEIGHT = 13.0   # meters in the menu scene (the platform and tower are built for this)
 
 # Overall mood: "moody" = foggy overcast ocean (like a cinematic game menu), "sunrise" = warm clear morning
 const LOOK = "moody"
@@ -281,6 +285,9 @@ var message: Label
 var menu_buttons: VBoxContainer
 var settings_panel: PanelContainer
 var credits_panel: PanelContainer
+var how_to_play_panel: PanelContainer
+var archive_panel: PanelContainer
+var archive_text: RichTextLabel
 var settings: Node = null   # scripts/game_settings.gd (null if the game was started without GameState)
 
 
@@ -367,7 +374,8 @@ func _process(delta: float) -> void:
 	var flicker := randf_range(0.85, 1.25)
 	for f in flames:
 		f.visible = lit
-		f.scale = Vector3(1.0, flicker * randf_range(0.95, 1.05), 1.0) * (0.4 + 0.6 * ramp)
+		var base_scale: Vector3 = f.get_meta("base_scale", Vector3.ONE)   # (a real rocket's flames are sized to its nozzles)
+		f.scale = base_scale * Vector3(1.0, flicker * randf_range(0.95, 1.05), 1.0) * (0.4 + 0.6 * ramp)
 	engine_light.light_energy = 10.0 * ramp * randf_range(0.8, 1.2)
 	exhaust.emitting = lit
 	ground_smoke.emitting = lit and t < LIFTOFF_TIME + 5.0
@@ -675,13 +683,15 @@ func _build_rocket() -> void:
 	if custom:
 		_add_flame(Vector3.ZERO, 0.5, 3.4)
 	else:
-		match _pick_style():
-			"sls":
-				_build_sls()
-			"saturn_v":
-				_build_saturn_v()
-			_:
-				_build_starship()
+		var style := _pick_style()
+		if not _add_real_rocket(style):
+			match style:
+				"sls":
+					_build_sls()
+				"saturn_v":
+					_build_saturn_v()
+				_:
+					_build_starship()
 
 	# Light from the flame that glows on the pad and tower
 	engine_light = OmniLight3D.new()
@@ -696,6 +706,33 @@ func _build_rocket() -> void:
 	rocket.add_child(exhaust)
 	ground_smoke = _make_smoke(Vector3(0, PAD_TOP + 0.5, 0), 140, 5.0, Vector3(0, 1, 0), 80.0, 4.0, 9.0, 2.5, 4.5)
 	world.add_child(ground_smoke)
+
+
+# One of the game's real rocket models (scripts/real_rocket.gd), shrunk to the menu's size, with its own flames
+func _add_real_rocket(style: String) -> bool:
+	if not REAL_ROCKET_PRESETS.has(style):
+		return false
+	var real_rocket_script = load("res://scripts/real_rocket.gd")
+	var rocket_data = load("res://scripts/rocket_data.gd")
+	if real_rocket_script == null or rocket_data == null or not rocket_data.STARTING_ROCKETS.has(REAL_ROCKET_PRESETS[style]):
+		return false
+	var built = real_rocket_script.build(rocket_data.STARTING_ROCKETS[REAL_ROCKET_PRESETS[style]].duplicate())
+	if built == null:
+		return false
+	var model: Node3D = built["root"]
+	rocket.add_child(model)
+	var box = real_rocket_script.solid_bounds(model, Transform3D.IDENTITY, null)
+	if box == null or box.size.y <= 0.0:
+		model.queue_free()
+		return false
+	var shrink: float = MENU_ROCKET_HEIGHT / box.size.y
+	model.scale = Vector3.ONE * shrink
+	model.position = Vector3(-box.get_center().x * shrink, -box.position.y * shrink, -box.get_center().z * shrink)
+	for flame in built["bottom_flames"] + built["booster_flames"]:
+		flame.set_meta("base_scale", flame.scale)
+		flame.visible = false
+		flames.append(flame)
+	return true
 
 
 func _add_custom_model() -> bool:
@@ -1125,9 +1162,20 @@ func _black_bar(top: bool) -> void:
 		_place(bar, 0.0, 1.0 - BAR_SIZE, 1.0, 1.0)
 
 
-func _menu_font(spacing: int) -> FontVariation:
+# The game's fonts (assets/fonts, set up in assets/ui/orbit_lab_theme.tres), with extra letter spacing.
+# role: "logo" (Orbitron, for the title), "heading" (Barlow Condensed) or "body" (Inter).
+# If the font files are missing, Godot's built-in font is used instead.
+const FONT_FILES = {
+	"logo": "res://assets/fonts/Orbitron-Variable.ttf",
+	"heading": "res://assets/fonts/BarlowCondensed-SemiBold.ttf",
+	"body": "res://assets/fonts/Inter-Variable.ttf",
+}
+func _menu_font(spacing: int, role := "heading") -> FontVariation:
 	var font := FontVariation.new()
-	font.base_font = ThemeDB.fallback_font
+	var path: String = FONT_FILES.get(role, "")
+	font.base_font = load(path) if path != "" and ResourceLoader.exists(path) else ThemeDB.fallback_font
+	if role == "logo":
+		font.variation_opentype = {TextServerManager.get_primary_interface().name_to_tag("wght"): 700}
 	font.spacing_glyph = spacing
 	return font
 
@@ -1138,13 +1186,15 @@ func _menu_button(text: String, size: int, action: Callable) -> Button:
 	button.text = text.to_upper()
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.custom_minimum_size = Vector2(460, size + 22)
-	button.add_theme_font_override("font", _menu_font(4))
+	button.add_theme_font_override("font", _menu_font(3))
 	button.add_theme_font_size_override("font_size", size)
 	button.add_theme_color_override("font_color", Color(0.93, 0.95, 0.97, 0.85))
 	button.add_theme_color_override("font_hover_color", Color(0.55, 0.85, 1.0))
 	button.add_theme_color_override("font_pressed_color", Color(0.7, 0.8, 0.9))
 	button.add_theme_color_override("font_focus_color", Color.WHITE)
 	button.add_theme_color_override("font_disabled_color", Color(0.6, 0.65, 0.7))
+	button.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.45))   # readable over the bright sky
+	button.add_theme_constant_override("outline_size", 4)
 	for style_name in ["normal", "hover", "pressed", "focus", "disabled"]:
 		button.add_theme_stylebox_override(style_name, StyleBoxEmpty.new())
 	button.pressed.connect(action)
@@ -1159,8 +1209,8 @@ func _build_ui() -> void:
 	# Title
 	var title := Label.new()
 	title.text = GAME_TITLE
-	title.add_theme_font_override("font", _menu_font(14))
-	title.add_theme_font_size_override("font_size", 64)
+	title.add_theme_font_override("font", _menu_font(10, "logo"))
+	title.add_theme_font_size_override("font_size", 60)
 	title.add_theme_color_override("font_color", Color(0.96, 0.97, 1.0))
 	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
 	title.add_theme_constant_override("shadow_offset_y", 3)
@@ -1169,8 +1219,10 @@ func _build_ui() -> void:
 	var tagline := Label.new()
 	tagline.text = GAME_TAGLINE.to_upper()
 	tagline.add_theme_font_override("font", _menu_font(3))
-	tagline.add_theme_font_size_override("font_size", 15)
+	tagline.add_theme_font_size_override("font_size", 18)
 	tagline.add_theme_color_override("font_color", Color(0.55, 0.85, 1.0))
+	tagline.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.75))   # readable over the bright sky
+	tagline.add_theme_constant_override("shadow_offset_y", 2)
 	layer.add_child(tagline)
 	_place(tagline, 0.068, 0.2, 0.068, 0.2)
 	tagline.offset_top = 84.0
@@ -1179,9 +1231,11 @@ func _build_ui() -> void:
 	menu_buttons = VBoxContainer.new()
 	menu_buttons.add_theme_constant_override("separation", 2)
 	layer.add_child(menu_buttons)
-	_place(menu_buttons, 0.066, 0.52, 0.066, 0.52)
+	_place(menu_buttons, 0.066, 0.43, 0.066, 0.43)
 	start_button = _menu_button(BUTTON_TEXT, 24, _on_start_pressed)
 	menu_buttons.add_child(start_button)
+	menu_buttons.add_child(_menu_button("How to play", 18, _open_panel.bind("how_to_play")))
+	menu_buttons.add_child(_menu_button("Mission archive", 18, _open_panel.bind("archive")))
 	menu_buttons.add_child(_menu_button("Settings", 18, _open_panel.bind("settings")))
 	menu_buttons.add_child(_menu_button("Credits", 18, _open_panel.bind("credits")))
 	menu_buttons.add_child(_menu_button("Quit", 18, _on_quit_pressed))
@@ -1198,6 +1252,8 @@ func _build_ui() -> void:
 
 	_build_settings_panel()
 	_build_credits_panel()
+	_build_how_to_play_panel()
+	_build_archive_panel()
 
 	# Black overlay for the fades (added last so it draws on top)
 	fade = ColorRect.new()
@@ -1302,6 +1358,71 @@ func _build_settings_panel() -> void:
 	body.add_child(keys)
 
 
+# How to play: the five steps of a mission, the same way NASA builds a real one
+const HOW_TO_PLAY = [
+	["1  CHOOSE A DESTINATION", "The solar system shows where every planet, moon and spacecraft really is today. Click a world to read about it, then press \"Plan a mission\". Far worlds take longer and need more power and money."],
+	["2  DESIGN THE SPACECRAFT", "In the clean room, pick the power source, battery, antenna, engine, shield, instruments and how to land. The Flight Readiness Review on the right checks it like NASA does: every line must be GO or WATCH. You'll see which real NASA spacecraft your design is most like."],
+	["3  PICK A ROCKET", "In the Vehicle Assembly Building, start from a real rocket (Saturn V, SLS, Falcon 9...) or design your own. It needs enough thrust to lift off and enough speed to reach your destination, inside your budget."],
+	["4  LAUNCH AND FLY", "Watch the launch, then speed up time for the trip. Steer through the asteroid belt, make the team's decisions when something goes wrong, and map your world from orbit or land and drive."],
+	["5  THE SCIENCE", "The mission report grades your mission and shows how NASA did it for real. Then try again, or pick a new world."],
+]
+
+
+func _build_how_to_play_panel() -> void:
+	var made := _side_panel("HOW TO PLAY")
+	how_to_play_panel = made[0]
+	var body: VBoxContainer = made[1]
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	body.add_child(scroll)
+	var text := RichTextLabel.new()
+	text.bbcode_enabled = true
+	text.fit_content = true
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.add_theme_font_size_override("normal_font_size", 15)
+	text.add_theme_font_size_override("bold_font_size", 16)
+	var lines := ""
+	for step in HOW_TO_PLAY:
+		lines += "[b][color=#ffcc59]%s[/color][/b]\n%s\n\n" % [step[0], step[1]]
+	lines += "[color=#8fd4ff]Press Esc (or the Menu button) any time for the controls, settings and the main menu.[/color]"
+	text.text = lines
+	scroll.add_child(text)
+
+
+# Every mission flown on this computer (saved by the results screen through GameState)
+func _build_archive_panel() -> void:
+	var made := _side_panel("MISSION ARCHIVE")
+	archive_panel = made[0]
+	var body: VBoxContainer = made[1]
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	body.add_child(scroll)
+	archive_text = RichTextLabel.new()
+	archive_text.bbcode_enabled = true
+	archive_text.fit_content = true
+	archive_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	archive_text.add_theme_font_size_override("normal_font_size", 15)
+	scroll.add_child(archive_text)
+
+
+func _fill_archive() -> void:
+	var missions: Array = GameState.load_archive() if GameState.has_method("load_archive") else []
+	if missions.is_empty():
+		archive_text.text = "No missions flown yet.\n\nEvery mission you finish is saved here with its grade, so you can see how your designs improve."
+		return
+	var grade_colors := {"A+": "#66ff99", "A": "#73f299", "B": "#8cd9ff", "C": "#ffd966", "D": "#ffa659", "F": "#ff7366", "LOST": "#ff6659"}
+	var best := 0
+	var lines := ""
+	for mission in missions:
+		best = max(best, int(mission.get("score", 0)))
+		var grade: String = mission.get("grade", "?")
+		lines += "[b][color=%s]%s[/color][/b]   [b]%s[/b]   %s\n" % [grade_colors.get(grade, "#ffffff"), grade, str(mission.get("destination", "?")).to_upper(), mission.get("date", "")]
+		lines += "[color=#aab4c3]%s   |   score %d   |   %d science   |   like %s[/color]\n\n" % [GameState.money_text(mission.get("cost", 0)), int(mission.get("score", 0)), int(mission.get("science", 0)), mission.get("spacecraft", "?")]
+	archive_text.text = "[color=#8fd4ff]%d mission%s flown. Best score: %d / 100[/color]\n\n" % [missions.size(), "" if missions.size() == 1 else "s", best] + lines
+
+
 func _build_credits_panel() -> void:
 	var made := _side_panel("CREDITS")
 	credits_panel = made[0]
@@ -1335,6 +1456,10 @@ func _open_panel(which: String) -> void:
 		return
 	settings_panel.visible = which == "settings"
 	credits_panel.visible = which == "credits"
+	how_to_play_panel.visible = which == "how_to_play"
+	archive_panel.visible = which == "archive"
+	if which == "archive":
+		_fill_archive()
 
 
 func _on_quit_pressed() -> void:
@@ -1356,6 +1481,8 @@ func _on_start_pressed() -> void:
 	starting = true
 	settings_panel.visible = false
 	credits_panel.visible = false
+	how_to_play_panel.visible = false
+	archive_panel.visible = false
 	for button in menu_buttons.get_children():
 		button.disabled = true
 	if START_SCENE != "" and GameState.has_method("go_to_scene"):

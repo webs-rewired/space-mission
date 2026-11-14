@@ -26,6 +26,7 @@ const SpacecraftLookalike = preload("res://scripts/spacecraft_lookalike.gd")
 # The real spacecraft (their models, sizes and why your design is like them) are in spacecraft_lookalike.gd
 const LOOKALIKES = SpacecraftLookalike.LOOKALIKES
 
+const CLEAN_ROOM_SCENE = preload("res://scenes/places/clean_room.tscn")
 const GO = Color(0.35, 0.85, 0.45)
 const WATCH = Color(1.0, 0.8, 0.3)
 const NO_GO = Color(1.0, 0.4, 0.35)
@@ -64,42 +65,9 @@ func _ready():
 # The clean room and the 3D probe
 # ---------------------------------------------------------------------------
 func build_clean_room():
-	var environment_node = WorldEnvironment.new()
-	var environment = Environment.new()
-	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0.82, 0.85, 0.88)
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color(0.9, 0.92, 0.95)
-	environment.ambient_light_energy = 0.6
-	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	environment_node.environment = environment
-	add_child(environment_node)
-	var main_light = DirectionalLight3D.new()
-	main_light.rotation_degrees = Vector3(-50, 30, 0)
-	main_light.light_energy = 1.2
-	main_light.shadow_enabled = true
-	add_child(main_light)
-	var fill_light = DirectionalLight3D.new()
-	fill_light.rotation_degrees = Vector3(-20, -140, 0)
-	fill_light.light_energy = 0.4
-	add_child(fill_light)
-	# Shiny white floor and walls, like NASA's spacecraft clean rooms
-	var floor_mesh = PlaneMesh.new()
-	floor_mesh.size = Vector2(240, 240)   # big enough for Rosetta, whose solar wings span 32 m
-	var floor_node = MeshInstance3D.new()
-	floor_node.mesh = floor_mesh
-	floor_node.material_override = ProbeModel.material(Color(0.88, 0.89, 0.9), 0.1, 0.25)
-	floor_node.position.y = -3.0
-	add_child(floor_node)
-	for wall_index in 3:
-		var wall = MeshInstance3D.new()
-		var wall_mesh = BoxMesh.new()
-		wall_mesh.size = Vector3(240, 60, 0.5)
-		wall.mesh = wall_mesh
-		wall.material_override = ProbeModel.material(Color(0.78, 0.81, 0.85), 0.0, 0.8)
-		wall.rotation_degrees.y = wall_index * 90.0
-		wall.position = Vector3(0, 27, 0) + Vector3(0, 0, -75).rotated(Vector3.UP, deg_to_rad(wall_index * 90.0))
-		add_child(wall)
+	# The room itself (walls of air filters, crane, work stands, the team in their suits, lights) is a scene you can
+	# open and edit: res://scenes/places/clean_room.tscn
+	add_child(CLEAN_ROOM_SCENE.instantiate())
 	# A low turntable on the floor, like the ones spacecraft are tested on
 	ProbeModel.cylinder(self, 4.0, 4.2, 0.3, Vector3(0, -2.85, 0), ProbeModel.material(Color(0.32, 0.34, 0.38), 0.6, 0.4), Vector3.ZERO, 64)
 	model_holder = Node3D.new()
@@ -323,6 +291,12 @@ func build_screen():
 	view_box.add_child(view_button)
 
 	# Bottom: summary and buttons
+	var bottom_background = ColorRect.new()   # a dark strip, so the bar is readable over the bright clean room
+	bottom_background.color = Color(0.02, 0.03, 0.06, 0.82)
+	bottom_background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bottom_background.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	bottom_background.offset_top = -66
+	layer.add_child(bottom_background)
 	var bottom_bar = HBoxContainer.new()
 	bottom_bar.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	bottom_bar.offset_top = -56

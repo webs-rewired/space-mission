@@ -90,6 +90,7 @@ grow_vertical = 2
 layout_mode = 2
 
 [node name="EventTitle" type="Label" parent="CanvasLayer/EventPanel/VBox" unique_id=981058600]
+theme_type_variation = &"TitleLabel"
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 

@@ -4,6 +4,7 @@ const AUDIO_MANAGER_SCENE = "res://scenes/audio_manager.tscn"
 const LOADING_SCREEN_SCENE = "res://scenes/loading_screen.tscn"
 const GAME_SETTINGS_SCRIPT = "res://scripts/game_settings.gd"
 const REQUIRED_FILES_SCRIPT = "res://scripts/required_files.gd"
+const PAUSE_MENU_SCENE = "res://scenes/pause_menu.tscn"
 
 var settings: Node = null          # graphics quality, fullscreen and volumes (scripts/game_settings.gd)
 var loading_screen: Node = null    # the screen shown between scenes (scenes/loading_screen.tscn)
@@ -24,6 +25,10 @@ func _ready():
 		loading_screen = load(LOADING_SCREEN_SCENE).instantiate()
 		loading_screen.name = "LoadingScreen"
 		get_tree().root.add_child.call_deferred(loading_screen)
+	if ResourceLoader.exists(PAUSE_MENU_SCENE) and get_tree().root.get_node_or_null("PauseMenu") == null:
+		var pause_menu = load(PAUSE_MENU_SCENE).instantiate()
+		pause_menu.name = "PauseMenu"
+		get_tree().root.add_child.call_deferred(pause_menu)
 	check_game_files()
 
 # Checks that every file the game needs is in the project, and says so on screen if one isn't
@@ -50,6 +55,28 @@ func check_game_files():
 	warning.position = Vector2(12, 12)
 	layer.add_child(warning)
 	get_tree().root.add_child.call_deferred(layer)
+
+# ---------------------------------------------------------------------------
+# The mission archive: every finished mission, saved on this computer (user://missions.cfg), so the main menu can
+# list them. Newest first, at most ARCHIVE_SIZE.
+# ---------------------------------------------------------------------------
+const ARCHIVE_FILE = "user://missions.cfg"
+const ARCHIVE_SIZE = 30
+
+func archive_mission(grade, spacecraft_name):
+	var missions = load_archive()
+	missions.push_front({"destination": destination, "grade": grade, "score": score, "science": int(science), "lost": lost,
+		"spacecraft": spacecraft_name, "cost": total_cost(), "date": Time.get_date_string_from_system()})
+	missions = missions.slice(0, ARCHIVE_SIZE)
+	var file = ConfigFile.new()
+	file.set_value("archive", "missions", missions)
+	file.save(ARCHIVE_FILE)
+
+func load_archive():
+	var file = ConfigFile.new()
+	if file.load(ARCHIVE_FILE) != OK:
+		return []
+	return file.get_value("archive", "missions", [])
 
 # Every scene change goes through here: the next scene loads behind a loading screen, so there's no frozen or
 # blank frame in between

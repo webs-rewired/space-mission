@@ -115,6 +115,7 @@ grow_horizontal = 0
 layout_mode = 2
 
 [node name="NameLabel" type="Label" parent="CanvasLayer/InfoPanel/VBoxContainer" unique_id=1156026589]
+theme_type_variation = &"TitleLabel"
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "Planet"
