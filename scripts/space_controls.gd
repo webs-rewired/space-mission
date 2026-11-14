@@ -50,21 +50,9 @@ const DESTINATION_CODEX_SCENE = preload("res://scenes/destination_codex.tscn")
 var goto_panel: Control       # the codex
 var goto_open := false
 var goto_selected: String = ""
-var loading_panel: Control
-var loading_status: Label
-var loading_body_name: Label
+const TRAVEL_SCREEN_SCENE = preload("res://scenes/travel_screen.tscn")
+var travel_screen: Control    # the "setting course for..." moment (res://scenes/travel_screen.tscn)
 var is_loading := false
-var preview_cache: Dictionary = {}
-const LOADING_MESSAGES = [
-	"Getting the rocket ready for your mission...",
-	"Calibrating navigation systems...",
-	"Aligning trajectory with target body...",
-	"Confirming orbital insertion parameters...",
-	"Final systems check complete. Preparing departure.",
-]
-var loading_globe_pivot: Node3D
-var loading_globe_mat: StandardMaterial3D
-var globe_spin_speed := 0.35
 
 func _ready():
 	process_priority = 200   # after the planets and the camera have moved, so names line up exactly
@@ -88,9 +76,6 @@ func _process(delta):
 	if message_time_left > 0:
 		message_time_left -= delta
 		message_label.modulate.a = clamp(message_time_left, 0.0, 1.0)
-	# Slow spin on the 3D globe of the "flying there" screen
-	if is_loading and loading_globe_pivot:
-		loading_globe_pivot.rotation.y += delta * globe_spin_speed * 1.2
 	if bodies_node == null or not bodies_node.is_built:
 		return
 	var date = OrbitMath.date_text(bodies_node.julian_date)
@@ -393,102 +378,9 @@ func build_goto_panel():
 		if scene_root.has_method("_on_mission_pressed"):
 			scene_root._on_mission_pressed())
 	goto_panel.closed.connect(func(): goto_open = false)
-	_build_loading_screen()
-
-func _make_globe_viewport(width: int, height: int) -> Dictionary:
-	var container = SubViewportContainer.new()
-	container.custom_minimum_size = Vector2(width, height)
-	container.stretch = true
-	container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var vp = SubViewport.new()
-	vp.size = Vector2i(width, height)
-	vp.own_world_3d = true
-	vp.transparent_bg = true
-	vp.msaa_3d = Viewport.MSAA_4X
-	vp.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE
-	container.add_child(vp)
-
-	var world = Node3D.new()
-	vp.add_child(world)
-
-	var key = DirectionalLight3D.new()
-	key.rotation_degrees = Vector3(-35, 40, 0)
-	key.light_energy = 1.35
-	key.shadow_enabled = false
-	world.add_child(key)
-
-	var fill = DirectionalLight3D.new()
-	fill.rotation_degrees = Vector3(20, -120, 0)
-	fill.light_energy = 0.35
-	fill.light_color = Color(0.7, 0.8, 1.0)
-	world.add_child(fill)
-
-	var cam = Camera3D.new()
-	cam.position = Vector3(0, 0, 4.0)
-	cam.fov = 35.0
-	world.add_child(cam)
-	cam.make_current()
-
-	var pivot = Node3D.new()
-	world.add_child(pivot)
-
-	var sphere = MeshInstance3D.new()
-	var mesh = SphereMesh.new()
-	mesh.radius = 1.0
-	mesh.height = 2.0
-	mesh.radial_segments = 64
-	mesh.rings = 32
-	sphere.mesh = mesh
-
-	var mat = StandardMaterial3D.new()
-	mat.metallic = 0.05
-	mat.roughness = 0.55
-	sphere.material_override = mat
-	pivot.add_child(sphere)
-
-	return {"container": container, "pivot": pivot, "material": mat}
-
-func _build_loading_screen():
-	loading_panel = Control.new()
-	loading_panel.visible = false
-	loading_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	loading_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	controls_layer.add_child(loading_panel)
-
-	var bg = ColorRect.new()
-	bg.color = Color(0.01, 0.02, 0.04, 0.94)
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	loading_panel.add_child(bg)
-
-	var center = VBoxContainer.new()
-	center.set_anchors_preset(Control.PRESET_CENTER)
-	center.offset_left = -180
-	center.offset_top = -220
-	center.offset_right = 180
-	center.offset_bottom = 140
-	center.add_theme_constant_override("separation", 16)
-	loading_panel.add_child(center)
-
-	var loading_globe = _make_globe_viewport(340, 340)
-	loading_globe_pivot = loading_globe["pivot"]
-	loading_globe_mat = loading_globe["material"]
-	center.add_child(loading_globe["container"])
-
-	loading_body_name = Label.new()
-	loading_body_name.add_theme_font_size_override("font_size", 32)
-	loading_body_name.add_theme_color_override("font_color", Color(0.95, 0.96, 0.98))
-	loading_body_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	center.add_child(loading_body_name)
-
-	loading_status = Label.new()
-	loading_status.add_theme_font_size_override("font_size", 16)
-	loading_status.add_theme_color_override("font_color", Color(0.55, 0.85, 0.65))
-	loading_status.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	loading_status.add_theme_constant_override("outline_size", 4)
-	loading_status.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_MINSIZE, 28)
-	loading_status.offset_bottom = -28
-	loading_panel.add_child(loading_status)
+	travel_screen = TRAVEL_SCREEN_SCENE.instantiate()
+	controls_layer.add_child(travel_screen)
+	travel_screen.arrived.connect(_finish_loading_and_go)
 
 func open_goto():
 	if bodies_node and goto_panel.bodies_node == null:
@@ -502,120 +394,16 @@ func close_goto():
 	if goto_panel.is_open():
 		goto_panel.close()
 
-func _apply_globe_material(mat: StandardMaterial3D, body_name: String) -> void:
-	if mat == null:
-		return
-	if body_name == "" or not SolarSystemData.BODIES.has(body_name):
-		mat.albedo_texture = null
-		mat.albedo_color = Color(0.15, 0.17, 0.2)
-		mat.emission_enabled = false
-		return
-
-	var tex = _get_body_preview(body_name)
-	var data = SolarSystemData.BODIES[body_name]
-	var is_star = data.get("kind") == "star"
-
-	if tex:
-		mat.albedo_texture = tex
-		mat.albedo_color = Color.WHITE
-	else:
-		mat.albedo_texture = null
-		mat.albedo_color = data.get("label_color", Color(0.6, 0.65, 0.7))
-
-	if is_star:
-		mat.emission_enabled = true
-		mat.emission = Color(1.0, 0.85, 0.45)
-		mat.emission_energy_multiplier = 0.85
-		if tex:
-			mat.emission_texture = tex
-	else:
-		mat.emission_enabled = false
-		mat.emission_texture = null
-
-	mat.roughness = 0.4 if is_star else 0.55
-	mat.metallic = 0.0
-
-func _get_body_preview(body_name: String) -> Texture2D:
-	if preview_cache.has(body_name):
-		return preview_cache[body_name]
-
-	var texture_map = {
-		"Sun": "2k_sun.jpg",
-		"Mercury": "2k_mercury.jpg",
-		"Venus": "2k_venus_surface.jpg",
-		"Earth": "2k_earth_daymap.jpg",
-		"Moon": "2k_moon.jpg",
-		"Mars": "2k_mars.jpg",
-		"Jupiter": "2k_jupiter.jpg",
-		"Saturn": "2k_saturn.jpg",
-		"Uranus": "2k_uranus.jpg",
-		"Neptune": "2k_neptune.jpg",
-		"Ceres": "2k_ceres_fictional.jpg",
-		"Pluto": "2k_pluto.jpg",
-		"Eris": "2k_eris_fictional.jpg",
-		"Haumea": "2k_haumea_fictional.jpg",
-		"Makemake": "2k_makemake_fictional.jpg",
-		"Io": "2k_io.jpg",
-		"Europa": "2k_europa.jpg",
-		"Ganymede": "2k_ganymede.jpg",
-		"Callisto": "2k_callisto.jpg",
-		"Titan": "2k_titan.jpg",
-		"Triton": "2k_triton.jpg",
-		"Charon": "2k_charon.jpg",
-	}
-
-	var candidates: Array[String] = []
-	if texture_map.has(body_name):
-		candidates.append("res://textures/" + texture_map[body_name])
-
-	var lower = body_name.to_lower()
-	candidates.append_array([
-		"res://textures/2k_%s.jpg" % lower,
-		"res://textures/2k_%s.png" % lower,
-		"res://textures/2k_%s_daymap.jpg" % lower,
-		"res://textures/2k_%s_fictional.jpg" % lower,
-		"res://textures/2k_%s_surface.jpg" % lower,
-		"res://textures/%s.jpg" % lower,
-		"res://textures/%s.png" % lower,
-	])
-
-	for path in candidates:
-		if ResourceLoader.exists(path):
-			var res = load(path)
-			if res is Texture2D:
-				preview_cache[body_name] = res
-				return res
-
-	preview_cache[body_name] = null
-	return null
-
+# Flying to a world picked in the Go to... menu: the travel screen shows the real world for a moment, then the
+# camera flies there
 func _start_loading_then_go(body_name: String, do_follow: bool):
-	if is_loading:
-		return
-	if not SolarSystemData.BODIES.has(body_name):
+	if is_loading or not SolarSystemData.BODIES.has(body_name):
 		return
 	is_loading = true
 	close_goto()
-
-	var data = SolarSystemData.BODIES[body_name]
-	_apply_globe_material(loading_globe_mat, body_name)
-	if loading_globe_pivot:
-		loading_globe_pivot.rotation.y = 0.0
-	loading_body_name.text = str(data.get("label", body_name))
-	loading_status.text = LOADING_MESSAGES[0]
-	loading_panel.visible = true
-
-	var tween = create_tween()
-	for i in LOADING_MESSAGES.size():
-		var msg = LOADING_MESSAGES[i]
-		tween.tween_callback(func(): loading_status.text = msg)
-		tween.tween_interval(0.55)
-	tween.tween_callback(func():
-		_finish_loading_and_go(body_name, do_follow)
-	)
+	travel_screen.go(bodies_node, body_name, do_follow)
 
 func _finish_loading_and_go(body_name: String, do_follow: bool):
-	loading_panel.visible = false
 	is_loading = false
 	go_to_planet(body_name, do_follow)
 
