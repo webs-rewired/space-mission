@@ -345,6 +345,12 @@ func _process(delta):
 
 	# A mission event pauses the simulation so the player can read it and make a decision.
 	var belt = scenery.belt_at(flight_progress) if scenery and arrival_mode == "" else {}
+	# The piloting panel shows only while you're actually steering through a belt: never under an event panel, and
+	# never after arrival (Ceres sits inside the asteroid belt, so the trip there ends inside it)
+	if control_banner:
+		control_banner.set_shown(arrival_mode == "" and not belt.is_empty() and not event_panel.visible and not pending_event)
+	if arrival_mode != "" and belt_now != "":
+		finish_belt_on_arrival()
 	if not event_panel.visible and not pending_event:
 		if arrival_mode == "":
 			var rate = time_rate_days_per_second
@@ -358,12 +364,6 @@ func _process(delta):
 			steer_through_belt(delta, belt)
 			var new_progress = clamp(elapsed_flight_days / max(total_flight_days, 0.001), 0.0, 1.0)
 			set_flight_progress(new_progress)
-	# The piloting panel shows only while you're actually steering through a belt: never under an event panel, and
-	# never after arrival (Ceres sits inside the asteroid belt, so the trip there ends inside it)
-	if control_banner:
-		control_banner.set_shown(arrival_mode == "" and not belt.is_empty() and not event_panel.visible and not pending_event)
-	if arrival_mode != "" and belt_now != "":
-		finish_belt_on_arrival()
 
 		if arrival_mode == "" and flight_progress >= 0.999:
 			begin_orbit()
