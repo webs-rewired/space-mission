@@ -1,5 +1,7 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=10 format=3]
 
+[ext_resource type="Texture2D" path="res://assets/textures/2k_stars_milky_way.jpg" id="90_stars"]
+[ext_resource type="PackedScene" path="res://scenes/key_hints.tscn" id="9_keys"]
 [ext_resource type="Script" path="res://scripts/engine_test_lab.gd" id="1_lab"]
 [ext_resource type="Script" path="res://scripts/engine_plume.gd" id="2_plume"]
 [ext_resource type="Script" path="res://scripts/line_graph.gd" id="3_graph"]
@@ -64,7 +66,20 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.015, 0.02, 0.035, 0.97)
+color = Color(0.015, 0.02, 0.035, 1)
+
+[node name="Stars" type="TextureRect" parent="."]
+modulate = Color(1, 1, 1, 0.22)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("90_stars")
+expand_mode = 1
+stretch_mode = 6
 
 [node name="Header" type="HBoxContainer" parent="."]
 layout_mode = 1
@@ -150,6 +165,7 @@ size_flags_horizontal = 3
 size_flags_vertical = 4
 min_value = 40.0
 max_value = 110.0
+step = 0.1
 value = 100.0
 
 [node name="MixtureValue" type="Label" parent="Layout/Left"]
@@ -192,6 +208,10 @@ layout_mode = 2
 size_flags_horizontal = 3
 disabled = true
 text = "Shut down"
+
+[node name="KeyHints" parent="Layout/Left" instance=ExtResource("9_keys")]
+layout_mode = 2
+hints = [["W S", "throttle"], ["A D", "mixture"], ["Space", "ignite / shut down"], ["Esc", "close"]]
 
 [node name="Objective" type="PanelContainer" parent="Layout/Left"]
 layout_mode = 2

@@ -597,13 +597,13 @@ func update_review():
 
 	# Science
 	var instrument_count = GameState.instruments.size()
-	var lander_only_without_lander = not has_lander and (GameState.is_chosen("instrument_drill") or GameState.is_chosen("instrument_seismometer") or GameState.is_chosen("instrument_arm"))
+	var lander_only_without_lander = not has_lander and GameState.LANDER_ONLY_INSTRUMENTS.any(func(part_id): return GameState.is_chosen(part_id))
 	status = "no-go" if instrument_count == 0 else ("watch" if lander_only_without_lander or instrument_count == 1 else "go")
 	var science_text = "%d instrument%s on board." % [instrument_count, "" if instrument_count == 1 else "s"]
 	if instrument_count == 0:
 		science_text = "No instruments means almost no science."
 	if lander_only_without_lander:
-		science_text += " The drill, seismometer and robotic arm only work on a lander."
+		science_text += " The drill, seismometer, robotic arm and sample return only work on a lander."
 	lines.append(line(status, "Science", science_text))
 
 	# Launch mass

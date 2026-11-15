@@ -1,5 +1,7 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=10 format=3]
 
+[ext_resource type="PackedScene" path="res://scenes/key_hints.tscn" id="91_keys"]
+[ext_resource type="Texture2D" path="res://assets/textures/2k_stars_milky_way.jpg" id="90_stars"]
 [ext_resource type="Script" path="res://scripts/orbital_insertion.gd" id="1_insertion"]
 [ext_resource type="Script" path="res://scripts/orbit_view.gd" id="2_view"]
 [ext_resource type="Shader" path="res://shaders/codex_thumbnail.gdshader" id="3_ball"]
@@ -58,7 +60,20 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.01, 0.015, 0.03, 0.94)
+color = Color(0.01, 0.015, 0.03, 1)
+
+[node name="Stars" type="TextureRect" parent="."]
+modulate = Color(1, 1, 1, 0.22)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("90_stars")
+expand_mode = 1
+stretch_mode = 6
 
 [node name="View" type="Control" parent="."]
 layout_mode = 1
@@ -168,6 +183,11 @@ text = "Hold to burn (Space)"
 custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
 text = "Autopilot"
+
+[node name="KeyHints" parent="Panel/Column" instance=ExtResource("91_keys")]
+layout_mode = 2
+alignment = 0
+hints = [["Space", "hold to burn"]]
 
 [node name="Spacer" type="Control" parent="Panel/Column"]
 layout_mode = 2

@@ -7,6 +7,7 @@ extends Node3D
 const DIRECTIVES_CARD_SCENE = preload("res://scenes/directives_card.tscn")
 const ENGINE_LAB_SCENE = preload("res://scenes/engine_test_lab.tscn")
 const GRAVITY_ASSIST_SCENE = preload("res://scenes/gravity_assist.tscn")
+const MinigameLayer = preload("res://scripts/minigame_layer.gd")
 const PROBE_SCENE = "res://scenes/probe_builder.tscn"
 const LAUNCH_SCENE = "res://scenes/launch.tscn"
 
@@ -95,12 +96,7 @@ func add_engine_lab_button():
 
 # Minigames open on their own layer above the builder's screen (layer 1), below the pause menu and toasts
 func show_minigame(minigame):
-	var minigame_layer = CanvasLayer.new()
-	minigame_layer.name = "MinigameLayer"
-	minigame_layer.layer = 50
-	add_child(minigame_layer)
-	minigame_layer.add_child(minigame)
-	minigame.tree_exited.connect(minigame_layer.queue_free)
+	MinigameLayer.show_minigame(self, minigame)
 
 # The Gravity-Assist Planner minigame (res://scenes/gravity_assist.tscn): plan a flyby of a nearer planet so a
 # smaller rocket can do the job (GameState.gravity_assist lowers the speed the rocket needs)

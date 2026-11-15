@@ -93,6 +93,8 @@ func record_career():
 		row.get_node("Progress").text = ("+%d XP" % MissionDirectives.BONUS_XP) if status["state"] == "done" else status["progress"]
 	if GameState.directives.is_empty():
 		career_column.get_node("DirectivesHeader").visible = false
+	if GameState.assist_planned():
+		GameState.mission_stats["gravity_assist"] = 1
 	var report = {
 		"destination": GameState.destination, "score": GameState.score, "grade": grade_label.text, "lost": GameState.lost,
 		"science": GameState.science, "data_share": GameState.data_share, "directives_done": directives_done,

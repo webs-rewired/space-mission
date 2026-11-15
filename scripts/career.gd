@@ -48,6 +48,17 @@ const ACHIEVEMENTS = {
 	"veteran": {"title": "Veteran", "text": "Fly 10 missions."},
 	"hard_as_nails": {"title": "Hard as nails", "text": "Earn a B or better on Veteran difficulty."},
 	"researcher": {"title": "Research lab", "text": "Buy your first technology upgrade."},
+	"return_to_sender": {"title": "Return to sender", "text": "Bring rock samples home with a sample return."},
+	"textbook": {"title": "Textbook insertion", "text": "Fly an excellent orbital insertion."},
+	"field_geologist": {"title": "Field geologist", "text": "Identify 3 rock samples correctly in one mission."},
+	"road_trip": {"title": "Road trip", "text": "Drive a rover 300 m in one mission."},
+	"slingshot": {"title": "Slingshot", "text": "Fly a mission with a gravity assist."},
+	"close_shave": {"title": "Close shave", "text": "Get 5 close calls in one trip through the belts."},
+	"ace_pilot": {"title": "Ace pilot", "text": "Earn gold in the docking trainer."},
+	"test_stand": {"title": "Test stand veteran", "text": "Earn gold on 5 different engine tests."},
+	"gold_plan": {"title": "Gravity master", "text": "Earn a gold plan in the flyby planner."},
+	"smooth_operator": {"title": "Smooth operator", "text": "Earn a gold traverse rating with a rover."},
+	"overachiever": {"title": "Overachiever", "text": "Earn 3 gold medals in minigames during one mission."},
 }
 
 static func load_data():
@@ -121,6 +132,13 @@ static func record_mission(data, report):
 		"lessons_learned": report["lost"],
 		"veteran": data["missions"] >= 10,
 		"hard_as_nails": report["difficulty"] == 2 and report["grade"] in ["A+", "A", "B"],
+		"return_to_sender": stats.get("samples_returned", 0) > 0 and not report["lost"],
+		"textbook": stats.get("insertion_excellent", 0) > 0,
+		"field_geologist": stats.get("samples_identified", 0) >= 3,
+		"road_trip": stats.get("rover_meters", 0) >= 300,
+		"slingshot": stats.get("gravity_assist", 0) > 0 and not report["lost"],
+		"close_shave": stats.get("close_calls", 0) >= 5,
+		"overachiever": stats.get("gold_medals", 0) >= 3,
 	}
 	for achievement_id in checks:
 		if checks[achievement_id] and not achievement_id in data["achievements"]:
@@ -128,6 +146,13 @@ static func record_mission(data, report):
 			earned.append(achievement_id)
 	summary["new_achievements"] = earned
 	return summary
+
+# Awards one achievement right away (for the minigames you play outside a mission report). Returns true if it's new.
+static func award(data, achievement_id):
+	if not ACHIEVEMENTS.has(achievement_id) or achievement_id in data["achievements"]:
+		return false
+	data["achievements"].append(achievement_id)
+	return true
 
 # Buys an upgrade if there are enough research points. Returns true if it was bought.
 static func buy_upgrade(data, upgrade_id):

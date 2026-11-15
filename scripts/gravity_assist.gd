@@ -11,6 +11,7 @@ extends Control
 # (less launch speed), the trip takes longer, and any burn comes out of your spacecraft's own fuel.
 # The physics is in scripts/flyby_physics.gd. Each planning session draws a new arrival (launch window).
 #
+# Keys: A/D pass height, F switch side, W/S burn, Q/E flyby planet, Space execute, N new window, Esc close.
 # The rocket builder opens this with open_planner(); closing it sends closed.
 
 signal closed
@@ -19,6 +20,8 @@ const FlybyPhysics = preload("res://scripts/flyby_physics.gd")
 const RocketData = preload("res://scripts/rocket_data.gd")
 const SolarSystemData = preload("res://scripts/solar_system_data.gd")
 const Career = preload("res://scripts/career.gd")
+const SpaceTextures = preload("res://scripts/space_textures.gd")
+const TITLE_CARD_SCENE = preload("res://scenes/title_card.tscn")
 const AU_KM = 149597870.7
 # Launch speed (m/s) to reach each flyby planet, worked out from real launch energies: Cassini (Venus route) needed
 # a launch energy of about 16.6 km²/s², Juno (Earth route, with a burn far out to come back) about 31.
@@ -45,6 +48,11 @@ const MEDALS = [[85, "GOLD", Color(1.0, 0.82, 0.35), 15], [65, "SILVER", Color(0
 @onready var result_title: Label = $Layout/Right/Result/Column/Title
 @onready var result_text: Label = $Layout/Right/Result/Column/Text
 @onready var title_label: Label = $Header/Title
+@onready var steps_label: Label = $Layout/Left/Steps
+@onready var reach_meter: Control = $Layout/Right/Reach
+@onready var keys_row: Control = $Layout/Left/KeyHints
+@onready var closeup_disc: TextureRect = $Layout/Right/Closeup/PlanetDisc
+@onready var map_disc: TextureRect = $Layout/Middle/Map/FlybyDisc
 
 var destination = "Jupiter"
 var target_radius = 5.2 * AU_KM
@@ -59,6 +67,9 @@ var side = 1.0
 var result_orbit = {}
 var reaches = false
 var planned = false
+var touched_height = false      # (for the step list: has the player set the pass height yet?)
+var touched_side = false
+var animating = false           # the flyby plays out on the map after Execute
 
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -66,9 +77,8 @@ func _ready():
 	planet_picker.item_selected.connect(func(index): choose_planet(options[index]))
 	altitude_slider.value_changed.connect(func(_value): preview())
 	burn_slider.value_changed.connect(func(_value): preview())
-	side_button.pressed.connect(func():
-		side = -side
-		preview())
+	side_button.pressed.connect(switch_side)
+	altitude_slider.drag_started.connect(func(): touched_height = true)
 	window_button.pressed.connect(func(): new_window())
 	$Layout/Left/ClearButton.pressed.connect(clear_plan)
 	execute_button.pressed.connect(execute)
@@ -133,9 +143,61 @@ func set_planet_values(planet_name):
 	planet = FlybyPhysics.FLYBY_PLANETS[planet_name]
 	planet_radius_orbit = planet[0] * AU_KM
 
+func switch_side():
+	side = -side
+	touched_side = true
+	preview()
+
+# Keys: the discrete ones here (they also stop the menus underneath from reacting), held ones in _process
+func _input(event):
+	if not event is InputEventKey or not event.pressed or event.echo:
+		return
+	match event.keycode:
+		KEY_ESCAPE:
+			close()
+		KEY_F:
+			if not animating and not options.is_empty():
+				switch_side()
+		KEY_SPACE, KEY_ENTER:
+			if not animating and not execute_button.disabled:
+				execute()
+		KEY_N:
+			if not animating and not options.is_empty():
+				new_window()
+		KEY_Q, KEY_E:
+			if not animating and options.size() > 1:
+				var index = wrapi(options.find(flyby_planet) + (1 if event.keycode == KEY_E else -1), 0, options.size())
+				planet_picker.selected = index
+				choose_planet(options[index])
+		_:
+			if not event.keycode in [KEY_A, KEY_D, KEY_W, KEY_S, KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN]:
+				return
+	get_viewport().set_input_as_handled()
+
+func _process(delta):
+	if options.is_empty() or animating or planet.is_empty():
+		return
+	var height_keys = (1.0 if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT) else 0.0) - (1.0 if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT) else 0.0)
+	var burn_keys = (1.0 if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP) else 0.0) - (1.0 if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN) else 0.0)
+	var fine = 0.25 if Input.is_key_pressed(KEY_SHIFT) else 1.0
+	if height_keys != 0.0:
+		touched_height = true
+		altitude_slider.value = clamp(altitude_slider.value + height_keys * 0.3 * fine * delta, 0.0, 1.0)
+	if burn_keys != 0.0 and burn_slider.editable:
+		burn_slider.value = clamp(burn_slider.value + burn_keys * 0.3 * fine * delta, 0.0, burn_slider.max_value)
+	keys_row.light_key("A", height_keys < 0.0)
+	keys_row.light_key("D", height_keys > 0.0)
+	keys_row.light_key("W", burn_keys > 0.0)
+	keys_row.light_key("S", burn_keys < 0.0)
+
 func choose_planet(planet_name):
 	set_planet_values(planet_name)
 	planet_note.text = planet[4]
+	var map_texture = SpaceTextures.find_texture(SolarSystemData.BODIES.get(planet_name, {}).get("images", []))
+	closeup_disc.texture = map_texture if map_texture else PlaceholderTexture2D.new()
+	map_disc.texture = closeup_disc.texture
+	closeup.planet_disc = closeup_disc
+	map.planet_disc = map_disc
 	map.flyby_planet = planet_name
 	map.flyby_radius_km = planet_radius_orbit
 	map.target_radius_km = target_radius
@@ -243,7 +305,7 @@ func preview():
 	closeup.outgoing_direction = result_orbit["direction_out"]
 	closeup.planet_motion = Vector2(0, 1)
 	altitude_label.text = "Closest pass: %s km above %s" % [format_number(altitude_km()), "the cloud tops" if flyby_planet in ["Venus", "Jupiter"] else "the ground"]
-	side_button.text = "Bend the path: %s (click to switch)" % ("left" if side > 0 else "right")
+	side_button.text = "Swing: %s  (F to switch)" % ("counterclockwise" if side > 0 else "clockwise")
 	burn_label.text = "Engine burn at the closest point: %.2f km/s%s" % [burn_slider.value, "" if burn_slider.editable else "  (no spare fuel)"]
 	var lines = [
 		"ARRIVAL SPEED (v∞)   %.2f km/s" % v_infinity,
@@ -261,7 +323,37 @@ func preview():
 	lines.append("")
 	lines.append("REACHES %s" % map.target_name.to_upper() if reaches else "FALLS SHORT: try the other side, a closer pass, or a burn")
 	readouts.text = "\n".join(lines)
+	# "Does it reach?" and the step list
+	reach_meter.target_au = target_radius / AU_KM
+	reach_meter.start_au = planet_radius_orbit / AU_KM
+	reach_meter.going_inward = going_inward
+	reach_meter.escapes = result_orbit["escapes"]
+	reach_meter.reach_au = (result_orbit["periapsis"] if going_inward else (result_orbit["apoapsis"] if not result_orbit["escapes"] else target_radius * 2.0)) / AU_KM
+	reach_meter.reaches = reaches
+	reach_meter.on_target = reaches and overshoot() <= 0.25
+	update_steps()
 	readouts.add_theme_color_override("font_color", Color(0.75, 1.0, 0.8) if reaches else Color(1.0, 0.8, 0.75))
+
+# The step list on the left: what to do next, ticked off as you go
+func update_steps():
+	var label = map.target_name
+	var steps = [
+		[true, "Pick a planet to fly past (Q E)"],
+		[touched_height, "Set how close to pass (A D or drag): closer bends your path more"],
+		[touched_side, "Pick the swing direction (F): behind the planet speeds you up"],
+		[reaches, "Make the green line reach the gold ring of %s" % label],
+		[reaches and overshoot() <= 0.25, "Don't fly far past it: aim the reach marker at the gold tick"],
+		[planned, "Execute (Space)"],
+	]
+	var lines = []
+	var current_marked = false
+	for index in steps.size():
+		var done = steps[index][0]
+		var marker = "✓" if done else ("▶" if not current_marked else "·")
+		if not done and not current_marked:
+			current_marked = true
+		lines.append("%s  %s" % [marker, steps[index][1]])
+	steps_label.text = "\n".join(lines)
 
 # How far past the destination's orbit the new orbit goes (0 = just reaches it). Overshooting means arriving fast,
 # so the spacecraft needs a bigger braking burn. Escaping the solar system is fine for the far worlds (New
@@ -292,12 +384,37 @@ func clear_plan():
 	result_box.visible = true
 	UiMotion.pop_in(result_box, 0.0, 0.4)
 
+# The flyby plays out: the spacecraft comes in along its path, swings past the planet (the close-up), and heads
+# off on its new orbit toward the gold ring
+func play_flyby():
+	animating = true
+	execute_button.disabled = true
+	var audio = get_node_or_null("/root/AudioManager")
+	if audio:
+		audio.play_effect("whoosh", -6.0)
+	map.travel = 0.0
+	closeup.travel = 0.0
+	var motion = create_tween()
+	motion.tween_property(map, "travel", 1.0, 1.1).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	motion.tween_property(closeup, "travel", 1.0, 1.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	motion.tween_property(map, "travel", 2.0, 1.4).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	await motion.finished
+	var card = TITLE_CARD_SCENE.instantiate()
+	add_child(card)
+	card.play("%s FLYBY" % flyby_planet.to_upper(), ("Reaches %s" % map.target_name) if reaches else "Falls short of %s" % map.target_name,
+		Color(0.5, 1.0, 0.7) if reaches else Color(1.0, 0.55, 0.45), 1.4)
+	animating = false
+	execute_button.disabled = false
+	map.travel = -1.0
+	closeup.travel = -1.0
+
 # Lock in the plan, score it, and tell the mission
 func execute():
 	if planned:
 		new_window()
 		return
 	planned = true
+	await play_flyby()
 	var parts = plan_score()
 	var score = parts["reach"] + parts["fuel"] + parts["accuracy"]
 	var medal = null
@@ -344,6 +461,9 @@ func execute():
 	execute_button.text = "Try another window"
 	result_box.visible = true
 	UiMotion.pop_in(result_box, 0.0, 0.5)
+	UiMotion.stamp(result_title, 0.25)
+	if medal and reaches and medal[1] == "GOLD":
+		GameState.award_achievement("gold_plan")
 	if research > 0:
 		GameState.show_toast("%s plan" % medal[1].capitalize(), "%s flyby to %s. +%d research points." % [flyby_planet, map.target_name, research], "research")
 

@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/key_hints.gd" id="1_keys"]
+
+[node name="KeyHints" type="HFlowContainer"]
+alignment = 1
+mouse_filter = 2
+script = ExtResource("1_keys")
+editor_description = "Key caps and what each key does, the same look in every minigame (scripts/key_hints.gd)."

@@ -123,6 +123,22 @@ static func pop_in(control: Control, delay := 0.0, duration := 0.55) -> void:
 		grow.tween_property(control, "scale", Vector2.ONE, duration).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		grow.tween_property(control, "modulate:a", 1.0, duration * 0.5))
 
+# A medal or result stamped onto a card: it slams down from big and tilted, with a little bounce
+static func stamp(control: Control, delay := 0.15) -> void:
+	if not is_instance_valid(control):
+		return
+	control.modulate.a = 0.0
+	var tween := control.create_tween()
+	tween.tween_interval(max(delay, 0.01))
+	tween.tween_callback(func():
+		control.pivot_offset = control.size / 2.0
+		control.scale = Vector2.ONE * 2.2
+		control.rotation = -0.12
+		var slam := control.create_tween().set_parallel(true)
+		slam.tween_property(control, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		slam.tween_property(control, "rotation", 0.0, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		slam.tween_property(control, "modulate:a", 1.0, 0.15))
+
 # For flat text buttons (like the main menu's): on hover the text slides right and a thin accent bar grows at
 # its left. Uses its own empty style box for every state, so the text can be moved by changing the margin.
 static func add_hover_slide(button: Button, accent := ACCENT, slide := 18.0) -> void:

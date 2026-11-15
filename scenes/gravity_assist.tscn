@@ -1,8 +1,26 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=12 format=3]
 
+[ext_resource type="Texture2D" path="res://assets/textures/2k_stars_milky_way.jpg" id="90_stars"]
 [ext_resource type="Script" path="res://scripts/gravity_assist.gd" id="1_planner"]
 [ext_resource type="Script" path="res://scripts/assist_map.gd" id="2_map"]
 [ext_resource type="Script" path="res://scripts/flyby_closeup.gd" id="3_closeup"]
+[ext_resource type="PackedScene" path="res://scenes/key_hints.tscn" id="4_keys"]
+[ext_resource type="Script" path="res://scripts/reach_meter.gd" id="5_reach"]
+[ext_resource type="Shader" path="res://shaders/codex_thumbnail.gdshader" id="6_ball"]
+
+[sub_resource type="ShaderMaterial" id="closeup_planet"]
+shader = ExtResource("6_ball")
+shader_parameter/tint = Color(1, 1, 1, 1)
+shader_parameter/has_map = true
+shader_parameter/edge_color = Color(0.45, 0.8, 1, 0.45)
+shader_parameter/turn = 0.0
+
+[sub_resource type="ShaderMaterial" id="map_planet"]
+shader = ExtResource("6_ball")
+shader_parameter/tint = Color(1, 1, 1, 1)
+shader_parameter/has_map = true
+shader_parameter/edge_color = Color(0.45, 0.8, 1, 0.6)
+shader_parameter/turn = 0.0
 
 [sub_resource type="StyleBoxFlat" id="panel_style"]
 content_margin_left = 14.0
@@ -52,6 +70,19 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.015, 0.02, 0.035, 1)
 
+[node name="Stars" type="TextureRect" parent="."]
+modulate = Color(1, 1, 1, 0.22)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("90_stars")
+expand_mode = 1
+stretch_mode = 6
+
 [node name="Header" type="HBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 10
@@ -97,18 +128,19 @@ theme_override_constants/separation = 7
 [node name="Goal" type="Label" parent="Layout/Left"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
-text = "Use a planet's gravity to speed up toward Jupiter."
+text = "Swing past a planet to speed up toward Jupiter."
 autowrap_mode = 3
 
-[node name="PlanetTitle" type="Label" parent="Layout/Left"]
+[node name="Steps" type="Label" parent="Layout/Left"]
 layout_mode = 2
 theme_type_variation = &"DataLabel"
-theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
-theme_override_font_sizes/font_size = 11
-text = "FLY PAST"
+theme_override_font_sizes/font_size = 12
+text = "1  Pick a planet"
+autowrap_mode = 3
 
 [node name="PlanetPicker" type="OptionButton" parent="Layout/Left"]
 layout_mode = 2
+focus_mode = 0
 clip_text = true
 
 [node name="PlanetNote" type="Label" parent="Layout/Left"]
@@ -127,6 +159,7 @@ autowrap_mode = 3
 
 [node name="Altitude" type="HSlider" parent="Layout/Left"]
 layout_mode = 2
+focus_mode = 0
 max_value = 1.0
 step = 0.001
 value = 0.6
@@ -134,7 +167,8 @@ value = 0.6
 [node name="SideButton" type="Button" parent="Layout/Left"]
 custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
-text = "Bend the path: left (click to switch)"
+focus_mode = 0
+text = "Swing: counterclockwise (F to switch)"
 
 [node name="BurnValue" type="Label" parent="Layout/Left"]
 layout_mode = 2
@@ -145,6 +179,7 @@ autowrap_mode = 3
 
 [node name="Burn" type="HSlider" parent="Layout/Left"]
 layout_mode = 2
+focus_mode = 0
 max_value = 1.0
 step = 0.01
 
@@ -156,29 +191,26 @@ theme_override_constants/separation = 8
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 size_flags_horizontal = 3
+focus_mode = 0
 text = "Execute flyby"
 
 [node name="WindowButton" type="Button" parent="Layout/Left/Buttons"]
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 size_flags_horizontal = 3
+focus_mode = 0
 text = "New window"
 
 [node name="ClearButton" type="Button" parent="Layout/Left"]
 custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
+focus_mode = 0
 theme_override_font_sizes/font_size = 12
 text = "Fly direct instead (no gravity assist)"
 
-[node name="Lesson" type="PanelContainer" parent="Layout/Left"]
+[node name="KeyHints" parent="Layout/Left" instance=ExtResource("4_keys")]
 layout_mode = 2
-theme_override_styles/panel = SubResource("note_style")
-
-[node name="Text" type="Label" parent="Layout/Left/Lesson"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 11
-text = "Passing behind a planet (it pulls you along) speeds you up; passing in front slows you down. Closer passes bend your path more: δ = 2·asin(1 / (1 + rp·v∞² / μ)). A burn at the closest point counts for extra (the Oberth effect)."
-autowrap_mode = 3
+hints = [["A D", "pass height"], ["F", "switch side"], ["W S", "burn"], ["Q E", "planet"], ["Space", "execute"], ["N", "new window"]]
 
 [node name="Middle" type="VBoxContainer" parent="Layout"]
 layout_mode = 2
@@ -193,21 +225,43 @@ theme_override_font_sizes/font_size = 11
 text = "YOUR ORBIT AROUND THE SUN (TO SCALE)"
 
 [node name="Map" type="Control" parent="Layout/Middle"]
+clip_contents = true
 layout_mode = 2
 size_flags_vertical = 3
 script = ExtResource("2_map")
+
+[node name="FlybyDisc" type="TextureRect" parent="Layout/Middle/Map"]
+material = SubResource("map_planet")
+layout_mode = 0
+offset_right = 16.0
+offset_bottom = 16.0
+mouse_filter = 2
+expand_mode = 1
 
 [node name="Note" type="Label" parent="Layout/Middle"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.5, 0.55, 0.62, 1)
 theme_override_font_sizes/font_size = 10
-text = "Real numbers: planet masses (GM), sizes and orbits from NASA JPL; the bend-angle and powered-flyby formulas used by mission planners. Simplified for the game: circular planet orbits in one flat plane, one flyby instead of the several real missions chain together, and launch speeds rounded from real launch energies."
+text = "Passing behind a planet (it pulls you along) speeds you up; passing in front slows you down. Closer passes bend your path more: δ = 2·asin(1 / (1 + rp·v∞² / μ)), and a burn at the closest point counts for extra (the Oberth effect). Real numbers: planet masses, sizes and orbits from NASA JPL. Simplified: circular orbits in one plane, one flyby instead of a chain."
 autowrap_mode = 3
 
 [node name="Right" type="VBoxContainer" parent="Layout"]
 custom_minimum_size = Vector2(290, 0)
 layout_mode = 2
 theme_override_constants/separation = 8
+
+[node name="ReachTitle" type="Label" parent="Layout/Right"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(1, 0.82, 0.35, 1)
+theme_override_font_sizes/font_size = 11
+text = "DOES IT REACH?"
+
+[node name="Reach" type="Control" parent="Layout/Right"]
+custom_minimum_size = Vector2(0, 46)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("5_reach")
 
 [node name="CloseupTitle" type="Label" parent="Layout/Right"]
 layout_mode = 2
@@ -217,9 +271,19 @@ theme_override_font_sizes/font_size = 11
 text = "THE FLYBY, SEEN FROM THE PLANET"
 
 [node name="Closeup" type="Control" parent="Layout/Right"]
+clip_contents = true
 custom_minimum_size = Vector2(0, 190)
 layout_mode = 2
 script = ExtResource("3_closeup")
+
+[node name="PlanetDisc" type="TextureRect" parent="Layout/Right/Closeup"]
+show_behind_parent = false
+material = SubResource("closeup_planet")
+layout_mode = 0
+offset_right = 60.0
+offset_bottom = 60.0
+mouse_filter = 2
+expand_mode = 1
 
 [node name="Readouts" type="Label" parent="Layout/Right"]
 layout_mode = 2

@@ -12,6 +12,7 @@ signal driving_finished(summary)
 
 const RocketModel = preload("res://scripts/rocket_model.gd")
 const SAMPLE_LAB_SCENE = preload("res://scenes/sample_lab.tscn")
+const MinigameLayer = preload("res://scripts/minigame_layer.gd")
 const Career = preload("res://scripts/career.gd")
 const TRAVERSE_MEDALS = [[85, "GOLD", 15], [65, "SILVER", 8], [40, "BRONZE", 4]]
 const BeltBuilder = preload("res://scripts/belt_builder.gd")
@@ -171,6 +172,7 @@ var studying = null
 var study_time = 0.0
 var science_found = 0
 var findings = []
+var samples = []          # science of each rock sample collected (for a sample-return mission to bring home)
 var big_rocks = []              # [place, radius]
 var sand_patches = []           # [place, radius]
 var height_image: Image = null
@@ -1340,6 +1342,7 @@ func update_science(delta):
 				points += 2   # the right tools tell you much more
 			science_found += points
 			findings.append(studying["name"])
+			samples.append(points)
 			show_message("Studied: %s. +%d science!" % [studying["name"], points], 4.0)
 			studying = null
 		return
@@ -1366,19 +1369,20 @@ func open_sample_lab(target):
 		return
 	sample_lab_open = true
 	paused = true
-	var layer = get_tree().current_scene.get_node_or_null("CanvasLayer")
-	if layer == null:
-		layer = $DriveScreen
+	# The lab gets its own layer above everything, and the drive screen (panel, terrain map) hides meanwhile
 	var lab = SAMPLE_LAB_SCENE.instantiate()
-	layer.add_child(lab)
+	MinigameLayer.show_minigame(self, lab)
+	$DriveScreen.visible = false
 	lab.start(target["name"])
 	var result = await lab.finished
+	$DriveScreen.visible = true
 	target["studied"] = true
 	if target["node"].get_child_count() > 0:
 		target["node"].get_child(0).visible = false
 	if target["node"].has_node("Ring"):
 		target["node"].get_node("Ring").visible = false
 	science_found += result["science"]
+	samples.append(result["science"])
 	findings.append("%s (%s)" % [target["name"], result["name"].to_lower()])
 	if result["correct"]:
 		GameState.add_mission_stat("samples_identified")
@@ -1816,6 +1820,9 @@ func rate_traverse(reason):
 	traverse_result = {"score": score, "parts": parts, "medal": "" if medal.is_empty() else medal[1], "research": research}
 	if research > 0:
 		GameState.show_toast("%s traverse" % medal[1].capitalize(), "Rover drive rated %d/100. +%d research points." % [score, research], "research")
+	if not medal.is_empty() and medal[1] == "GOLD":
+		GameState.note_gold_medal()
+		GameState.award_achievement("smooth_operator")
 	print("TRAVERSE %s" % [traverse_result])
 	return "Traverse rating: %s%d/100 (targets %d/50, rover %d/20, energy %d/15, route %d/15)%s." % [
 		(medal[1] + " ") if not medal.is_empty() else "", score, parts["targets"], parts["condition"], parts["energy"], parts["route"],
@@ -1829,6 +1836,7 @@ func end_driving(reason):
 		return
 	driving = false
 	failure = reason
+	GameState.add_mission_stat("rover_meters", int(odometer))
 	looking_around = false
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	$DriveScreen.visible = false

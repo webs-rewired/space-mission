@@ -1,9 +1,11 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://scripts/docking.gd" id="1_docking"]
 [ext_resource type="Script" path="res://scripts/docking_reticle.gd" id="2_reticle"]
 [ext_resource type="PackedScene" path="res://scenes/places/station_docking_port.tscn" id="3_station"]
 [ext_resource type="PackedScene" path="res://scenes/places/station_zenith_port.tscn" id="7_zenith"]
+[ext_resource type="PackedScene" path="res://scenes/places/sample_orbiter.tscn" id="8_orbiter"]
+[ext_resource type="PackedScene" path="res://scenes/key_hints.tscn" id="9_keys"]
 [ext_resource type="Texture2D" path="res://assets/textures/2k_stars_milky_way.jpg" id="4_stars"]
 [ext_resource type="Texture2D" path="res://assets/textures/2k_earth_daymap.jpg" id="5_earth"]
 [ext_resource type="Texture2D" path="res://assets/textures/2k_earth_clouds.jpg" id="6_clouds"]
@@ -117,6 +119,9 @@ shadow_enabled = true
 directional_shadow_max_distance = 120.0
 
 [node name="StationForward" parent="View/Viewport/World" instance=ExtResource("3_station")]
+
+[node name="Orbiter" parent="View/Viewport/World" instance=ExtResource("8_orbiter")]
+visible = false
 
 [node name="StationZenith" parent="View/Viewport/World" instance=ExtResource("7_zenith")]
 visible = false
@@ -243,25 +248,23 @@ theme_override_font_sizes/font_size = 12
 text = "Touch slowly, centered and lined up."
 autowrap_mode = 3
 
-[node name="KeysTitle" type="Label" parent="Right/Column"]
+[node name="ChecklistTitle" type="Label" parent="Right/Column"]
 layout_mode = 2
 theme_type_variation = &"DataLabel"
 theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
 theme_override_font_sizes/font_size = 11
-text = "CONTROLS"
+text = "CHECKLIST"
 
-[node name="Keys" type="Label" parent="Right/Column"]
+[node name="Checklist" type="Label" parent="Right/Column"]
 layout_mode = 2
 theme_type_variation = &"DataLabel"
-theme_override_font_sizes/font_size = 11
-text = "W / S      up / down
-A / D      left / right
-E / Q      toward / away from port
-Arrows     pitch and yaw
-Z / C      roll
-Shift      fine control
-R          rate hold
-T          fast-forward (far out)"
+theme_override_font_sizes/font_size = 12
+text = "▶  Stop the spin"
+
+[node name="KeyHints" parent="Right/Column" instance=ExtResource("9_keys")]
+layout_mode = 2
+alignment = 0
+hints = [["W A S D", "move"], ["E", "in"], ["Q", "out"], ["← → ↑ ↓", "turn"], ["Z C", "roll"], ["Shift", "fine"], ["R", "rate hold"], ["T", "fast-forward"]]
 
 [node name="Lesson" type="Label" parent="Right/Column"]
 layout_mode = 2
