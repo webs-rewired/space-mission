@@ -99,6 +99,12 @@ func fill_upgrades():
 			var owned_label = make_label("INSTALLED", 12, Color(0.78, 0.65, 1.0), "DataLabel")
 			owned_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			row.add_child(owned_label)
+		elif upgrade.has("requires") and not GameState.has_upgrade(upgrade["requires"]):
+			var locked = make_label("NEEDS\n" + Career.UPGRADES[upgrade["requires"]]["title"].to_upper(), 10, Color(0.6, 0.62, 0.68), "DataLabel")
+			locked.custom_minimum_size.x = 110
+			locked.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			locked.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			row.add_child(locked)
 		else:
 			var buy = Button.new()
 			buy.text = "%d RP" % upgrade["cost"]

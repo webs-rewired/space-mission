@@ -33,24 +33,24 @@ const MEDALS = [[85, "GOLD", Color(1.0, 0.82, 0.35), 15], [65, "SILVER", Color(0
 
 @onready var map: Control = $Layout/Middle/Map
 @onready var closeup: Control = $Layout/Right/Closeup
-@onready var goal_label: Label = $Layout/Left/Goal
-@onready var planet_picker: OptionButton = $Layout/Left/PlanetPicker
-@onready var planet_note: Label = $Layout/Left/PlanetNote
-@onready var altitude_label: Label = $Layout/Left/AltitudeValue
-@onready var altitude_slider: HSlider = $Layout/Left/Altitude
-@onready var side_button: Button = $Layout/Left/SideButton
-@onready var burn_label: Label = $Layout/Left/BurnValue
-@onready var burn_slider: HSlider = $Layout/Left/Burn
-@onready var execute_button: Button = $Layout/Left/Buttons/ExecuteButton
-@onready var window_button: Button = $Layout/Left/Buttons/WindowButton
+@onready var goal_label: Label = $Layout/LeftScroll/Left/Goal
+@onready var planet_picker: OptionButton = $Layout/LeftScroll/Left/PlanetPicker
+@onready var planet_note: Label = $Layout/LeftScroll/Left/PlanetNote
+@onready var altitude_label: Label = $Layout/LeftScroll/Left/AltitudeValue
+@onready var altitude_slider: HSlider = $Layout/LeftScroll/Left/Altitude
+@onready var side_button: Button = $Layout/LeftScroll/Left/SideButton
+@onready var burn_label: Label = $Layout/LeftScroll/Left/BurnValue
+@onready var burn_slider: HSlider = $Layout/LeftScroll/Left/Burn
+@onready var execute_button: Button = $Layout/LeftScroll/Left/Buttons/ExecuteButton
+@onready var window_button: Button = $Layout/LeftScroll/Left/Buttons/WindowButton
 @onready var readouts: Label = $Layout/Right/Readouts
 @onready var result_box: PanelContainer = $Layout/Right/Result
 @onready var result_title: Label = $Layout/Right/Result/Column/Title
 @onready var result_text: Label = $Layout/Right/Result/Column/Text
 @onready var title_label: Label = $Header/Title
-@onready var steps_label: Label = $Layout/Left/Steps
+@onready var steps_label: Label = $Layout/LeftScroll/Left/Steps
 @onready var reach_meter: Control = $Layout/Right/Reach
-@onready var keys_row: Control = $Layout/Left/KeyHints
+@onready var keys_row: Control = $Layout/LeftScroll/Left/KeyHints
 @onready var closeup_disc: TextureRect = $Layout/Right/Closeup/PlanetDisc
 @onready var map_disc: TextureRect = $Layout/Middle/Map/FlybyDisc
 
@@ -80,7 +80,7 @@ func _ready():
 	side_button.pressed.connect(switch_side)
 	altitude_slider.drag_started.connect(func(): touched_height = true)
 	window_button.pressed.connect(func(): new_window())
-	$Layout/Left/ClearButton.pressed.connect(clear_plan)
+	$Layout/LeftScroll/Left/ClearButton.pressed.connect(clear_plan)
 	execute_button.pressed.connect(execute)
 	result_box.visible = false
 
@@ -127,7 +127,7 @@ func open_planner():
 		goal_label.text += " (%s can't do it alone.)" % " or ".join(too_weak)
 	choose_planet(options[0])
 	UiMotion.reveal_text(title_label, 0.1, 0.7, 0.4)
-	UiMotion.stagger([$Layout/Left, $Layout/Middle, $Layout/Right], 0.1, 0.08, Vector2(0, 20), 0.6)
+	UiMotion.stagger([$Layout/LeftScroll, $Layout/Middle, $Layout/Right], 0.1, 0.08, Vector2(0, 20), 0.6)
 
 func close():
 	closed.emit()
@@ -338,11 +338,11 @@ func preview():
 func update_steps():
 	var label = map.target_name
 	var steps = [
-		[true, "Pick a planet to fly past (Q E)"],
-		[touched_height, "Set how close to pass (A D or drag): closer bends your path more"],
-		[touched_side, "Pick the swing direction (F): behind the planet speeds you up"],
-		[reaches, "Make the green line reach the gold ring of %s" % label],
-		[reaches and overshoot() <= 0.25, "Don't fly far past it: aim the reach marker at the gold tick"],
+		[true, "Pick a planet (Q E)"],
+		[touched_height, "Set the pass height (A D)"],
+		[touched_side, "Pick the swing side (F)"],
+		[reaches, "Reach %s's gold ring" % label],
+		[reaches and overshoot() <= 0.25, "Don't overshoot it much"],
 		[planned, "Execute (Space)"],
 	]
 	var lines = []

@@ -72,6 +72,7 @@ var combo = 0                     # shards collected one right after another
 var last_shard_time = -100.0
 var belt_hits_at_start = 0        # rock strikes before this belt, to tell if it was crossed cleanly
 var belt_shards_at_start = 0    # shards taken before this belt (for the "belt cleared" card)
+var belt_exit_msec = -100000    # when the last belt ended (events wait until its card has gone)
 var rocks_hit = {}
 var next_sight = 0
 var belts_announced = {}
@@ -357,6 +358,12 @@ func _process(delta):
 			steer_through_belt(delta, belt)
 			var new_progress = clamp(elapsed_flight_days / max(total_flight_days, 0.001), 0.0, 1.0)
 			set_flight_progress(new_progress)
+	# The piloting panel shows only while you're actually steering through a belt: never under an event panel, and
+	# never after arrival (Ceres sits inside the asteroid belt, so the trip there ends inside it)
+	if control_banner:
+		control_banner.set_shown(arrival_mode == "" and not belt.is_empty() and not event_panel.visible and not pending_event)
+	if arrival_mode != "" and belt_now != "":
+		finish_belt_on_arrival()
 
 		if arrival_mode == "" and flight_progress >= 0.999:
 			begin_orbit()
@@ -696,7 +703,9 @@ func add_saturn_rings(sphere_radius):
 func belt_near():
 	if scenery == null:
 		return false
-	return belt_now != "" or not scenery.belt_at(flight_progress).is_empty() or not scenery.belt_at(flight_progress + 0.03).is_empty()
+	# (and for a few seconds after one, while the "belt cleared" card is on screen)
+	return belt_now != "" or not scenery.belt_at(flight_progress).is_empty() or not scenery.belt_at(flight_progress + 0.03).is_empty() \
+		or Time.get_ticks_msec() - belt_exit_msec < 3800
 
 func progress_at_event(index):
 	var cruise_count = 0
@@ -866,6 +875,7 @@ func steer_through_belt(delta, belt):
 			belt_shards_at_start = shards_taken.size()
 			show_title_card(belt_name.to_upper(), "You have control: steer with W A S D or the arrow keys")
 		elif belt_now != "":
+			belt_exit_msec = Time.get_ticks_msec()
 			GameState.add_mission_stat("belts_cleared")
 			show_title_card("BELT CLEARED", "%d shards · %d rock strikes" % [shards_taken.size() - belt_shards_at_start, rocks_hit.size() - belt_hits_at_start],
 				Color(0.5, 1.0, 0.7) if rocks_hit.size() == belt_hits_at_start else Color(1.0, 0.82, 0.35))
@@ -879,7 +889,6 @@ func steer_through_belt(delta, belt):
 		belt_now = belt_name
 	scenery.probe_progress = flight_progress
 	if control_banner:
-		control_banner.set_shown(belt_name != "" and not event_panel.visible)
 		control_banner.show_values(thruster_fuel, shards_taken.size(), combo if Time.get_ticks_msec() / 1000.0 - last_shard_time < COMBO_SECONDS else 0, GameState.mission_stats.get("close_calls", 0), rocks_hit.size() - belt_hits_at_start)
 	if belt.is_empty():
 		steer = steer.move_toward(Vector2.ZERO, delta * 1.5)
@@ -908,7 +917,7 @@ func steer_through_belt(delta, belt):
 		if rocks_hit.has(index):
 			continue
 		var rock = scenery.dodge_rocks[index]
-		if probe.position.distance_to(rock[0]) < rock[1] * ROCK_HIT_SHARE + PROBE_HIT_RADIUS:
+		if probe.position.distance_to(rock[0]) < (rock[1] * ROCK_HIT_SHARE + PROBE_HIT_RADIUS) * (0.85 if GameState.has_upgrade("collision_radar") else 1.0):
 			rocks_hit[index] = true
 			GameState.add_mission_stat("rocks_hit")
 			combo = 0
@@ -927,6 +936,14 @@ func steer_through_belt(delta, belt):
 			play_sound("impact", -2.0)
 			if hit_flash:
 				hit_flash.color.a = 0.45
+
+# Arriving at a world inside a belt (Ceres): the belt ends quietly, with its clean-run bonus but no banner
+func finish_belt_on_arrival():
+	GameState.add_mission_stat("belts_cleared")
+	if rocks_hit.size() == belt_hits_at_start:
+		GameState.science += CLEAN_BELT_SCIENCE
+		GameState.mission_log.append({"title": "Clean run", "text": "Crossed the %s without a single rock strike. +%d science." % [belt_now.replace("Asteroid", "asteroid"), CLEAN_BELT_SCIENCE], "ok": true})
+	belt_now = ""
 
 # Science shards: flying into one gives science, and grabbing them one right after another builds a combo
 func collect_science_shards():
