@@ -51,7 +51,7 @@ const ACHIEVEMENTS = {
 }
 
 static func load_data():
-	var data = {"xp": 0, "research": 0, "missions": 0, "upgrades": [], "achievements": [], "best": {}, "worlds": [], "engine_tests": {}}
+	var data = {"xp": 0, "research": 0, "missions": 0, "upgrades": [], "achievements": [], "best": {}, "worlds": [], "engine_tests": {}, "assist_plans": {}, "docking_best": 0}
 	var file = ConfigFile.new()
 	if file.load(SAVE_FILE) == OK:
 		for key in data:
