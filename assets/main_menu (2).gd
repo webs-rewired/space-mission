@@ -28,7 +28,7 @@ const TEAM_MEMBERS = []
 const CREDITS = [
 	["ABOUT", [
 		"Made for the NASA Space Apps Challenge 2026 by Astra Vanguard",
-		"Every planet and moon is where it really is today, and every number in the game (thrust, fuel, travel time, data rate, sunlight, gravity) comes from real physics and real missions."]],
+		"We got data from real mission and real laws of physics or smth 🥀"]],
 	["SCIENCE AND DATA", [
 		"Planet, moon and spacecraft positions: NASA JPL orbital elements",
 		"Mission facts and numbers: NASA mission pages and press kits",
