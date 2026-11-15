@@ -1,7 +1,7 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene format=3 uid="uid://doyaxm8ggn7m0"]
 
-[ext_resource type="Script" path="res://scripts/sample_lab.gd" id="1_lab"]
-[ext_resource type="Script" path="res://scripts/arm_view.gd" id="2_arm"]
+[ext_resource type="Script" uid="uid://b77xscy5wbjju" path="res://scripts/sample_lab.gd" id="1_lab"]
+[ext_resource type="Script" uid="uid://dhxhep08pd0pl" path="res://scripts/arm_view.gd" id="2_arm"]
 
 [sub_resource type="StyleBoxFlat" id="panel_style"]
 content_margin_left = 16.0
@@ -40,7 +40,8 @@ corner_radius_top_right = 3
 corner_radius_bottom_right = 3
 corner_radius_bottom_left = 3
 
-[node name="SampleLab" type="Control"]
+[node name="SampleLab" type="Control" unique_id=2091408442]
+editor_description = "Minigames: robotic sample collection, then geological identification (sample_lab.gd, real samples in geology_samples.gd). surface_view.gd opens it when the rover studies a target."
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -48,9 +49,8 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_lab")
-editor_description = "Minigames: robotic sample collection, then geological identification (sample_lab.gd, real samples in geology_samples.gd). surface_view.gd opens it when the rover studies a target."
 
-[node name="Backdrop" type="ColorRect" parent="."]
+[node name="Backdrop" type="ColorRect" parent="." unique_id=216314881]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -59,7 +59,7 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.01, 0.015, 0.03, 0.95)
 
-[node name="Header" type="HBoxContainer" parent="."]
+[node name="Header" type="HBoxContainer" parent="." unique_id=959864557]
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
@@ -69,7 +69,7 @@ offset_right = -24.0
 offset_bottom = 54.0
 grow_horizontal = 2
 
-[node name="Title" type="Label" parent="Header"]
+[node name="Title" type="Label" parent="Header" unique_id=179166124]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"TitleLabel"
@@ -77,7 +77,7 @@ theme_override_font_sizes/font_size = 24
 text = "SAMPLE LAB"
 vertical_alignment = 1
 
-[node name="Stage" type="Label" parent="Header"]
+[node name="Stage" type="Label" parent="Header" unique_id=426478282]
 layout_mode = 2
 theme_type_variation = &"DataLabel"
 theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
@@ -85,7 +85,7 @@ theme_override_font_sizes/font_size = 13
 text = "1  COLLECT     ›     2  IDENTIFY"
 vertical_alignment = 1
 
-[node name="CollectStage" type="Control" parent="."]
+[node name="CollectStage" type="Control" parent="." unique_id=1040523276]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -97,19 +97,18 @@ offset_bottom = -20.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="ArmView" type="Control" parent="CollectStage"]
+[node name="ArmView" type="Control" parent="CollectStage" unique_id=1666657501]
 clip_contents = true
 layout_mode = 1
-anchors_preset = 15
 anchor_right = 0.66
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("2_arm")
 
-[node name="Side" type="PanelContainer" parent="CollectStage"]
+[node name="Side" type="PanelContainer" parent="CollectStage" unique_id=1305523942]
 layout_mode = 1
-anchors_preset = 11
+anchors_preset = -1
 anchor_left = 0.68
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -117,67 +116,67 @@ grow_horizontal = 0
 grow_vertical = 2
 theme_override_styles/panel = SubResource("panel_style")
 
-[node name="Column" type="VBoxContainer" parent="CollectStage/Side"]
+[node name="Column" type="VBoxContainer" parent="CollectStage/Side" unique_id=1674571445]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="Kicker" type="Label" parent="CollectStage/Side/Column"]
+[node name="Kicker" type="Label" parent="CollectStage/Side/Column" unique_id=1044012852]
 layout_mode = 2
 theme_type_variation = &"DataLabel"
 theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
 theme_override_font_sizes/font_size = 11
 text = "STEP 1  ·  ROBOTIC ARM"
 
-[node name="Help" type="Label" parent="CollectStage/Side/Column"]
+[node name="Help" type="Label" parent="CollectStage/Side/Column" unique_id=1461414906]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.78, 0.83, 0.9, 1)
 theme_override_font_sizes/font_size = 13
 text = "Controls"
 autowrap_mode = 3
 
-[node name="Status" type="Label" parent="CollectStage/Side/Column"]
+[node name="Status" type="Label" parent="CollectStage/Side/Column" unique_id=502624625]
 layout_mode = 2
 theme_type_variation = &"DataLabel"
 theme_override_font_sizes/font_size = 13
 text = "Tool to the spot"
 autowrap_mode = 3
 
-[node name="WorkTitle" type="Label" parent="CollectStage/Side/Column"]
+[node name="WorkTitle" type="Label" parent="CollectStage/Side/Column" unique_id=1403701511]
 layout_mode = 2
 theme_type_variation = &"DataLabel"
 theme_override_font_sizes/font_size = 11
 text = "SAMPLE COLLECTED"
 
-[node name="WorkBar" type="ProgressBar" parent="CollectStage/Side/Column"]
+[node name="WorkBar" type="ProgressBar" parent="CollectStage/Side/Column" unique_id=630354050]
 custom_minimum_size = Vector2(0, 10)
 layout_mode = 2
 theme_override_styles/background = SubResource("bar_back")
 theme_override_styles/fill = SubResource("work_fill")
 show_percentage = false
 
-[node name="StressTitle" type="Label" parent="CollectStage/Side/Column"]
+[node name="StressTitle" type="Label" parent="CollectStage/Side/Column" unique_id=1848380353]
 layout_mode = 2
 theme_type_variation = &"DataLabel"
 theme_override_font_sizes/font_size = 11
 text = "STRAIN ON THE ARM"
 
-[node name="StressBar" type="ProgressBar" parent="CollectStage/Side/Column"]
+[node name="StressBar" type="ProgressBar" parent="CollectStage/Side/Column" unique_id=1364417175]
 custom_minimum_size = Vector2(0, 10)
 layout_mode = 2
 theme_override_styles/background = SubResource("bar_back")
 theme_override_styles/fill = SubResource("stress_fill")
 show_percentage = false
 
-[node name="Spacer" type="Control" parent="CollectStage/Side/Column"]
+[node name="Spacer" type="Control" parent="CollectStage/Side/Column" unique_id=1954138639]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="SkipButton" type="Button" parent="CollectStage/Side/Column"]
+[node name="SkipButton" type="Button" parent="CollectStage/Side/Column" unique_id=335887524]
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 text = "Let the arm team do it"
 
-[node name="IdentifyStage" type="HBoxContainer" parent="."]
+[node name="IdentifyStage" type="HBoxContainer" parent="." unique_id=652197007]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -190,74 +189,74 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 14
 
-[node name="Instruments" type="PanelContainer" parent="IdentifyStage"]
+[node name="Instruments" type="PanelContainer" parent="IdentifyStage" unique_id=1615740455]
 custom_minimum_size = Vector2(230, 0)
 layout_mode = 2
 theme_override_styles/panel = SubResource("panel_style")
 
-[node name="Column" type="VBoxContainer" parent="IdentifyStage/Instruments"]
+[node name="Column" type="VBoxContainer" parent="IdentifyStage/Instruments" unique_id=1902101329]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Kicker" type="Label" parent="IdentifyStage/Instruments/Column"]
+[node name="Kicker" type="Label" parent="IdentifyStage/Instruments/Column" unique_id=692358563]
 layout_mode = 2
 theme_type_variation = &"DataLabel"
 theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
 theme_override_font_sizes/font_size = 11
 text = "STEP 2  ·  YOUR INSTRUMENTS"
 
-[node name="Runs" type="Label" parent="IdentifyStage/Instruments/Column"]
+[node name="Runs" type="Label" parent="IdentifyStage/Instruments/Column" unique_id=112060914]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.82, 0.35, 1)
 theme_override_font_sizes/font_size = 13
 text = "Power for 3 more instrument runs"
 autowrap_mode = 3
 
-[node name="Buttons" type="VBoxContainer" parent="IdentifyStage/Instruments/Column"]
+[node name="Buttons" type="VBoxContainer" parent="IdentifyStage/Instruments/Column" unique_id=1964230210]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="Readings" type="PanelContainer" parent="IdentifyStage"]
+[node name="Readings" type="PanelContainer" parent="IdentifyStage" unique_id=1482275330]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("panel_style")
 
-[node name="Scroll" type="ScrollContainer" parent="IdentifyStage/Readings"]
+[node name="Scroll" type="ScrollContainer" parent="IdentifyStage/Readings" unique_id=1252620305]
 layout_mode = 2
 horizontal_scroll_mode = 0
 
-[node name="List" type="VBoxContainer" parent="IdentifyStage/Readings/Scroll"]
+[node name="List" type="VBoxContainer" parent="IdentifyStage/Readings/Scroll" unique_id=1996130397]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
-[node name="Answers" type="PanelContainer" parent="IdentifyStage"]
+[node name="Answers" type="PanelContainer" parent="IdentifyStage" unique_id=1138464968]
 custom_minimum_size = Vector2(270, 0)
 layout_mode = 2
 theme_override_styles/panel = SubResource("panel_style")
 
-[node name="Column" type="VBoxContainer" parent="IdentifyStage/Answers"]
+[node name="Column" type="VBoxContainer" parent="IdentifyStage/Answers" unique_id=1798612940]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Kicker" type="Label" parent="IdentifyStage/Answers/Column"]
+[node name="Kicker" type="Label" parent="IdentifyStage/Answers/Column" unique_id=1089667881]
 layout_mode = 2
 theme_type_variation = &"DataLabel"
 theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
 theme_override_font_sizes/font_size = 11
 text = "WHAT IS IT?"
 
-[node name="Buttons" type="VBoxContainer" parent="IdentifyStage/Answers/Column"]
+[node name="Buttons" type="VBoxContainer" parent="IdentifyStage/Answers/Column" unique_id=3160627]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="AnswerText" type="Label" parent="IdentifyStage/Answers/Column"]
+[node name="AnswerText" type="Label" parent="IdentifyStage/Answers/Column" unique_id=209085548]
 custom_minimum_size = Vector2(240, 0)
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
 autowrap_mode = 3
 
-[node name="ContinueButton" type="Button" parent="IdentifyStage/Answers/Column"]
+[node name="ContinueButton" type="Button" parent="IdentifyStage/Answers/Column" unique_id=1796784462]
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 text = "Back to driving"
