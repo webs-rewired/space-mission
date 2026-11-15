@@ -1,0 +1,62 @@
+[gd_scene load_steps=2 format=3]
+
+[sub_resource type="StyleBoxFlat" id="toast_style"]
+content_margin_left = 12.0
+content_margin_top = 9.0
+content_margin_right = 14.0
+content_margin_bottom = 9.0
+bg_color = Color(0.03, 0.05, 0.09, 0.94)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(1, 0.82, 0.35, 0.5)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+shadow_color = Color(0, 0, 0, 0.4)
+shadow_size = 8
+
+[node name="Toast" type="PanelContainer"]
+clip_contents = true
+custom_minimum_size = Vector2(324, 0)
+mouse_filter = 2
+theme_override_styles/panel = SubResource("toast_style")
+editor_description = "One pop-up note (toast_layer.gd fills it in)."
+
+[node name="Row" type="HBoxContainer" parent="."]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="Badge" type="ColorRect" parent="Row"]
+custom_minimum_size = Vector2(4, 0)
+layout_mode = 2
+mouse_filter = 2
+color = Color(1, 0.82, 0.35, 1)
+
+[node name="Words" type="VBoxContainer" parent="Row"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 0
+
+[node name="Kind" type="Label" parent="Row/Words"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_font_sizes/font_size = 10
+text = "ACHIEVEMENT UNLOCKED"
+
+[node name="Title" type="Label" parent="Row/Words"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 18
+text = "First light"
+
+[node name="Text" type="Label" parent="Row/Words"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.77, 0.85, 1)
+theme_override_font_sizes/font_size = 12
+text = "Finish your first mission."
+autowrap_mode = 3

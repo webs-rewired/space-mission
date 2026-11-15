@@ -1,0 +1,332 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/engine_test_lab.gd" id="1_lab"]
+[ext_resource type="Script" path="res://scripts/engine_plume.gd" id="2_plume"]
+[ext_resource type="Script" path="res://scripts/line_graph.gd" id="3_graph"]
+
+[sub_resource type="StyleBoxFlat" id="panel_style"]
+content_margin_left = 14.0
+content_margin_top = 12.0
+content_margin_right = 14.0
+content_margin_bottom = 12.0
+bg_color = Color(0.03, 0.05, 0.09, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.45, 0.8, 1, 0.3)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="objective_style"]
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 8.0
+bg_color = Color(0.08, 0.07, 0.03, 0.9)
+border_width_left = 3
+border_color = Color(1, 0.82, 0.35, 0.8)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="progress_fill"]
+bg_color = Color(1, 0.82, 0.35, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="progress_back"]
+bg_color = Color(0.15, 0.14, 0.1, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[node name="EngineTestLab" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_lab")
+editor_description = "Minigame: the rocket engine test lab (engine_test_lab.gd, physics in engine_model.gd). Opened from the rocket builder's Engine test lab button."
+
+[node name="Backdrop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.015, 0.02, 0.035, 0.97)
+
+[node name="Header" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 20.0
+offset_top = 12.0
+offset_right = -20.0
+offset_bottom = 52.0
+grow_horizontal = 2
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="Header"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 24
+text = "ENGINE TEST LAB"
+vertical_alignment = 1
+
+[node name="Place" type="Label" parent="Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "Sea-level test stand"
+vertical_alignment = 1
+
+[node name="CloseButton" type="Button" parent="Header"]
+custom_minimum_size = Vector2(110, 34)
+layout_mode = 2
+text = "Close (Esc)"
+
+[node name="Layout" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = 60.0
+offset_right = -20.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 14
+
+[node name="Left" type="VBoxContainer" parent="Layout"]
+custom_minimum_size = Vector2(290, 0)
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="EnginePicker" type="OptionButton" parent="Layout/Left"]
+layout_mode = 2
+
+[node name="Specs" type="Label" parent="Layout/Left"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.78, 0.86, 1)
+theme_override_font_sizes/font_size = 12
+text = "Rated thrust: ..."
+autowrap_mode = 3
+
+[node name="PlacePicker" type="OptionButton" parent="Layout/Left"]
+layout_mode = 2
+
+[node name="ThrottleValue" type="Label" parent="Layout/Left"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_font_sizes/font_size = 12
+text = "Throttle: 100%"
+
+[node name="ThrottleRow" type="HBoxContainer" parent="Layout/Left"]
+layout_mode = 2
+
+[node name="Keys" type="Label" parent="Layout/Left/ThrottleRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.68, 1)
+theme_override_font_sizes/font_size = 11
+text = "W/S"
+
+[node name="Throttle" type="HSlider" parent="Layout/Left/ThrottleRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+min_value = 40.0
+max_value = 110.0
+value = 100.0
+
+[node name="MixtureValue" type="Label" parent="Layout/Left"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_font_sizes/font_size = 12
+text = "Mixture: 2.36 to 1"
+
+[node name="MixtureRow" type="HBoxContainer" parent="Layout/Left"]
+layout_mode = 2
+
+[node name="Keys" type="Label" parent="Layout/Left/MixtureRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.68, 1)
+theme_override_font_sizes/font_size = 11
+text = "A/D"
+
+[node name="Mixture" type="HSlider" parent="Layout/Left/MixtureRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+min_value = 1.0
+max_value = 4.0
+step = 0.01
+value = 2.36
+
+[node name="Buttons" type="HBoxContainer" parent="Layout/Left"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="IgniteButton" type="Button" parent="Layout/Left/Buttons"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Ignite (Space)"
+
+[node name="StopButton" type="Button" parent="Layout/Left/Buttons"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+disabled = true
+text = "Shut down"
+
+[node name="Objective" type="PanelContainer" parent="Layout/Left"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("objective_style")
+
+[node name="Column" type="VBoxContainer" parent="Layout/Left/Objective"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Title" type="Label" parent="Layout/Left/Objective/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(1, 0.82, 0.35, 1)
+theme_override_font_sizes/font_size = 12
+text = "ACCEPTANCE TEST"
+
+[node name="Text" type="Label" parent="Layout/Left/Objective/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Hold 95 to 100% of rated thrust for 8 seconds."
+autowrap_mode = 3
+
+[node name="Progress" type="ProgressBar" parent="Layout/Left/Objective/Column"]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+theme_override_styles/background = SubResource("progress_back")
+theme_override_styles/fill = SubResource("progress_fill")
+show_percentage = false
+
+[node name="Middle" type="VBoxContainer" parent="Layout"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="Plume" type="Control" parent="Layout/Middle"]
+custom_minimum_size = Vector2(0, 170)
+layout_mode = 2
+script = ExtResource("2_plume")
+
+[node name="Graphs" type="GridContainer" parent="Layout/Middle"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 2
+
+[node name="Thrust" type="Control" parent="Layout/Middle/Graphs"]
+custom_minimum_size = Vector2(0, 110)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("3_graph")
+title = "THRUST"
+unit = "kN"
+line_color = Color(0.45, 0.85, 1, 1)
+
+[node name="Pressure" type="Control" parent="Layout/Middle/Graphs"]
+custom_minimum_size = Vector2(0, 110)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("3_graph")
+title = "CHAMBER PRESSURE"
+unit = "MPa"
+line_color = Color(0.6, 0.95, 0.7, 1)
+
+[node name="Wall" type="Control" parent="Layout/Middle/Graphs"]
+custom_minimum_size = Vector2(0, 110)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("3_graph")
+title = "CHAMBER WALL"
+unit = "K"
+line_color = Color(1, 0.6, 0.4, 1)
+
+[node name="Isp" type="Control" parent="Layout/Middle/Graphs"]
+custom_minimum_size = Vector2(0, 110)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("3_graph")
+title = "SPECIFIC IMPULSE (ISP)"
+unit = "s"
+line_color = Color(0.85, 0.75, 1, 1)
+
+[node name="Right" type="VBoxContainer" parent="Layout"]
+custom_minimum_size = Vector2(270, 0)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ReadoutTitle" type="Label" parent="Layout/Right"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 11
+text = "LIVE TELEMETRY"
+
+[node name="Readouts" type="Label" parent="Layout/Right"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_font_sizes/font_size = 12
+text = "THRUST 0 kN"
+
+[node name="Lesson" type="Label" parent="Layout/Right"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.75, 0.83, 1)
+theme_override_font_sizes/font_size = 12
+text = "Mass flow = thrust / (Isp x g0)."
+autowrap_mode = 3
+
+[node name="Result" type="PanelContainer" parent="Layout/Right"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("panel_style")
+
+[node name="Column" type="VBoxContainer" parent="Layout/Right/Result"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="Layout/Right/Result/Column"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 18
+text = "GOLD MEDAL"
+
+[node name="Text" type="Label" parent="Layout/Right/Result/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Objective met."
+autowrap_mode = 3
+
+[node name="Note" type="Label" parent="Layout/Right"]
+layout_mode = 2
+size_flags_vertical = 10
+theme_override_colors/font_color = Color(0.5, 0.55, 0.62, 1)
+theme_override_font_sizes/font_size = 10
+text = "Real numbers: rated thrust, Isp and mass from the rocket builder's engine list; chamber pressures and mixture ratios from published NASA and manufacturer figures (rounded). Simplified for the game: the mixture and heating curves are approximations, and starts and shutdowns are short ramps."
+autowrap_mode = 3

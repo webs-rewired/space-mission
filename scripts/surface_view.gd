@@ -11,6 +11,7 @@ signal touched_down
 signal driving_finished(summary)
 
 const RocketModel = preload("res://scripts/rocket_model.gd")
+const SAMPLE_LAB_SCENE = preload("res://scenes/sample_lab.tscn")
 const BeltBuilder = preload("res://scripts/belt_builder.gd")
 const SpaceTextures = preload("res://scripts/space_textures.gd")
 const SpacecraftLookalike = preload("res://scripts/spacecraft_lookalike.gd")
@@ -1341,6 +1342,9 @@ func update_science(delta):
 	for target in targets:
 		if not target["studied"] and here.distance_to(target["place"]) < 4.0 + lander_size * 0.4:
 			show_message_once("near_" + target["name"], "%s. Press E to study it." % target["name"], 3.0)
+			if Input.is_key_pressed(KEY_E) and not GameState.skip_minigames:
+				open_sample_lab(target)
+				return
 			if Input.is_key_pressed(KEY_E):
 				studying = target
 				study_time = 0.0
@@ -1349,6 +1353,34 @@ func update_science(delta):
 					if audio():
 						audio().play_effect("laser", -6.0 + air_loudness(), 1.0, zap * 0.35)
 				show_message("Studying the %s..." % target["name"].to_lower(), STUDY_SECONDS)
+
+# Studying a target is two minigames (res://scenes/sample_lab.tscn): grab a sample with the robotic arm, then
+# identify it with the instruments on board. The rover waits while the lab is open.
+var sample_lab_open = false
+func open_sample_lab(target):
+	if sample_lab_open:
+		return
+	sample_lab_open = true
+	paused = true
+	var layer = get_tree().current_scene.get_node_or_null("CanvasLayer")
+	if layer == null:
+		layer = $DriveScreen
+	var lab = SAMPLE_LAB_SCENE.instantiate()
+	layer.add_child(lab)
+	lab.start(target["name"])
+	var result = await lab.finished
+	target["studied"] = true
+	if target["node"].get_child_count() > 0:
+		target["node"].get_child(0).visible = false
+	if target["node"].has_node("Ring"):
+		target["node"].get_node("Ring").visible = false
+	science_found += result["science"]
+	findings.append("%s (%s)" % [target["name"], result["name"].to_lower()])
+	if result["correct"]:
+		GameState.add_mission_stat("samples_identified")
+	show_message("%s: %s%s. +%d science!" % [target["name"], result["name"], "" if result["correct"] else " (misidentified at first)", result["science"]], 5.0)
+	paused = false
+	sample_lab_open = false
 
 # The laser the rover studies rocks with (Perseverance's SuperCam fires from the top of its mast and reads the
 # light of the spark): a flickering green line from the mast to the rock, with sparks where it hits

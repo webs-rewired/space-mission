@@ -381,6 +381,9 @@ func fill_record(body_name):
 		if facts.has("did_you_know"):
 			account.append("[i]" + str(facts["did_you_know"]) + "[/i]")
 	else:
+		var best = GameState.career.get("best", {}).get(body_name, {})
+		if best.get("score", -1) >= 0:
+			add_record_row("Your best", "%s, score %d, %d of 3 directive stars" % [best["grade"], best["score"], best.get("stars", 0)])
 		add_record_row("Distance", facts.get("distance", ""))
 		add_record_row("Diameter", "%s km" % format_number(facts.get("diameter_km", 0)))
 		add_record_row("Mass", facts.get("mass", ""))

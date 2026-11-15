@@ -1,0 +1,41 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/directive_icon.gd" id="1_icon"]
+
+[node name="DirectiveRow" type="HBoxContainer"]
+theme_override_constants/separation = 8
+editor_description = "One mission directive in the directives card: its mark, title, what to do, and progress. directives_card.gd fills it in."
+
+[node name="Icon" type="Control" parent="."]
+custom_minimum_size = Vector2(18, 18)
+layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+script = ExtResource("1_icon")
+
+[node name="Words" type="VBoxContainer" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = -2
+
+[node name="Title" type="Label" parent="Words"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 14
+text = "Shoestring budget"
+
+[node name="Detail" type="Label" parent="Words"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.68, 0.76, 1)
+theme_override_font_sizes/font_size = 11
+text = "Spend no more than 75% of the budget."
+autowrap_mode = 3
+
+[node name="Progress" type="Label" parent="."]
+layout_mode = 2
+size_flags_vertical = 0
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.72, 0.8, 0.9, 1)
+theme_override_font_sizes/font_size = 11
+text = "62%"
+horizontal_alignment = 2
