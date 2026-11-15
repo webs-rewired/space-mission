@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://1b2wv1evg5eg" path="res://scripts/surface_view.gd" id="1_script"]
 [ext_resource type="Shader" uid="uid://d2xbbb1mids0i" path="res://shaders/terrain.gdshader" id="2_terrain"]
+[ext_resource type="Script" path="res://scripts/rover_map.gd" id="3_map"]
 
 [sub_resource type="Environment" id="environment"]
 background_mode = 1
@@ -197,6 +198,36 @@ autowrap_mode = 3
 layout_mode = 2
 focus_mode = 0
 text = "Done driving"
+
+[node name="MapTitle" type="Label" parent="DriveScreen"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -232.0
+offset_top = 10.0
+offset_right = -12.0
+offset_bottom = 28.0
+grow_horizontal = 0
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 11
+text = "TERRAIN MAP"
+horizontal_alignment = 1
+
+[node name="TerrainMap" type="Control" parent="DriveScreen"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -232.0
+offset_top = 30.0
+offset_right = -12.0
+offset_bottom = 250.0
+grow_horizontal = 0
+mouse_filter = 2
+script = ExtResource("3_map")
+editor_description = "The rover's terrain map: driving area, sand, science targets and tracks (scripts/rover_map.gd)."
 
 [node name="DriveMessage" type="Label" parent="DriveScreen" unique_id=1080160945]
 anchors_preset = 7

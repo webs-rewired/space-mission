@@ -18,8 +18,16 @@ extends RefCounted
 
 const EVENTS = [
 	# =====================================================================
-	# SHARED CRUISE EVENTS (any world) - 10
+	# SHARED CRUISE EVENTS (any world) - 10, plus the data recorder event below
 	# =====================================================================
+	{"world": "any", "phase": "cruise", "title": "Data recorder almost full",
+	 "text": "Your instruments are making data faster than the radio can send it home, and the recorder is nearly full.",
+	 "choices": [
+		{"label": "Delete the oldest raw data (safe)", "outcomes": [[1.0, -6, "You kept the best data and deleted the rest. Lost 6 science."]]},
+		{"label": "Compress everything harder and keep it all (risky)", "safe_if": "has:storage_large|has:antenna_large",
+		 "outcomes": [[0.6, 6, "The new compression worked, and nothing was lost. +6 science."],
+					  [0.4, -15, "The compression scrambled some files. Lost 15 science."]]},
+	 ]},
 	{"world": "any", "phase": "cruise", "title": "Solar flare!",
 	 "text": "A burst of radiation from the Sun is heading your way.",
 	 "choices": [
@@ -72,10 +80,10 @@ const EVENTS = [
 					  [0.2, -20, "Your aim was off and fixing it burned extra fuel. Lost 20 science."]]},
 		{"label": "Fly straight there (safe)", "outcomes": [[1.0, 0, "Slow and steady."]]},
 	 ]},
-	{"world": "any", "phase": "cruise", "title": "Reaction wheel failing",
-	 "text": "One of the spinning wheels that keeps your probe pointed is starting to grind.",
+	{"world": "any", "phase": "cruise", "title": "Reaction wheel failing", "when": ["not:attitude_thrusters"],
+	 "text": "One of the spinning wheels that keeps your probe pointed is starting to grind, the same kind of failure that ended Kepler's first mission.",
 	 "choices": [
-		{"label": "Switch to thrusters for pointing", "safe_if": "has:fuel_large",
+		{"label": "Switch to thrusters for pointing", "safe_if": "has:attitude_both|has:fuel_large",
 		 "outcomes": [[0.7, -5, "Thrusters work, but they use fuel. Lost 5 science."],
 					  [0.3, -15, "Fuel is running low from all the thruster use. Lost 15 science."]]},
 		{"label": "Keep using the failing wheel", "outcomes": [[0.5, 0, "It held together!"],

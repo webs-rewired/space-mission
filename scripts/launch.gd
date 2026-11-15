@@ -64,13 +64,32 @@ var flying_to_final_event = false
 var scenery: Node3D = null
 var path_height = 4.0
 var steer = Vector2.ZERO          # how far the player has steered off the path (sideways, up)
+var steer_velocity = Vector2.ZERO # how fast the probe is drifting sideways and up (it keeps drifting: this is space)
+var thruster_fuel = 1.0           # share of the thruster fuel left for dodging (GameState.thruster_seconds() of firing)
+var shards_taken = {}             # science shards collected (index in scenery.science_shards)
+var rocks_passed = {}             # rocks the probe has already gone past (checked once for a close call)
+var combo = 0                     # shards collected one right after another
+var last_shard_time = -100.0
+var belt_hits_at_start = 0        # rock strikes before this belt, to tell if it was crossed cleanly
 var rocks_hit = {}
 var next_sight = 0
 var belts_announced = {}
+var assist_announced = false   # the gravity-assist flyby (GameState.gravity_assist) has been shown
 var caption_label: Label
 var caption_seconds_left = 0.0
 var hit_flash: ColorRect
 const STEER_SPEED = 2.2
+const BELT_HUD_SCENE = preload("res://scenes/belt_hud.tscn")
+const ORBITAL_INSERTION_SCENE = preload("res://scenes/orbital_insertion.tscn")
+const DIRECTIVES_CARD_SCENE = preload("res://scenes/directives_card.tscn")
+const STEER_TOP_SPEED = 2.8       # the fastest the probe can drift sideways (units a second)
+const STEER_DRIFT_DAMPING = 1.1   # the autopilot slowly cancels drift when you let go of the keys
+const SHARD_COLLECT_RADIUS = 0.36
+const SHARD_SCIENCE = 1           # science for one shard; a combo adds one more for each shard in a row
+const COMBO_SECONDS = 3.0         # grab the next shard within this long to keep the combo going
+const MOST_COMBO = 5
+const CLOSE_CALL_SHARE = 2.4      # passing within this many times the hit distance counts as a close call
+const CLEAN_BELT_SCIENCE = 5      # bonus for crossing a whole belt without a strike
 const STEER_LIMIT = 1.4
 const BELT_CROSSING_SECONDS = 14.0   # belts are crossed slowly enough to steer
 const ATMOSPHERE_SHADER = preload("res://shaders/atmosphere_glow.gdshader")
@@ -79,7 +98,7 @@ const ROCK_STRIKE_SCIENCE = 2
 const MOST_ROCK_STRIKES = 5      # after this many, the probe has learned its lesson (no more science lost)
 const PROBE_HIT_RADIUS = 0.2     # how close a rock's edge has to come to the middle of the spacecraft to count as a hit
 const ROCK_HIT_SHARE = 0.55      # a rock's solid part, compared with its drawn size
-var control_banner: Label        # "MANUAL CONTROL" across the top while you're steering through a belt
+var control_banner: PanelContainer   # the piloting panel (thruster fuel, shards, combo) while you steer through a belt
 var belt_now = ""
 # While a mission event is waiting for you, the probe doesn't just freeze: it wobbles off its heading with an
 # amber caution light pulsing, and the screen gets a pulsing caution frame, like a master caution alarm.
@@ -218,6 +237,18 @@ func start_liftoff():
 	liftoff.finished.connect(_on_liftoff_finished)
 	liftoff.start(environment_node)
 
+# This mission's bonus goals in the top left corner, ticking off as they're done (res://scenes/directives_card.tscn)
+func add_directives_card():
+	var layer = get_node_or_null("CanvasLayer")
+	if layer == null or layer.get_node_or_null("DirectivesCard"):
+		return
+	var card = DIRECTIVES_CARD_SCENE.instantiate()
+	card.name = "DirectivesCard"
+	card.custom_minimum_size.x = 290
+	layer.add_child(card)
+	card.position = Vector2(16, 16)
+	UiMotion.slide_in(card, 0.5, Vector2(-40, 0), 0.7)
+
 func _on_liftoff_finished():
 	liftoff.queue_free()
 	liftoff = null
@@ -229,6 +260,7 @@ func _on_liftoff_finished():
 	cruising = true
 	if flight_controls:
 		flight_controls.visible = true
+	add_directives_card()
 	if audio():
 		audio().play_music("music_cruise", 4.0)   # space itself is silent, so the trip gets music
 	set_flight_progress(0.0)
@@ -303,6 +335,7 @@ func set_up_spacecraft_model():
 func _process(delta):
 	if not cruising:
 		return
+	update_live_stats()
 
 	# A mission event pauses the simulation so the player can read it and make a decision.
 	var belt = scenery.belt_at(flight_progress) if scenery and arrival_mode == "" else {}
@@ -739,20 +772,14 @@ func build_scenery():
 		caption_label.offset_right = 235
 		caption_label.offset_top = 16
 		layer.add_child(caption_label)
-		control_banner = Label.new()
-		control_banner.theme_type_variation = "TitleLabel"
-		control_banner.text = "MANUAL CONTROL\nSteer with WASD or the arrow keys to dodge the rocks"
-		control_banner.add_theme_font_size_override("font_size", 22)
-		control_banner.add_theme_color_override("font_color", Color(1.0, 0.82, 0.3))
-		control_banner.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-		control_banner.add_theme_constant_override("outline_size", 8)
-		control_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		control_banner.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+		# The piloting panel for the belts: thruster fuel, shards, combo, close calls (res://scenes/belt_hud.tscn)
+		control_banner = BELT_HUD_SCENE.instantiate()
+		layer.add_child(control_banner)
+		control_banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE)
 		control_banner.grow_horizontal = Control.GROW_DIRECTION_BOTH
 		control_banner.grow_vertical = Control.GROW_DIRECTION_BEGIN
-		control_banner.offset_bottom = -36
+		control_banner.offset_bottom = -30
 		control_banner.visible = false
-		layer.add_child(control_banner)
 
 func show_caption(text, seconds = 5.0):
 	if caption_label == null:
@@ -768,6 +795,14 @@ func update_caption(delta):
 	if hit_flash:
 		hit_flash.color.a = max(0.0, hit_flash.color.a - delta * 1.5)
 
+# When the gravity-assist flyby happens: where the path passes the flyby planet's orbit if the scenery shows it
+# (Mars, Jupiter), otherwise early in the trip (Venus and Earth flybys come first, before the long cruise)
+func assist_flyby_progress():
+	for sight in scenery.sights:
+		if sight["name"] == GameState.gravity_assist.get("planet", ""):
+			return max(sight["progress"] - 0.04, 0.03)
+	return 0.06
+
 # Tells you about each planet as you pass its orbit, and when you enter a belt
 func announce_sights():
 	if scenery == null:
@@ -775,11 +810,22 @@ func announce_sights():
 	while next_sight < scenery.sights.size() and flight_progress >= scenery.sights[next_sight]["progress"] - 0.04:
 		var sight = scenery.sights[next_sight]
 		var label = SolarSystemData.BODIES[sight["name"]]["label"]
+		if GameState.assist_planned() and sight["name"] == GameState.gravity_assist.get("planet", ""):
+			next_sight += 1   # (the gravity-assist flyby below takes this planet's moment)
+			continue
 		if sight["near"]:
 			show_caption("Flying past %s, %s!" % [label, scenery.distance_text(sight["distance_au"])])
 		else:
 			show_caption("Crossing %s's orbit. %s itself is %s, so it looks small from here. Planets rarely line up, which is why launch dates matter." % [label, label, scenery.distance_text(sight["distance_au"])], 7.0)
 		next_sight += 1
+	# The planned gravity assist (res://scenes/gravity_assist.tscn): the flyby planet bends the path toward the target
+	if GameState.assist_planned() and not assist_announced and flight_progress >= assist_flyby_progress():
+		assist_announced = true
+		var assist = GameState.gravity_assist
+		show_caption("%s flyby! Its gravity swings your spacecraft onto a new path toward %s, exactly as you planned it.%s" % [assist["planet"], world_name(),
+			(" Engine burn at closest approach: %.2f km/s." % assist["probe_burn_km_s"]) if assist["probe_burn_km_s"] > 0.0 else ""], 7.0)
+		flash(Color(0.6, 0.85, 1.0), 0.25)
+		play_sound("whoosh", -6.0)
 	var belt = scenery.belt_at(flight_progress)
 	if not belt.is_empty() and not belts_announced.has(belt["name"]):
 		belts_announced[belt["name"]] = true
@@ -795,26 +841,48 @@ func steer_through_belt(delta, belt):
 		# Going in or out of a belt: tell the player clearly who is flying
 		if belt_name != "":
 			play_sound("alarm", -8.0)
+			belt_hits_at_start = rocks_hit.size()
 		elif belt_now != "":
-			show_caption("%s cleared. The autopilot has the controls again." % belt_now, 4.0)
+			GameState.add_mission_stat("belts_cleared")
+			if rocks_hit.size() == belt_hits_at_start:
+				GameState.science += CLEAN_BELT_SCIENCE
+				show_caption("%s cleared without a single strike! +%d science. The autopilot has the controls again." % [belt_now, CLEAN_BELT_SCIENCE], 5.0)
+				show_popup("CLEAN RUN  +%d" % CLEAN_BELT_SCIENCE, Color(0.5, 1.0, 0.65), probe.position, 1.4)
+			else:
+				show_caption("%s cleared. The autopilot has the controls again." % belt_now, 4.0)
 			play_sound("confirm", -8.0)
 		belt_now = belt_name
 	scenery.probe_progress = flight_progress
 	if control_banner:
 		control_banner.visible = belt_name != "" and not event_panel.visible
-		control_banner.modulate.a = 0.75 + 0.25 * sin(Time.get_ticks_msec() / 1000.0 * 5.0)
+		control_banner.show_values(thruster_fuel, shards_taken.size(), combo if Time.get_ticks_msec() / 1000.0 - last_shard_time < COMBO_SECONDS else 0, GameState.mission_stats.get("close_calls", 0))
 	if belt.is_empty():
 		steer = steer.move_toward(Vector2.ZERO, delta * 1.5)
+		steer_velocity = Vector2.ZERO
 		return
-	steer += steering_keys_push() * STEER_SPEED * delta
+	# Piloting: the thrusters push the probe sideways, and it keeps drifting (this is space) until you push back.
+	# They run on a small amount of fuel, and a heavier spacecraft is pushed around more slowly.
+	var push = steering_keys_push()
+	if push != Vector2.ZERO and thruster_fuel > 0.0:
+		steer_velocity += push * GameState.thruster_acceleration() * delta
+		thruster_fuel = max(thruster_fuel - delta / GameState.thruster_seconds(), 0.0)
+	else:
+		steer_velocity = steer_velocity.move_toward(Vector2.ZERO, STEER_DRIFT_DAMPING * delta)
+	steer_velocity = steer_velocity.limit_length(STEER_TOP_SPEED)
+	steer += steer_velocity * delta
 	if steer.length() > STEER_LIMIT:
 		steer = steer.normalized() * STEER_LIMIT
+		steer_velocity -= steer.normalized() * max(steer_velocity.dot(steer.normalized()), 0.0)   # stop at the edge
+	collect_science_shards()
+	check_close_calls()
 	for index in scenery.dodge_rocks.size():
 		if rocks_hit.has(index):
 			continue
 		var rock = scenery.dodge_rocks[index]
 		if probe.position.distance_to(rock[0]) < rock[1] * ROCK_HIT_SHARE + PROBE_HIT_RADIUS:
 			rocks_hit[index] = true
+			GameState.add_mission_stat("rocks_hit")
+			combo = 0
 			scenery.break_rock(index)
 			spawn_effect(SPARKS_SCENE, probe.position, (rock[0] - probe.position).normalized(), Color(1.0, 0.8, 0.5), 0.5)
 			shake = max(shake, 0.6)
@@ -830,6 +898,69 @@ func steer_through_belt(delta, belt):
 			play_sound("impact", -2.0)
 			if hit_flash:
 				hit_flash.color.a = 0.45
+
+# Science shards: flying into one gives science, and grabbing them one right after another builds a combo
+func collect_science_shards():
+	for index in scenery.science_shards.size():
+		if shards_taken.has(index):
+			continue
+		var shard = scenery.science_shards[index]
+		if probe.position.distance_to(shard[0]) > SHARD_COLLECT_RADIUS * (1.3 if GameState.has_upgrade("shard_scanner") else 1.0):
+			continue
+		shards_taken[index] = true
+		var now = Time.get_ticks_msec() / 1000.0
+		combo = min(combo + 1, MOST_COMBO) if now - last_shard_time < COMBO_SECONDS else 1
+		last_shard_time = now
+		var gained = SHARD_SCIENCE + combo - 1 + (1 if GameState.has_upgrade("shard_scanner") else 0)
+		GameState.science += gained
+		GameState.add_mission_stat("shards")
+		GameState.mission_stats["best_combo"] = max(GameState.mission_stats.get("best_combo", 0), combo)
+		scenery.collect_shard(index)
+		var words = "+%d SCIENCE" % gained if combo < 2 else "+%d   %d× COMBO" % [gained, combo]
+		show_popup(words, Color(0.5, 1.0, 0.88), shard[0], 1.0 + combo * 0.12)
+		play_sound("select", -4.0 + combo)
+
+# A rock that went past close beside the probe without hitting it: a close call, worth a little science
+func check_close_calls():
+	for index in scenery.dodge_rocks.size():
+		if rocks_passed.has(index):
+			continue
+		var rock = scenery.dodge_rocks[index]
+		if flight_progress < rock[3]:
+			continue
+		rocks_passed[index] = true
+		if rocks_hit.has(index):
+			continue
+		var hit_distance = rock[1] * ROCK_HIT_SHARE + PROBE_HIT_RADIUS
+		if probe.position.distance_to(rock[0]) < hit_distance * CLOSE_CALL_SHARE:
+			GameState.science += 1
+			GameState.add_mission_stat("close_calls")
+			show_popup("CLOSE CALL  +1", Color(1.0, 0.85, 0.5), rock[0], 1.0)
+			play_sound("confirm", -10.0)
+
+# Words that pop up at a place in the 3D view, float up and fade (science from shards, close calls)
+func show_popup(text, color, world_place, size_factor := 1.0):
+	var layer = get_node_or_null("CanvasLayer")
+	if layer == null or camera == null or camera.is_position_behind(world_place):
+		return
+	var popup = Label.new()
+	popup.text = text
+	popup.theme_type_variation = "TitleLabel"
+	popup.add_theme_font_size_override("font_size", int(20 * size_factor))
+	popup.add_theme_color_override("font_color", color)
+	popup.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	popup.add_theme_constant_override("outline_size", 6)
+	popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(popup)
+	var place = camera.unproject_position(world_place) - Vector2(popup.get_combined_minimum_size().x / 2.0, 30.0)
+	popup.position = place
+	popup.pivot_offset = popup.get_combined_minimum_size() / 2.0
+	popup.scale = Vector2.ONE * 0.6
+	var float_up = popup.create_tween().set_parallel(true)
+	float_up.tween_property(popup, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	float_up.tween_property(popup, "position:y", place.y - 60.0, 1.2).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	float_up.tween_property(popup, "modulate:a", 0.0, 0.5).set_delay(0.8)
+	float_up.chain().tween_callback(popup.queue_free)
 
 # Which way the steering keys push the probe, as (along the path's side, along the path's up).
 # The keys work the way you see it on screen: A or Left moves the probe to the left of the picture, D or Right to
@@ -1311,6 +1442,17 @@ func _on_orbit_science_finished(summary, points):
 	GameState.mission_log.append({"title": "Science from orbit", "text": summary, "ok": true})
 	show_caption(summary, 7.0)
 
+# Photos from orbit, targets studied on the ground and the landing, for the directives and achievements
+func update_live_stats():
+	if orbit_science and is_instance_valid(orbit_science) and "photos" in orbit_science:
+		GameState.mission_stats["photos"] = orbit_science.photos.size()
+		if orbit_science.has_method("mapped_share"):
+			GameState.mission_stats["mapped"] = orbit_science.mapped_share()
+	if surface_view and is_instance_valid(surface_view) and "targets" in surface_view:
+		GameState.mission_stats["targets"] = surface_view.targets.filter(func(target): return target["studied"]).size()
+	if arrival_mode == "landed":
+		GameState.mission_stats["landed"] = true
+
 func orbit_science_running():
 	return orbit_science != null and is_instance_valid(orbit_science) and orbit_science.running
 
@@ -1347,9 +1489,16 @@ func start_rover():
 	surface_view.driving_finished.connect(_on_driving_finished)
 	surface_view.start_driving()
 	show_caption("Your rover is down! Drive it to the glowing science targets.", 5.0)
+	set_directives_card_shown(false)   # (the rover's own panel goes in that corner)
+
+func set_directives_card_shown(shown):
+	var card = get_node_or_null("CanvasLayer/DirectivesCard")
+	if card:
+		card.visible = shown
 
 func _on_driving_finished(summary):
 	rover_state = "done"
+	set_directives_card_shown(true)
 	seconds_since_last_event = 0.0
 	var lost_rover = summary.begins_with("The ") or summary.begins_with("Too many") or summary.begins_with("Jupiter")
 	GameState.science += surface_view.science_found
@@ -1533,11 +1682,35 @@ func _show_event():
 			button.pressed.connect(_on_choice_pressed.bind(choice_index))
 			choice_buttons.add_child(button)
 	else:
+		if event.has("insertion_check") and insertion_minigame_fits():
+			play_orbital_insertion(event)
+			return
 		var result = GameState.apply_event(event)
 		event_title.text = ("SYSTEMS NOMINAL  |  " if result["ok"] else "MISSION ALERT  |  ") + event["title"]
 		event_text.text = result["text"]
 		continue_button.visible = true
 		show_result_feedback(result["ok"])
+
+# The braking burn into orbit is flown by the player (res://scenes/orbital_insertion.tscn) when it's a real
+# engine burn: not for landers diving straight into the air, and not for ion engines (their "burn" takes months)
+func insertion_minigame_fits():
+	return not GameState.skip_minigames and not GameState.direct_entry() and GameState.choices.get("engine", "") == "engine_chemical"
+
+func play_orbital_insertion(event):
+	event_title.text = "ARRIVAL  |  " + event["title"]
+	event_text.text = "Fly the braking burn yourself..."
+	continue_button.visible = false
+	event_panel.modulate.a = 0.0   # (still "open", so the flight waits, but hidden behind the minigame)
+	var game = ORBITAL_INSERTION_SCENE.instantiate()
+	get_node("CanvasLayer").add_child(game)
+	game.start()
+	var result = await game.finished
+	var outcome = GameState.apply_insertion(result)
+	event_panel.modulate.a = 1.0
+	event_title.text = ("SYSTEMS NOMINAL  |  " if outcome["ok"] else "MISSION ALERT  |  ") + event["title"]
+	event_text.text = outcome["text"]
+	continue_button.visible = true
+	show_result_feedback(outcome["ok"])
 
 func _on_choice_pressed(choice_index):
 	var event = GameState.events[event_index]
@@ -1615,5 +1788,6 @@ func go_to_results():
 		await get_tree().create_timer(3.5).timeout
 	if flight_controls:
 		flight_controls.visible = false
+	update_live_stats()
 	GameState.finish_mission()
 	GameState.go_to_scene(RESULTS_SCENE)

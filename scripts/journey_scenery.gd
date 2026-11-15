@@ -50,6 +50,13 @@ const ROUTE_SWING_LIMIT = 1.12       # a coasting route may swing this far past 
 const SHORTEST_BELT = 0.08           # a belt covers at least this share of the trip, so there's time to steer
 const DODGE_ROCKS_PER_BELT = 12      # the rocks near the path (the ones you can hit)
 const DODGE_REACH = 0.95             # they sit at most this far from the middle of the path (you can steer 1.4 away)
+const ROCKS_FOR_DIFFICULTY = [0.65, 1.0, 1.45]   # fewer rocks for a Cadet, more for a Veteran
+# Science shards: glowing bits of ice and dust in a belt that the probe can fly into for bonus science.
+# They come in short lines of three, so flying straight through a line makes a combo (launch.gd counts them).
+const SHARD_LINES_PER_BELT = 3
+const SHARDS_PER_LINE = 3
+const SHARD_REACH = 1.15
+const SHARD_GLOW = preload("res://assets/ui/warning_ring.png")
 const BACKGROUND_ROCKS = 420         # rocks too far from the path to hit: they make the belt look like a belt
 const BACKGROUND_NEAREST = 2.6       # nothing you can't hit is closer to the path than this
 const PASSING_PLANETS = ["Mercury", "Venus", "Mars", "Ceres", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"]
@@ -65,6 +72,7 @@ var route_km = []        # where the probe is (km from the Sun) at each step of 
 var route_launch_date = 0.0
 var route_days = 0.0
 var dodge_rocks = []     # [position, radius, node, progress] of rocks close to the path (the ones you can hit)
+var science_shards = []  # [position, node, progress] of the glowing science shards you can steer into in a belt
 var probe_progress = 0.0 # where the probe is along the trip (launch.gd keeps this up to date), for the warning rings
 const WARNING_DISTANCE = 0.06   # a rock gets its warning ring when the probe is this share of the trip away from it
 var radius_by_progress = []   # distance from the Sun (AU) along the route
@@ -309,8 +317,9 @@ func build_belt(belt):
 
 	# The rocks to dodge: one at a time along the path, each on a different side from the one before
 	var side_angle = random.randf() * TAU
-	for index in DODGE_ROCKS_PER_BELT:
-		var progress = belt["start"] + length * (index + 0.6 + random.randf_range(-0.2, 0.2)) / (DODGE_ROCKS_PER_BELT + 0.4)
+	var rock_count = int(round(DODGE_ROCKS_PER_BELT * ROCKS_FOR_DIFFICULTY[GameState.difficulty]))
+	for index in rock_count:
+		var progress = belt["start"] + length * (index + 0.6 + random.randf_range(-0.2, 0.2)) / (rock_count + 0.4)
 		if progress > 0.985:
 			continue   # leave the last stretch clear for the arrival
 		var frame = path_frame.call(progress)
@@ -344,6 +353,8 @@ func build_belt(belt):
 		ring.name = "WarningRing"
 		rock.add_child(ring)
 		dodge_rocks.append([place, rock_size, rock, progress])
+
+	add_science_shards(belt, holder, icy, random)
 
 	# The rest of the belt: too far from the path to hit, drawn in groups (one group per rock shape)
 	var groups = []
@@ -433,8 +444,90 @@ func first_mesh(scene):
 	mesh_cache[scene] = found
 	return found
 
+# The science shards: short lines of glowing crystals at different places around the path
+func add_science_shards(belt, holder, icy, random):
+	var length = belt["end"] - belt["start"]
+	var crystal_mesh = SphereMesh.new()   # with 4 sides and 2 rings a sphere becomes a pointed crystal
+	crystal_mesh.radial_segments = 4
+	crystal_mesh.rings = 2
+	crystal_mesh.radius = 0.07
+	crystal_mesh.height = 0.22
+	var crystal_material = StandardMaterial3D.new()
+	crystal_material.albedo_color = Color(0.75, 0.95, 1.0) if icy else Color(0.45, 1.0, 0.85)
+	crystal_material.emission_enabled = true
+	crystal_material.emission = crystal_material.albedo_color
+	crystal_material.emission_energy_multiplier = 3.0
+	crystal_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var glow_material = StandardMaterial3D.new()
+	glow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow_material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	glow_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glow_material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	glow_material.albedo_texture = SHARD_GLOW
+	glow_material.albedo_color = Color(crystal_material.albedo_color, 0.8)
+	var glow_quad = QuadMesh.new()
+	glow_quad.size = Vector2.ONE * 0.55
+	for line in SHARD_LINES_PER_BELT:
+		var line_start = belt["start"] + length * (0.12 + 0.76 * (line + random.randf_range(0.1, 0.6)) / SHARD_LINES_PER_BELT)
+		var angle = random.randf() * TAU
+		var reach = random.randf_range(0.35, SHARD_REACH)
+		for step in SHARDS_PER_LINE:
+			var progress = line_start + step * length * 0.03
+			if progress > 0.985:
+				continue
+			var frame = path_frame.call(progress)
+			var place = path_point.call(progress) + (frame["side"] * cos(angle) + frame["up"] * sin(angle)) * reach
+			var shard = MeshInstance3D.new()
+			shard.mesh = crystal_mesh
+			shard.material_override = crystal_material
+			shard.position = place
+			shard.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var glow = MeshInstance3D.new()
+			glow.mesh = glow_quad
+			glow.material_override = glow_material
+			glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			shard.add_child(glow)
+			holder.add_child(shard)
+			science_shards.append([place, shard, progress])
+
+# A shard the probe flew into: it flares up and vanishes in a puff of sparkles
+func collect_shard(index):
+	var node = science_shards[index][1]
+	if not is_instance_valid(node) or not node.visible:
+		return
+	var flare = create_tween().set_parallel(true)
+	flare.tween_property(node, "scale", Vector3.ONE * 3.0, 0.25)
+	flare.chain().tween_callback(func(): node.visible = false)
+	var sparkles = CPUParticles3D.new()
+	sparkles.one_shot = true
+	sparkles.emitting = true
+	sparkles.amount = 24
+	sparkles.lifetime = 0.9
+	sparkles.explosiveness = 1.0
+	sparkles.spread = 180.0
+	sparkles.gravity = Vector3.ZERO
+	sparkles.initial_velocity_min = 0.4
+	sparkles.initial_velocity_max = 1.2
+	sparkles.scale_amount_min = 0.02
+	sparkles.scale_amount_max = 0.05
+	var sparkle_mesh = SphereMesh.new()
+	sparkle_mesh.radius = 0.5
+	sparkle_mesh.height = 1.0
+	sparkle_mesh.radial_segments = 4
+	sparkle_mesh.rings = 2
+	sparkles.mesh = sparkle_mesh
+	sparkles.material_override = node.material_override
+	sparkles.position = node.position
+	node.get_parent().add_child(sparkles)
+	get_tree().create_timer(1.5).timeout.connect(sparkles.queue_free)
+
 # The rocks near the path tumble slowly
 func _process(delta):
+	for shard in science_shards:
+		var node = shard[1]
+		if is_instance_valid(node) and node.visible:
+			node.rotate_y(delta * 2.0)
+			node.position = shard[0] + Vector3(0, sin(Time.get_ticks_msec() / 1000.0 * 2.0 + shard[2] * 50.0) * 0.03, 0)
 	for rock in dodge_rocks:
 		var node = rock[2]
 		if is_instance_valid(node) and node.visible:

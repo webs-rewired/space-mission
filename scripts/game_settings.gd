@@ -30,6 +30,7 @@ var quality_chosen_by_player = false
 var speed_check_seconds = 0.0
 var speed_check_frames = 0
 var notice = ""                          # a message for the menu to show once ("graphics turned down")
+var difficulty = 1                       # mission difficulty: 0 Cadet, 1 Standard, 2 Veteran (GameState uses it)
 
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -61,6 +62,8 @@ func load_settings():
 	fullscreen = file.get_value("graphics", "fullscreen", false)
 	for channel in SOUND_CHANNELS:
 		volumes[channel] = clamp(float(file.get_value("sound", channel, 1.0)), 0.0, 1.0)
+	difficulty = clamp(int(file.get_value("game", "difficulty", 1)), 0, 2)
+	GameState.difficulty = difficulty
 
 func save_settings():
 	var file = ConfigFile.new()
@@ -69,6 +72,7 @@ func save_settings():
 	file.set_value("graphics", "fullscreen", fullscreen)
 	for channel in SOUND_CHANNELS:
 		file.set_value("sound", channel, volumes[channel])
+	file.set_value("game", "difficulty", difficulty)
 	file.save(SAVE_FILE)
 
 # ---------------------------------------------------------------------------
@@ -85,6 +89,12 @@ func set_quality(new_quality, by_player = true):
 func set_fullscreen(on):
 	fullscreen = on
 	apply_window()
+	save_settings()
+	changed.emit()
+
+func set_difficulty(new_difficulty):
+	difficulty = clamp(new_difficulty, 0, 2)
+	GameState.difficulty = difficulty
 	save_settings()
 	changed.emit()
 

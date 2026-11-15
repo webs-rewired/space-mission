@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://bfon5dt3im7oo" path="res://scripts/results.gd" id="1_qh7lt"]
 [ext_resource type="Script" path="res://scripts/mission_patch.gd" id="2_patch"]
+[ext_resource type="Script" path="res://scripts/stars_display.gd" id="3_stars"]
 
 [sub_resource type="Environment" id="space_environment"]
 background_mode = 1
@@ -35,6 +36,20 @@ corner_radius_top_left = 8
 corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="xp_back"]
+bg_color = Color(0.1, 0.13, 0.2, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="xp_fill"]
+bg_color = Color(0.45, 0.8, 1, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
 
 [sub_resource type="StyleBoxFlat" id="tile_style"]
 content_margin_left = 12.0
@@ -143,6 +158,79 @@ theme_override_colors/font_color = Color(0.82, 0.86, 0.92, 1)
 theme_override_font_sizes/font_size = 17
 autowrap_mode = 3
 
+[node name="CareerBox" type="PanelContainer" parent="Layout/ReportPanel/VBox"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("tile_style")
+
+[node name="Column" type="VBoxContainer" parent="Layout/ReportPanel/VBox/CareerBox"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="DirectivesHeader" type="HBoxContainer" parent="Layout/ReportPanel/VBox/CareerBox/Column"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Layout/ReportPanel/VBox/CareerBox/Column/DirectivesHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(1, 0.82, 0.35, 1)
+theme_override_font_sizes/font_size = 12
+text = "MISSION DIRECTIVES"
+vertical_alignment = 1
+
+[node name="Stars" type="Control" parent="Layout/ReportPanel/VBox/CareerBox/Column/DirectivesHeader"]
+custom_minimum_size = Vector2(78, 22)
+layout_mode = 2
+script = ExtResource("3_stars")
+
+[node name="DirectiveRows" type="VBoxContainer" parent="Layout/ReportPanel/VBox/CareerBox/Column"]
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="XpRow" type="HBoxContainer" parent="Layout/ReportPanel/VBox/CareerBox/Column"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Rank" type="Label" parent="Layout/ReportPanel/VBox/CareerBox/Column/XpRow"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 16
+text = "Intern"
+vertical_alignment = 1
+
+[node name="XpBar" type="ProgressBar" parent="Layout/ReportPanel/VBox/CareerBox/Column/XpRow"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_override_styles/background = SubResource("xp_back")
+theme_override_styles/fill = SubResource("xp_fill")
+show_percentage = false
+
+[node name="Xp" type="Label" parent="Layout/ReportPanel/VBox/CareerBox/Column/XpRow"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_font_sizes/font_size = 12
+text = "+0 XP"
+vertical_alignment = 1
+
+[node name="RewardsRow" type="HBoxContainer" parent="Layout/ReportPanel/VBox/CareerBox/Column"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Research" type="Label" parent="Layout/ReportPanel/VBox/CareerBox/Column/RewardsRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.78, 0.65, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "+0 RESEARCH POINTS"
+vertical_alignment = 1
+
+[node name="LabButton" type="Button" parent="Layout/ReportPanel/VBox/CareerBox/Column/RewardsRow"]
+layout_mode = 2
+text = "Research lab"
+
 [node name="Scroll" type="ScrollContainer" parent="Layout/ReportPanel/VBox" unique_id=721978134]
 layout_mode = 2
 size_flags_vertical = 3
@@ -193,9 +281,25 @@ theme_override_constants/separation = 12
 alignment = 2
 
 [node name="Patch" type="Control" parent="Layout/Side"]
-custom_minimum_size = Vector2(0, 220)
+custom_minimum_size = Vector2(0, 190)
 layout_mode = 2
 script = ExtResource("2_patch")
+
+[node name="NewBest" type="Label" parent="Layout/Side/Patch"]
+visible = false
+layout_mode = 0
+offset_left = 170.0
+offset_top = 6.0
+offset_right = 300.0
+offset_bottom = 40.0
+rotation = -0.21
+theme_type_variation = &"TitleLabel"
+theme_override_colors/font_color = Color(0.5, 1, 0.65, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 18
+text = "NEW BEST!"
+horizontal_alignment = 1
 
 [node name="GradeTile" type="PanelContainer" parent="Layout/Side"]
 layout_mode = 2

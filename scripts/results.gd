@@ -27,6 +27,22 @@ const GRADE_COLORS = {"A+": Color(0.4, 1.0, 0.6), "A": Color(0.45, 0.95, 0.6), "
 @onready var grade_label: Label = $Layout/Side/GradeTile/Row/Grade
 @onready var grade_words: Label = $Layout/Side/GradeTile/Row/Words/GradeWords
 @onready var stats_grid: GridContainer = $Layout/Side/Stats
+@onready var career_column: VBoxContainer = $Layout/ReportPanel/VBox/CareerBox/Column
+@onready var directive_stars: Control = $Layout/ReportPanel/VBox/CareerBox/Column/DirectivesHeader/Stars
+@onready var directive_rows: VBoxContainer = $Layout/ReportPanel/VBox/CareerBox/Column/DirectiveRows
+@onready var rank_label: Label = $Layout/ReportPanel/VBox/CareerBox/Column/XpRow/Rank
+@onready var xp_bar: ProgressBar = $Layout/ReportPanel/VBox/CareerBox/Column/XpRow/XpBar
+@onready var xp_label: Label = $Layout/ReportPanel/VBox/CareerBox/Column/XpRow/Xp
+@onready var research_label: Label = $Layout/ReportPanel/VBox/CareerBox/Column/RewardsRow/Research
+@onready var lab_button: Button = $Layout/ReportPanel/VBox/CareerBox/Column/RewardsRow/LabButton
+@onready var new_best_label: Label = $Layout/Side/Patch/NewBest
+
+const MissionDirectives = preload("res://scripts/mission_directives.gd")
+const Career = preload("res://scripts/career.gd")
+const DIRECTIVE_ROW_SCENE = preload("res://scenes/directive_row.tscn")
+const CAREER_SCREEN_SCENE = preload("res://scenes/career_screen.tscn")
+var career_summary = {}
+var directives_done = 0
 @onready var planet: MeshInstance3D = $View/Viewport/Planet
 @onready var probe_holder: Node3D = $View/Viewport/ProbeHolder
 
@@ -36,7 +52,7 @@ func _ready():
 	var destination_name = SolarSystemData.BODIES.get(GameState.destination, {}).get("label", GameState.destination)
 	kicker_label.text = "MISSION REPORT   |   %s" % destination_name.to_upper()
 	outcome_label.text = GameState.outcome
-	score_label.text = "Score: %d / 100\n%s" % [GameState.score, GameState.ending]
+	score_label.text = "Score: %d / 100%s\n%s" % [GameState.score, score_breakdown(), GameState.ending]
 	var lines = [segments_review()]
 	for log_entry in GameState.mission_log:
 		var color = "#7dff9a" if log_entry["ok"] else "#ff7a6e"
@@ -46,17 +62,102 @@ func _ready():
 	events_label.text = "\n\n".join(lines)
 	real_mission_label.text = "How NASA did it: " + GameState.REAL_MISSIONS.get(GameState.destination, "")
 	show_grade()
+	record_career()
 	show_stats()
 	make_patch(destination_name)
 	build_view()
 	play_ending_sound()
 	try_again_button.pressed.connect(_on_try_again_pressed)
 	new_destination_button.pressed.connect(_on_new_destination_pressed)
+	lab_button.pressed.connect(open_research_lab)
 	play_entrance()
+	play_career_rewards()
 
 # The report builds itself on screen like the Webs With U site (scripts/ui_motion.gd): the report panel glides in
 # from the left, the headline's letters rise into place, the patch and grade pop in, and the numbers count up.
 # (Because of this, the loading screen doesn't slide this scene's panels in itself.)
+# ---------------------------------------------------------------------------
+# Your career: the directives, XP and rank, research points, achievements, best result (scripts/career.gd)
+# ---------------------------------------------------------------------------
+func record_career():
+	directives_done = 0
+	for directive_id in GameState.directives:
+		var status = MissionDirectives.status(directive_id, true)
+		if status["state"] == "done":
+			directives_done += 1
+		var row = DIRECTIVE_ROW_SCENE.instantiate()
+		directive_rows.add_child(row)
+		row.get_node("Icon").state = status["state"]
+		row.get_node("Words/Title").text = MissionDirectives.title(directive_id)
+		row.get_node("Words/Detail").text = MissionDirectives.description(directive_id)
+		row.get_node("Progress").text = ("+%d XP" % MissionDirectives.BONUS_XP) if status["state"] == "done" else status["progress"]
+	if GameState.directives.is_empty():
+		career_column.get_node("DirectivesHeader").visible = false
+	var report = {
+		"destination": GameState.destination, "score": GameState.score, "grade": grade_label.text, "lost": GameState.lost,
+		"science": GameState.science, "data_share": GameState.data_share, "directives_done": directives_done,
+		"risky": GameState.risky_choices, "difficulty": GameState.difficulty, "stats": GameState.mission_stats,
+		"money_left_share": (GameState.budget() - GameState.total_cost()) / max(GameState.budget(), 1.0),
+	}
+	career_summary = Career.record_mission(GameState.career, report)
+	Career.save_data(GameState.career)
+	GameState.forget_directives()   # the next mission gets new ones
+
+# The rewards come in after the report: the stars pop, the XP bar fills (and the rank goes up), research points
+# count up, and achievements and a new best slide in as pop-ups
+func play_career_rewards():
+	var start = 1.3
+	directive_stars.pop_stars(directives_done, start)
+	UiMotion.stagger(directive_rows.get_children(), start - 0.2, 0.08, Vector2(20, 0), 0.5)
+	var rank_before = career_summary["rank_before"]
+	var rank_after = career_summary["rank_after"]
+	rank_label.text = rank_before["title"]
+	xp_bar.value = xp_share(career_summary["xp_before"], rank_before)
+	xp_label.text = "+0 XP"
+	var xp_after = career_summary["xp_before"] + career_summary["xp_gained"]
+	var fill = create_tween()
+	fill.tween_interval(start + 0.6)
+	fill.tween_method(func(value):
+		var rank_now = Career.rank_for(int(value))
+		if rank_now["title"] != rank_label.text:
+			rank_label.text = rank_now["title"]
+			rank_label.pivot_offset = rank_label.size / 2.0
+			rank_label.scale = Vector2.ONE * 1.5
+			rank_label.create_tween().tween_property(rank_label, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		xp_bar.value = xp_share(value, rank_now)
+		xp_label.text = "+%d XP" % int(value - career_summary["xp_before"]), float(career_summary["xp_before"]), float(xp_after), 1.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	UiMotion.count_up(research_label, career_summary["research_gained"], func(value): return "+%d RESEARCH POINTS   (%d to spend)" % [int(value), GameState.career["research"]], start + 0.9, 1.4)
+	await get_tree().create_timer(start + 2.4).timeout
+	if not is_inside_tree():
+		return
+	if rank_after["index"] > rank_before["index"]:
+		GameState.show_toast(rank_after["title"], "Your new rank. Keep flying missions to climb higher.", "rank")
+	if career_summary["new_best"]:
+		new_best_label.visible = true
+		UiMotion.pop_in(new_best_label, 0.0, 0.5)
+		GameState.show_toast("Best on %s: %d" % [GameState.destination, GameState.score], "Your best score on this destination so far.", "best")
+	for achievement_id in career_summary["new_achievements"]:
+		var achievement = Career.ACHIEVEMENTS[achievement_id]
+		GameState.show_toast(achievement["title"], achievement["text"], "achievement")
+
+func xp_share(xp, rank):
+	if rank["next"] < 0:
+		return 100.0
+	return 100.0 * (xp - rank["floor"]) / float(rank["next"] - rank["floor"])
+
+func open_research_lab():
+	var screen = CAREER_SCREEN_SCENE.instantiate()
+	add_child(screen)
+	screen.open("research")
+	screen.closed.connect(func(): research_label.text = "+%d RESEARCH POINTS   (%d to spend)" % [career_summary["research_gained"], GameState.career["research"]])
+
+# How the score was made: science returned, readiness, budget reserve and the flight (GameState.finish_mission)
+func score_breakdown():
+	var parts = GameState.score_parts
+	if parts.is_empty():
+		return ""
+	return "   (science %d/60, readiness %d/15, reserve %d/10, flight %d/15)" % [parts["science"], parts["readiness"], parts["budget"], parts["flight"]]
+
 func plays_own_entrance():
 	return true
 
@@ -77,7 +178,7 @@ func play_entrance():
 		if tiles.size() >= 2:
 			UiMotion.count_up(tiles[0].get_child(0).get_child(1), GameState.science, func(value): return "%d points" % int(value), start + 0.8, 1.4)
 			UiMotion.count_up(tiles[1].get_child(0).get_child(1), GameState.data_share * 100.0, func(value): return "%d %%" % int(value), start + 0.9, 1.4)
-		UiMotion.count_up(score_label, GameState.score, func(value): return "Score: %d / 100\n%s" % [int(value), GameState.ending], start + 0.55, 1.4)
+		UiMotion.count_up(score_label, GameState.score, func(value): return "Score: %d / 100%s\n%s" % [int(value), score_breakdown(), GameState.ending], start + 0.55, 1.4)
 
 func _process(delta):
 	planet.rotate_y(delta * 0.04)

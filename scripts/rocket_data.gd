@@ -94,6 +94,10 @@ const ENGINES = {
 		"thrust_sea_level": 2260, "thrust_vacuum": 2450, "isp_sea_level": 327, "isp_vacuum": 350, "mass": 1600, "cost": 2},
 	"f1": {"name": "F-1 (Saturn V)", "stage": "bottom", "fuel": "kerosene",
 		"thrust_sea_level": 6770, "thrust_vacuum": 7770, "isp_sea_level": 263, "isp_vacuum": 304, "mass": 8400, "cost": 60},
+	"rs68a": {"name": "RS-68A (Delta IV Heavy)", "stage": "bottom", "fuel": "hydrogen",
+		"thrust_sea_level": 3137, "thrust_vacuum": 3546, "isp_sea_level": 362, "isp_vacuum": 411, "mass": 6740, "cost": 45},
+	"vulcain2": {"name": "Vulcain 2 (Ariane 5)", "stage": "bottom", "fuel": "hydrogen",
+		"thrust_sea_level": 960, "thrust_vacuum": 1359, "isp_sea_level": 318, "isp_vacuum": 431, "mass": 2100, "cost": 30},
 	# Top-stage engines have huge nozzles that only work in space
 	"merlin_vacuum": {"name": "Merlin Vacuum (Falcon 9 top stage)", "stage": "top", "fuel": "kerosene",
 		"thrust_vacuum": 981, "isp_vacuum": 348, "mass": 490, "cost": 2},
@@ -103,6 +107,8 @@ const ENGINES = {
 		"thrust_vacuum": 2500, "isp_vacuum": 378, "mass": 2000, "cost": 4},
 	"j2": {"name": "J-2 (Saturn V second and third stages)", "stage": "top", "fuel": "hydrogen",
 		"thrust_vacuum": 1033, "isp_vacuum": 421, "mass": 1788, "cost": 25},
+	"rl10c": {"name": "RL10C-1-1 (Vulcan's Centaur V)", "stage": "top", "fuel": "hydrogen",
+		"thrust_vacuum": 106, "isp_vacuum": 453, "mass": 190, "cost": 17},
 }
 
 # "propellant" is the fuel and oxygen inside. "empty_mass" is the tank and structure.
@@ -119,6 +125,8 @@ const TANKS = {
 	"kerosene_2150": {"name": "Kerosene tank, 2,150 t (like Saturn V's S-IC)", "fuel": "kerosene", "propellant": 2150000, "empty_mass": 89000, "cost": 250, "radius": 5.05},
 	"hydrogen_450": {"name": "Hydrogen tank, 450 t (like Saturn V's S-II)", "fuel": "hydrogen", "propellant": 450000, "empty_mass": 27000, "cost": 180, "radius": 5.05},
 	"methane_3400": {"name": "Methane tank, 3,400 t (like Super Heavy)", "fuel": "methane", "propellant": 3400000, "empty_mass": 200000, "cost": 60, "radius": 4.5},
+	"hydrogen_27": {"name": "Hydrogen tank, 27 t (like Delta IV's top stage)", "fuel": "hydrogen", "propellant": 27200, "empty_mass": 3490, "cost": 20, "radius": 2.5},
+	"hydrogen_200": {"name": "Hydrogen tank, 200 t (like a Delta IV core)", "fuel": "hydrogen", "propellant": 200000, "empty_mass": 26800, "cost": 70, "radius": 2.55},
 }
 
 # Solid boosters burn alongside the bottom stage and drop off when empty
@@ -137,6 +145,8 @@ const KICK_STAGES = {
 	"none": {"name": "No kick stage"},
 	"star48": {"name": "Star 48B solid kick stage (like New Horizons)", "propellant": 2010, "empty_mass": 124, "isp": 286, "cost": 15,
 		"radius": 0.62, "height": 2.0},
+	"star37": {"name": "Star 37FM solid kick stage (smaller, lighter)", "propellant": 1066, "empty_mass": 81, "isp": 290, "cost": 8,
+		"radius": 0.47, "height": 1.7},
 	# Saturn V's third stage: one J-2 that fired twice, once to reach orbit and again to head for the Moon
 	"s_ivb": {"name": "S-IVB third stage (Saturn V, one J-2)", "propellant": 109500, "empty_mass": 13500, "isp": 421, "cost": 200,
 		"radius": 3.3, "height": 17.8, "burn_seconds": 350, "caption": "The S-IVB third stage relights for the push out of Earth orbit"},
@@ -186,6 +196,12 @@ const PART_FACTS = {
 	"hydrogen_450": {"like": "Saturn V's S-II second stage held about 450 t", "about": "Its hydrogen and oxygen tanks shared one wall (a common bulkhead) to save weight. It burned for about 6 minutes."},
 	"s_ivb": {"like": "Saturn V's third stage (and the Saturn IB's second)", "about": "109 t of hydrogen and oxygen and one restartable J-2. It burned about 2.5 minutes to reach orbit, then 6 minutes more to send Apollo to the Moon."},
 	"merlin_vacuum": {"like": "Falcon 9's top stage uses 1", "about": "A Merlin with a giant 3.3 m nozzle that only works in the vacuum of space. 981 kN. Thrown away after every flight."},
+	"rs68a": {"like": "Delta IV Heavy's three cores used 1 each", "about": "The most powerful hydrogen engine ever flown: 3,137 kN at sea level. Its simple design made it cheaper than the RS-25, but less efficient (411 s in space)."},
+	"vulcain2": {"like": "Ariane 5's core stage used 1", "about": "Europe's hydrogen main engine. It runs for almost 10 minutes from the pad to space, while the solid boosters do most of the early pushing."},
+	"rl10c": {"like": "Vulcan's Centaur V top stage uses 2", "about": "The newest RL10, with a longer nozzle: 106 kN and about 453 s. Pairs of them push the Centaur V stage."},
+	"hydrogen_27": {"like": "Delta IV's 5 m top stage holds about 27 t", "about": "A wide, short hydrogen stage with one RL10. Wide tanks are stubby and light for how much they hold."},
+	"hydrogen_200": {"like": "A Delta IV core holds about 200 t", "about": "Delta IV Heavy strapped three of these together. Hydrogen is so light that this 200 t tank is 40 m tall."},
+	"star37": {"like": "Used on Voyager and many satellites", "about": "A small solid motor: about 1 t of propellant. Lighter and cheaper than a Star 48, but a smaller final push."},
 	"rl10": {"like": "Centaur (Atlas V, Vulcan) and SLS's top stage", "about": "First flew in the early 1960s and still flying. Burns hydrogen, so it gets the most speed out of its fuel (465 s), but it's gentle: 110 kN, about the weight of 11 tonnes."},
 	"raptor_vacuum": {"like": "Starship's ship uses 3", "about": "A Raptor with a big nozzle made for space. 2,500 kN and 378 s: powerful and efficient, but it needs huge methane tanks."},
 	"kerosene_30": {"like": "A small first or top stage", "about": "30 t of kerosene and liquid oxygen. Kerosene is dense, so the tank stays short and light."},

@@ -1,0 +1,370 @@
+[gd_scene load_steps=18 format=3]
+
+[ext_resource type="Script" path="res://scripts/docking.gd" id="1_docking"]
+[ext_resource type="Script" path="res://scripts/docking_reticle.gd" id="2_reticle"]
+[ext_resource type="PackedScene" path="res://scenes/places/station_docking_port.tscn" id="3_station"]
+[ext_resource type="PackedScene" path="res://scenes/places/station_zenith_port.tscn" id="7_zenith"]
+[ext_resource type="Texture2D" path="res://assets/textures/2k_stars_milky_way.jpg" id="4_stars"]
+[ext_resource type="Texture2D" path="res://assets/textures/2k_earth_daymap.jpg" id="5_earth"]
+[ext_resource type="Texture2D" path="res://assets/textures/2k_earth_clouds.jpg" id="6_clouds"]
+
+[sub_resource type="StyleBoxFlat" id="result_style"]
+content_margin_left = 18.0
+content_margin_top = 16.0
+content_margin_right = 18.0
+content_margin_bottom = 16.0
+bg_color = Color(0.03, 0.05, 0.09, 0.94)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(1, 0.82, 0.35, 0.45)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="PanoramaSkyMaterial" id="stars_sky"]
+panorama = ExtResource("4_stars")
+energy_multiplier = 0.18
+
+[sub_resource type="Sky" id="sky"]
+sky_material = SubResource("stars_sky")
+
+[sub_resource type="Environment" id="space"]
+background_mode = 2
+sky = SubResource("sky")
+ambient_light_source = 2
+ambient_light_color = Color(0.45, 0.55, 0.75, 1)
+ambient_light_energy = 0.35
+tonemap_mode = 3
+glow_enabled = true
+glow_intensity = 0.5
+glow_hdr_threshold = 1.2
+
+[sub_resource type="StandardMaterial3D" id="earth_surface"]
+albedo_texture = ExtResource("5_earth")
+roughness = 0.9
+
+[sub_resource type="SphereMesh" id="earth_sphere"]
+radius = 12742.0
+height = 25484.0
+radial_segments = 128
+rings = 64
+
+[sub_resource type="StandardMaterial3D" id="cloud_layer"]
+transparency = 1
+albedo_texture = ExtResource("6_clouds")
+albedo_color = Color(0.5, 0.5, 0.52, 1)
+blend_mode = 1
+shading_mode = 1
+cull_mode = 0
+
+[sub_resource type="SphereMesh" id="cloud_sphere"]
+radius = 12760.0
+height = 25520.0
+radial_segments = 128
+rings = 64
+
+[sub_resource type="StandardMaterial3D" id="air_glow"]
+transparency = 1
+albedo_color = Color(0.35, 0.6, 1, 0.22)
+shading_mode = 0
+cull_mode = 1
+blend_mode = 1
+
+[sub_resource type="SphereMesh" id="air_sphere"]
+radius = 12950.0
+height = 25900.0
+radial_segments = 96
+rings = 48
+
+[node name="Docking" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_docking")
+editor_description = "Minigame: the docking trainer (docking.gd, orbital mechanics in docking_physics.gd). Fly the last meters to the Space Station's forward or zenith port through the docking camera. Opened from the career screen's Training tab."
+
+[node name="View" type="SubViewportContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch = true
+
+[node name="Viewport" type="SubViewport" parent="View"]
+own_world_3d = true
+handle_input_locally = false
+msaa_3d = 2
+size = Vector2i(1280, 720)
+render_target_update_mode = 4
+
+[node name="World" type="Node3D" parent="View/Viewport"]
+
+[node name="Environment" type="WorldEnvironment" parent="View/Viewport/World"]
+environment = SubResource("space")
+
+[node name="Sun" type="DirectionalLight3D" parent="View/Viewport/World"]
+rotation = Vector3(-0.85, 0.5, 0)
+light_energy = 1.0
+shadow_enabled = true
+directional_shadow_max_distance = 120.0
+
+[node name="StationForward" parent="View/Viewport/World" instance=ExtResource("3_station")]
+
+[node name="StationZenith" parent="View/Viewport/World" instance=ExtResource("7_zenith")]
+visible = false
+
+[node name="Earth" type="Node3D" parent="View/Viewport/World"]
+editor_description = "Earth, scaled down 500 times along with its distance so it fills the same part of the sky as from the Space Station's height (about 420 km): its horizon sits about 20 degrees below level."
+position = Vector3(0, -13582, 0)
+rotation = Vector3(0.35, 0, 0.2)
+
+[node name="Surface" type="MeshInstance3D" parent="View/Viewport/World/Earth"]
+mesh = SubResource("earth_sphere")
+surface_material_override/0 = SubResource("earth_surface")
+
+[node name="Clouds" type="MeshInstance3D" parent="View/Viewport/World/Earth"]
+mesh = SubResource("cloud_sphere")
+surface_material_override/0 = SubResource("cloud_layer")
+
+[node name="Air" type="MeshInstance3D" parent="View/Viewport/World"]
+editor_description = "A thin blue glow along Earth's limb, the atmosphere seen edge-on."
+position = Vector3(0, -13582, 0)
+mesh = SubResource("air_sphere")
+surface_material_override/0 = SubResource("air_glow")
+
+[node name="Camera" type="Camera3D" parent="View/Viewport/World"]
+editor_description = "The spacecraft's docking camera, on the docking axis. scripts/docking.gd moves and turns it."
+position = Vector3(0, 0, 30)
+current = true
+fov = 50.0
+near = 0.05
+far = 40000.0
+
+[node name="DockingLight" type="SpotLight3D" parent="View/Viewport/World/Camera"]
+editor_description = "The spacecraft's own docking light, shining along the docking axis so the camera can see the target in the port's shadow."
+light_energy = 1.2
+spot_range = 60.0
+spot_angle = 22.0
+spot_attenuation = 0.6
+
+[node name="Reticle" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("2_reticle")
+
+[node name="Header" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 20.0
+offset_top = 12.0
+offset_right = -20.0
+offset_bottom = 52.0
+grow_horizontal = 2
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"TitleLabel"
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 24
+text = "DOCKING TRAINER  ·  SPACE STATION FORWARD PORT"
+vertical_alignment = 1
+
+[node name="CloseButton" type="Button" parent="Header"]
+custom_minimum_size = Vector2(110, 34)
+layout_mode = 2
+text = "Close (Esc)"
+
+[node name="Left" type="PanelContainer" parent="."]
+layout_mode = 1
+offset_left = 20.0
+offset_top = 64.0
+offset_right = 330.0
+offset_bottom = 120.0
+
+[node name="Column" type="VBoxContainer" parent="Left"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ReadoutTitle" type="Label" parent="Left/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 11
+text = "DOCKING CAMERA TELEMETRY"
+
+[node name="Readouts" type="Label" parent="Left/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_font_sizes/font_size = 12
+text = "RANGE 30.00 m"
+
+[node name="Right" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -330.0
+offset_top = 64.0
+offset_right = -20.0
+offset_bottom = 120.0
+grow_horizontal = 0
+
+[node name="Column" type="VBoxContainer" parent="Right"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="LimitsTitle" type="Label" parent="Right/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(1, 0.82, 0.35, 1)
+theme_override_font_sizes/font_size = 11
+text = "TO DOCK"
+
+[node name="Limits" type="Label" parent="Right/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Touch slowly, centered and lined up."
+autowrap_mode = 3
+
+[node name="KeysTitle" type="Label" parent="Right/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 11
+text = "CONTROLS"
+
+[node name="Keys" type="Label" parent="Right/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_font_sizes/font_size = 11
+text = "W / S      up / down
+A / D      left / right
+E / Q      toward / away from port
+Arrows     pitch and yaw
+Z / C      roll
+Shift      fine control
+R          rate hold
+T          fast-forward (far out)"
+
+[node name="Lesson" type="Label" parent="Right/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.75, 0.83, 1)
+theme_override_font_sizes/font_size = 11
+text = "You and the station are both in orbit. Coming in from in front, you're a little slower than the station, so you slowly sink toward Earth (the Clohessy-Wiltshire equations NASA plans rendezvous with). Keep nudging up."
+autowrap_mode = 3
+
+[node name="Status" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -360.0
+offset_top = -118.0
+offset_right = 360.0
+offset_bottom = -78.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(1, 0.88, 0.6, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 14
+text = "Holding in front of the station."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Bottom" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = -56.0
+offset_right = 345.0
+offset_bottom = -16.0
+grow_vertical = 0
+theme_override_constants/separation = 8
+
+[node name="TargetPicker" type="OptionButton" parent="Bottom"]
+layout_mode = 2
+focus_mode = 0
+
+[node name="RateHoldButton" type="Button" parent="Bottom"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "Rate hold: OFF (R)"
+
+[node name="RestartButton" type="Button" parent="Bottom"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "Start over"
+
+[node name="Result" type="PanelContainer" parent="."]
+visible = false
+custom_minimum_size = Vector2(460, 0)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -230.0
+offset_top = -90.0
+offset_right = 230.0
+offset_bottom = 90.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("result_style")
+
+[node name="Column" type="VBoxContainer" parent="Result"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="Result/Column"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 22
+text = "DOCKED"
+horizontal_alignment = 1
+
+[node name="Text" type="Label" parent="Result/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Soft capture."
+autowrap_mode = 3
+
+[node name="Buttons" type="HBoxContainer" parent="Result/Column"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="AgainButton" type="Button" parent="Result/Column/Buttons"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Fly again"
+
+[node name="DoneButton" type="Button" parent="Result/Column/Buttons"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Done"

@@ -1346,6 +1346,7 @@ func _build_ui() -> void:
 	start_button = _menu_button(BUTTON_TEXT, 24, _on_start_pressed)
 	menu_buttons.add_child(start_button)
 	menu_buttons.add_child(_menu_button("How to play", 18, _open_panel.bind("how_to_play")))
+	menu_buttons.add_child(_menu_button("Career & research", 18, _open_career))
 	menu_buttons.add_child(_menu_button("Mission archive", 18, _open_panel.bind("archive")))
 	menu_buttons.add_child(_menu_button("Settings", 18, _open_panel.bind("settings")))
 	menu_buttons.add_child(_menu_button("Credits", 18, _open_panel.bind("credits")))
@@ -1450,6 +1451,22 @@ func _build_settings_panel() -> void:
 	quality_help.add_theme_color_override("font_color", Color(0.7, 0.75, 0.82))
 	body.add_child(quality_help)
 	settings.changed.connect(func(): quality.selected = settings.quality)
+
+	# Mission difficulty: budgets, surprises, rocks in the belts, and XP (GameState.DIFFICULTY_*)
+	var difficulty := OptionButton.new()
+	for difficulty_name in GameState.DIFFICULTY_NAMES:
+		difficulty.add_item(difficulty_name)
+	difficulty.selected = settings.difficulty
+	var difficulty_help := Label.new()
+	difficulty_help.text = GameState.DIFFICULTY_HELP[settings.difficulty]
+	difficulty_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	difficulty_help.add_theme_font_size_override("font_size", 13)
+	difficulty_help.add_theme_color_override("font_color", Color(0.7, 0.75, 0.82))
+	difficulty.item_selected.connect(func(index):
+		settings.set_difficulty(index)
+		difficulty_help.text = GameState.DIFFICULTY_HELP[index])
+	_settings_row(body, "Mission difficulty", difficulty)
+	body.add_child(difficulty_help)
 
 	var fullscreen := CheckButton.new()
 	fullscreen.button_pressed = settings.fullscreen
@@ -1585,6 +1602,16 @@ func _open_panel(which: String) -> void:
 		var column := opened.get_child(0)
 		UiMotion.reveal_text(column.get_child(0), 0.12, 0.7)
 		UiMotion.stagger(column.get_child(1).get_children(), 0.2, 0.05, Vector2(0, 16), 0.6)
+
+
+# Your rank, research lab, achievements and best results (res://scenes/career_screen.tscn)
+func _open_career() -> void:
+	if starting:
+		return
+	_open_panel("")
+	var screen = load("res://scenes/career_screen.tscn").instantiate()
+	layer.add_child(screen)
+	screen.open("research")
 
 
 func _on_quit_pressed() -> void:

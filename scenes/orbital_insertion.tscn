@@ -1,0 +1,221 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/orbital_insertion.gd" id="1_insertion"]
+[ext_resource type="Script" path="res://scripts/orbit_view.gd" id="2_view"]
+[ext_resource type="Shader" path="res://shaders/codex_thumbnail.gdshader" id="3_ball"]
+
+[sub_resource type="ShaderMaterial" id="planet_material"]
+shader = ExtResource("3_ball")
+shader_parameter/tint = Color(1, 1, 1, 1)
+shader_parameter/has_map = true
+shader_parameter/edge_color = Color(0.45, 0.8, 1, 0.5)
+shader_parameter/turn = 0.0
+
+[sub_resource type="StyleBoxFlat" id="panel_style"]
+content_margin_left = 18.0
+content_margin_top = 16.0
+content_margin_right = 18.0
+content_margin_bottom = 16.0
+bg_color = Color(0.03, 0.05, 0.09, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.45, 0.8, 1, 0.4)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="fuel_back"]
+bg_color = Color(0.1, 0.13, 0.2, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="fuel_fill"]
+bg_color = Color(1, 0.75, 0.3, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[node name="OrbitalInsertion" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_insertion")
+editor_description = "Minigame: the braking burn into orbit (orbital_insertion.gd, physics in orbit_physics.gd). launch.gd opens it at the Braking into orbit event."
+
+[node name="Backdrop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.01, 0.015, 0.03, 0.94)
+
+[node name="View" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 0.68
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("2_view")
+
+[node name="Planet" type="TextureRect" parent="View"]
+material = SubResource("planet_material")
+layout_mode = 0
+offset_right = 100.0
+offset_bottom = 100.0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 0
+
+[node name="Panel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -380.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 0
+grow_vertical = 2
+theme_override_styles/panel = SubResource("panel_style")
+
+[node name="Column" type="VBoxContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Kicker" type="Label" parent="Panel/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 11
+text = "ARRIVAL  ·  MANUAL BURN"
+
+[node name="Title" type="Label" parent="Panel/Column"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 24
+text = "ORBIT INSERTION"
+autowrap_mode = 3
+
+[node name="Goal" type="Label" parent="Panel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.83, 0.9, 1)
+theme_override_font_sizes/font_size = 13
+text = "Fire the engine against your motion as you swing past the closest point."
+autowrap_mode = 3
+
+[node name="Readouts" type="Label" parent="Panel/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_font_sizes/font_size = 13
+text = "ALTITUDE"
+
+[node name="FuelRow" type="VBoxContainer" parent="Panel/Column"]
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="FuelTitle" type="Label" parent="Panel/Column/FuelRow"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_font_sizes/font_size = 11
+text = "SPEED CHANGE LEFT (YOUR PROPELLANT)"
+
+[node name="FuelBar" type="ProgressBar" parent="Panel/Column/FuelRow"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+theme_override_styles/background = SubResource("fuel_back")
+theme_override_styles/fill = SubResource("fuel_fill")
+value = 100.0
+show_percentage = false
+
+[node name="FuelText" type="Label" parent="Panel/Column/FuelRow"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_font_sizes/font_size = 12
+text = "1.20 of 1.20 km/s left"
+
+[node name="Status" type="Label" parent="Panel/Column"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 17
+text = "ESCAPING"
+
+[node name="Buttons" type="HBoxContainer" parent="Panel/Column"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BurnButton" type="Button" parent="Panel/Column/Buttons"]
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Hold to burn (Space)"
+
+[node name="AutopilotButton" type="Button" parent="Panel/Column/Buttons"]
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+text = "Autopilot"
+
+[node name="Spacer" type="Control" parent="Panel/Column"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Note" type="Label" parent="Panel/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.68, 1)
+theme_override_font_sizes/font_size = 11
+text = "Real numbers"
+autowrap_mode = 3
+
+[node name="ResultPanel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.34
+anchor_top = 0.5
+anchor_right = 0.34
+anchor_bottom = 0.5
+offset_left = -230.0
+offset_top = -100.0
+offset_right = 230.0
+offset_bottom = 100.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("panel_style")
+
+[node name="Column" type="VBoxContainer" parent="ResultPanel"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ResultTitle" type="Label" parent="ResultPanel/Column"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 28
+text = "IN ORBIT"
+horizontal_alignment = 1
+
+[node name="ResultText" type="Label" parent="ResultPanel/Column"]
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Result"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="ContinueButton" type="Button" parent="ResultPanel/Column"]
+custom_minimum_size = Vector2(160, 40)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "Continue"

@@ -11,6 +11,7 @@ extends Node3D
 # year, data rates fall with distance (New Horizons sent about 1 to 2 kilobits per second from Pluto), and the
 # braking burn uses the rocket equation (see game_state.gd).
 
+const DIRECTIVES_CARD_SCENE = preload("res://scenes/directives_card.tscn")
 const SOLAR_SYSTEM_SCENE = "res://scenes/solar_system.tscn"
 const ROCKET_SCENE = "res://scenes/rocket_builder.tscn"
 
@@ -53,6 +54,7 @@ var lookalike_label: Label
 var view_button: Button
 
 func _ready():
+	GameState.fill_missing_choices()
 	# The old panel from the scene is replaced by the new screen
 	var old_layer = get_node_or_null("CanvasLayer")
 	if old_layer:
@@ -328,6 +330,22 @@ func build_screen():
 	next_button.pressed.connect(_on_next_pressed)
 	bottom_bar.add_child(next_button)
 
+	# This mission's bonus goals, low over the clean room (res://scenes/directives_card.tscn)
+	add_directives_card(layer)
+
+func add_directives_card(layer):
+	var card = DIRECTIVES_CARD_SCENE.instantiate()
+	card.show_descriptions = false
+	layer.add_child(card)
+	card.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE)
+	card.custom_minimum_size.x = 340
+	card.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	card.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	card.offset_left = -170
+	card.offset_right = 170
+	card.offset_bottom = -76
+	UiMotion.slide_in(card, 0.6, Vector2(0, 24), 0.7)
+
 func part_label(part_id):
 	var part = GameState.PARTS[part_id]
 	var text = "%s   %d kg, %s" % [part["name"], part["mass"], GameState.money_text(part["cost"])]
@@ -528,15 +546,64 @@ func update_review():
 			landing_text = "Landing systems ready."
 		lines.append(line(landing_status, "Landing", landing_text))
 
+	# Pointing: aiming the dish and cameras
+	var attitude = choices.get("attitude", "attitude_wheels")
+	if attitude == "attitude_thrusters":
+		status = "watch" if choices["antenna"] == "antenna_large" else "go"
+		lines.append(line(status, "Pointing", "Thrusters alone turn the probe in rough little pushes, using propellant (5% less speed change)." + (" They can't hold a narrow dish beam on Earth for long, so the high-gain dish sends only half as much." if status == "watch" else "")))
+	elif attitude == "attitude_wheels":
+		lines.append(line("watch", "Pointing", "Reaction wheels point precisely, but there's no backup if one fails: Kepler and Dawn each lost two wheels. Real flagships carry thrusters as a backup."))
+	else:
+		lines.append(line("go", "Pointing", "Reaction wheels with thrusters as a backup, like Cassini and Juno."))
+
+	# Data recorder: can it hold what the instruments make until the radio sends it home?
+	var made_per_day = GameState.data_made_mb_per_day()
+	var sent_per_day = GameState.data_sent_mb_per_day()
+	var recorder_days = GameState.recorder_days()
+	status = "go" if recorder_days >= 30.0 else ("watch" if recorder_days >= 7.0 else "no-go")
+	var recorder_text = "Your instruments make about %s MB a day, and the radio sends about %s MB a day home. " % [format_number(made_per_day), format_number(sent_per_day)]
+	if recorder_days >= 9999.0:
+		recorder_text += "Everything gets sent the same day: the recorder never fills up."
+	else:
+		recorder_text += "The %d GB recorder fills up in about %s, then new science is lost." % [GameState.PARTS[choices.get("storage", "storage_small")]["capacity_gb"], time_text(recorder_days * 1440.0) if recorder_days < 2.0 else "%d days" % int(recorder_days)]
+		if status != "go":
+			recorder_text += " A bigger recorder, a better antenna or fewer data-hungry instruments (cameras and radar) would help."
+	lines.append(line(status, "Data recorder", recorder_text))
+
+	# Structure: launch shaking and landings
+	var structure = choices.get("structure", "structure_aluminum")
+	if structure == "structure_composite" and GameState.total_mass() > 2500:
+		lines.append(line("no-go", "Structure", "A composite frame under a %s kg probe would crack in the shaking of launch. Use an aluminum or titanium frame, or lighten the probe." % format_number(GameState.total_mass())))
+	elif has_lander and structure != "structure_reinforced" and choices["landing"] == "landing_legs":
+		lines.append(line("watch", "Structure", "Legged landers hit the ground hard. A reinforced frame would make a rough touchdown survivable."))
+	else:
+		lines.append(line("go", "Structure", {"structure_aluminum": "Aluminum honeycomb: strong and proven.", "structure_composite": "A light composite frame, fine for a probe this size.", "structure_reinforced": "A reinforced titanium frame: tough enough for launch and landing."}.get(structure, "")))
+
+	# Science match: the right instruments for this place
+	var fitting = []
+	var weak = []
+	for instrument_id in GameState.instruments:
+		if GameState.instrument_science(instrument_id) >= 12:
+			fitting.append(GameState.PARTS[instrument_id]["name"].split(" (")[0])
+		else:
+			weak.append(GameState.PARTS[instrument_id]["name"].split(" (")[0])
+	status = "go" if fitting.size() >= 3 else ("watch" if fitting.size() >= 1 else "no-go")
+	var match_text = "Good tools for %s: %s." % [destination, ", ".join(fitting) if not fitting.is_empty() else "none yet"]
+	if not weak.is_empty():
+		match_text += " Doing little here: %s." % ", ".join(weak)
+	if status != "go":
+		match_text += " Real missions carry 3 or more instruments chosen for their target."
+	lines.append(line(status, "Science match", match_text))
+
 	# Science
 	var instrument_count = GameState.instruments.size()
-	var lander_only_without_lander = not has_lander and (GameState.is_chosen("instrument_drill") or GameState.is_chosen("instrument_seismometer"))
+	var lander_only_without_lander = not has_lander and (GameState.is_chosen("instrument_drill") or GameState.is_chosen("instrument_seismometer") or GameState.is_chosen("instrument_arm"))
 	status = "no-go" if instrument_count == 0 else ("watch" if lander_only_without_lander or instrument_count == 1 else "go")
 	var science_text = "%d instrument%s on board." % [instrument_count, "" if instrument_count == 1 else "s"]
 	if instrument_count == 0:
 		science_text = "No instruments means almost no science."
 	if lander_only_without_lander:
-		science_text += " The drill and seismometer only work on a lander."
+		science_text += " The drill, seismometer and robotic arm only work on a lander."
 	lines.append(line(status, "Science", science_text))
 
 	# Launch mass
@@ -555,6 +622,9 @@ func update_review():
 	else:
 		verdict = "[color=#%s][b]ALL SYSTEMS GO![/b][/color]" % GO.to_html(false)
 	readiness_label.text = "[b]FLIGHT READINESS REVIEW[/b]\n" + verdict + "\n\n" + "\n".join(lines)
+	# The mission score counts NO-GO and WATCH items flown with (GameState.finish_mission)
+	GameState.readiness["probe_no_go"] = reds
+	GameState.readiness["probe_watch"] = yellows
 
 	summary_label.text = "%s kg   |   %s W at %s   |   %s of %s" % [format_number(GameState.total_mass()), format_number(made), destination, GameState.money_text(cost), GameState.money_text(budget)]
 	summary_label.add_theme_color_override("font_color", Color(0.1, 0.12, 0.16))

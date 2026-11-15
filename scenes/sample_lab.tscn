@@ -1,0 +1,263 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/sample_lab.gd" id="1_lab"]
+[ext_resource type="Script" path="res://scripts/arm_view.gd" id="2_arm"]
+
+[sub_resource type="StyleBoxFlat" id="panel_style"]
+content_margin_left = 16.0
+content_margin_top = 14.0
+content_margin_right = 16.0
+content_margin_bottom = 14.0
+bg_color = Color(0.03, 0.05, 0.09, 0.94)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.45, 0.8, 1, 0.4)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="bar_back"]
+bg_color = Color(0.1, 0.13, 0.2, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="work_fill"]
+bg_color = Color(0.45, 1, 0.85, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="stress_fill"]
+bg_color = Color(1, 0.45, 0.38, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[node name="SampleLab" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_lab")
+editor_description = "Minigames: robotic sample collection, then geological identification (sample_lab.gd, real samples in geology_samples.gd). surface_view.gd opens it when the rover studies a target."
+
+[node name="Backdrop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.01, 0.015, 0.03, 0.95)
+
+[node name="Header" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 24.0
+offset_top = 14.0
+offset_right = -24.0
+offset_bottom = 54.0
+grow_horizontal = 2
+
+[node name="Title" type="Label" parent="Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 24
+text = "SAMPLE LAB"
+vertical_alignment = 1
+
+[node name="Stage" type="Label" parent="Header"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 13
+text = "1  COLLECT     ›     2  IDENTIFY"
+vertical_alignment = 1
+
+[node name="CollectStage" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = 64.0
+offset_right = -24.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ArmView" type="Control" parent="CollectStage"]
+clip_contents = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 0.66
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("2_arm")
+
+[node name="Side" type="PanelContainer" parent="CollectStage"]
+layout_mode = 1
+anchors_preset = 11
+anchor_left = 0.68
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 0
+grow_vertical = 2
+theme_override_styles/panel = SubResource("panel_style")
+
+[node name="Column" type="VBoxContainer" parent="CollectStage/Side"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Kicker" type="Label" parent="CollectStage/Side/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 11
+text = "STEP 1  ·  ROBOTIC ARM"
+
+[node name="Help" type="Label" parent="CollectStage/Side/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.83, 0.9, 1)
+theme_override_font_sizes/font_size = 13
+text = "Controls"
+autowrap_mode = 3
+
+[node name="Status" type="Label" parent="CollectStage/Side/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_font_sizes/font_size = 13
+text = "Tool to the spot"
+autowrap_mode = 3
+
+[node name="WorkTitle" type="Label" parent="CollectStage/Side/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_font_sizes/font_size = 11
+text = "SAMPLE COLLECTED"
+
+[node name="WorkBar" type="ProgressBar" parent="CollectStage/Side/Column"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+theme_override_styles/background = SubResource("bar_back")
+theme_override_styles/fill = SubResource("work_fill")
+show_percentage = false
+
+[node name="StressTitle" type="Label" parent="CollectStage/Side/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_font_sizes/font_size = 11
+text = "STRAIN ON THE ARM"
+
+[node name="StressBar" type="ProgressBar" parent="CollectStage/Side/Column"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+theme_override_styles/background = SubResource("bar_back")
+theme_override_styles/fill = SubResource("stress_fill")
+show_percentage = false
+
+[node name="Spacer" type="Control" parent="CollectStage/Side/Column"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SkipButton" type="Button" parent="CollectStage/Side/Column"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+text = "Let the arm team do it"
+
+[node name="IdentifyStage" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = 64.0
+offset_right = -24.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 14
+
+[node name="Instruments" type="PanelContainer" parent="IdentifyStage"]
+custom_minimum_size = Vector2(230, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("panel_style")
+
+[node name="Column" type="VBoxContainer" parent="IdentifyStage/Instruments"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Kicker" type="Label" parent="IdentifyStage/Instruments/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 11
+text = "STEP 2  ·  YOUR INSTRUMENTS"
+
+[node name="Runs" type="Label" parent="IdentifyStage/Instruments/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.82, 0.35, 1)
+theme_override_font_sizes/font_size = 13
+text = "Power for 3 more instrument runs"
+autowrap_mode = 3
+
+[node name="Buttons" type="VBoxContainer" parent="IdentifyStage/Instruments/Column"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Readings" type="PanelContainer" parent="IdentifyStage"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("panel_style")
+
+[node name="Scroll" type="ScrollContainer" parent="IdentifyStage/Readings"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="List" type="VBoxContainer" parent="IdentifyStage/Readings/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="Answers" type="PanelContainer" parent="IdentifyStage"]
+custom_minimum_size = Vector2(270, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("panel_style")
+
+[node name="Column" type="VBoxContainer" parent="IdentifyStage/Answers"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Kicker" type="Label" parent="IdentifyStage/Answers/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 11
+text = "WHAT IS IT?"
+
+[node name="Buttons" type="VBoxContainer" parent="IdentifyStage/Answers/Column"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="AnswerText" type="Label" parent="IdentifyStage/Answers/Column"]
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+autowrap_mode = 3
+
+[node name="ContinueButton" type="Button" parent="IdentifyStage/Answers/Column"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+text = "Back to driving"

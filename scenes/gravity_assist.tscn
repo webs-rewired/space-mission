@@ -1,0 +1,249 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/gravity_assist.gd" id="1_planner"]
+[ext_resource type="Script" path="res://scripts/assist_map.gd" id="2_map"]
+[ext_resource type="Script" path="res://scripts/flyby_closeup.gd" id="3_closeup"]
+
+[sub_resource type="StyleBoxFlat" id="panel_style"]
+content_margin_left = 14.0
+content_margin_top = 12.0
+content_margin_right = 14.0
+content_margin_bottom = 12.0
+bg_color = Color(0.03, 0.05, 0.09, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.45, 0.8, 1, 0.3)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="note_style"]
+content_margin_left = 10.0
+content_margin_top = 8.0
+content_margin_right = 10.0
+content_margin_bottom = 8.0
+bg_color = Color(0.08, 0.07, 0.03, 0.9)
+border_width_left = 3
+border_color = Color(1, 0.82, 0.35, 0.8)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="GravityAssist" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_planner")
+editor_description = "Minigame: the gravity-assist planner (gravity_assist.gd, physics in flyby_physics.gd). Opened from the rocket builder's Gravity assist button; a good plan lowers the launch speed the rocket needs."
+
+[node name="Backdrop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.015, 0.02, 0.035, 1)
+
+[node name="Header" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 20.0
+offset_top = 12.0
+offset_right = -20.0
+offset_bottom = 52.0
+grow_horizontal = 2
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 24
+text = "GRAVITY-ASSIST PLANNER"
+vertical_alignment = 1
+
+[node name="CloseButton" type="Button" parent="Header"]
+custom_minimum_size = Vector2(110, 34)
+layout_mode = 2
+text = "Close (Esc)"
+
+[node name="Layout" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = 60.0
+offset_right = -20.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 14
+
+[node name="Left" type="VBoxContainer" parent="Layout"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_constants/separation = 7
+
+[node name="Goal" type="Label" parent="Layout/Left"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Use a planet's gravity to speed up toward Jupiter."
+autowrap_mode = 3
+
+[node name="PlanetTitle" type="Label" parent="Layout/Left"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 11
+text = "FLY PAST"
+
+[node name="PlanetPicker" type="OptionButton" parent="Layout/Left"]
+layout_mode = 2
+clip_text = true
+
+[node name="PlanetNote" type="Label" parent="Layout/Left"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.74, 0.82, 1)
+theme_override_font_sizes/font_size = 11
+text = "Cassini flew past Venus twice."
+autowrap_mode = 3
+
+[node name="AltitudeValue" type="Label" parent="Layout/Left"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_font_sizes/font_size = 12
+text = "Closest pass: 1,000 km"
+autowrap_mode = 3
+
+[node name="Altitude" type="HSlider" parent="Layout/Left"]
+layout_mode = 2
+max_value = 1.0
+step = 0.001
+value = 0.6
+
+[node name="SideButton" type="Button" parent="Layout/Left"]
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+text = "Bend the path: left (click to switch)"
+
+[node name="BurnValue" type="Label" parent="Layout/Left"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_font_sizes/font_size = 12
+text = "Engine burn at the closest point: 0.00 km/s"
+autowrap_mode = 3
+
+[node name="Burn" type="HSlider" parent="Layout/Left"]
+layout_mode = 2
+max_value = 1.0
+step = 0.01
+
+[node name="Buttons" type="HBoxContainer" parent="Layout/Left"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ExecuteButton" type="Button" parent="Layout/Left/Buttons"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Execute flyby"
+
+[node name="WindowButton" type="Button" parent="Layout/Left/Buttons"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "New window"
+
+[node name="ClearButton" type="Button" parent="Layout/Left"]
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Fly direct instead (no gravity assist)"
+
+[node name="Lesson" type="PanelContainer" parent="Layout/Left"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("note_style")
+
+[node name="Text" type="Label" parent="Layout/Left/Lesson"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "Passing behind a planet (it pulls you along) speeds you up; passing in front slows you down. Closer passes bend your path more: δ = 2·asin(1 / (1 + rp·v∞² / μ)). A burn at the closest point counts for extra (the Oberth effect)."
+autowrap_mode = 3
+
+[node name="Middle" type="VBoxContainer" parent="Layout"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="MapTitle" type="Label" parent="Layout/Middle"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 11
+text = "YOUR ORBIT AROUND THE SUN (TO SCALE)"
+
+[node name="Map" type="Control" parent="Layout/Middle"]
+layout_mode = 2
+size_flags_vertical = 3
+script = ExtResource("2_map")
+
+[node name="Note" type="Label" parent="Layout/Middle"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 0.55, 0.62, 1)
+theme_override_font_sizes/font_size = 10
+text = "Real numbers: planet masses (GM), sizes and orbits from NASA JPL; the bend-angle and powered-flyby formulas used by mission planners. Simplified for the game: circular planet orbits in one flat plane, one flyby instead of the several real missions chain together, and launch speeds rounded from real launch energies."
+autowrap_mode = 3
+
+[node name="Right" type="VBoxContainer" parent="Layout"]
+custom_minimum_size = Vector2(290, 0)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="CloseupTitle" type="Label" parent="Layout/Right"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 11
+text = "THE FLYBY, SEEN FROM THE PLANET"
+
+[node name="Closeup" type="Control" parent="Layout/Right"]
+custom_minimum_size = Vector2(0, 190)
+layout_mode = 2
+script = ExtResource("3_closeup")
+
+[node name="Readouts" type="Label" parent="Layout/Right"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_font_sizes/font_size = 11
+text = "ARRIVAL SPEED"
+autowrap_mode = 3
+
+[node name="Result" type="PanelContainer" parent="Layout/Right"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("panel_style")
+
+[node name="Column" type="VBoxContainer" parent="Layout/Right/Result"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="Layout/Right/Result/Column"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 18
+text = "GOLD PLAN"
+
+[node name="Text" type="Label" parent="Layout/Right/Result/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Plan locked in."
+autowrap_mode = 3

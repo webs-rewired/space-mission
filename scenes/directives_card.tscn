@@ -1,0 +1,62 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/directives_card.gd" id="1_card"]
+[ext_resource type="Script" path="res://scripts/stars_display.gd" id="2_stars"]
+
+[sub_resource type="StyleBoxFlat" id="card_style"]
+content_margin_left = 12.0
+content_margin_top = 9.0
+content_margin_right = 12.0
+content_margin_bottom = 9.0
+bg_color = Color(0.03, 0.05, 0.09, 0.86)
+border_width_left = 2
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(1, 0.82, 0.35, 0.55)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[node name="DirectivesCard" type="PanelContainer"]
+custom_minimum_size = Vector2(300, 0)
+mouse_filter = 2
+theme_override_styles/panel = SubResource("card_style")
+script = ExtResource("1_card")
+editor_description = "This mission's three bonus goals (scripts/mission_directives.gd). Shown in the builders and during the flight."
+
+[node name="Column" type="VBoxContainer" parent="."]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 5
+
+[node name="Header" type="HBoxContainer" parent="Column"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Title" type="Label" parent="Column/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(1, 0.82, 0.35, 1)
+theme_override_font_sizes/font_size = 11
+text = "MISSION DIRECTIVES"
+vertical_alignment = 1
+
+[node name="Stars" type="Control" parent="Column/Header"]
+custom_minimum_size = Vector2(54, 16)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_stars")
+
+[node name="Rows" type="VBoxContainer" parent="Column"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 5
+
+[node name="Footer" type="Label" parent="Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.68, 1)
+theme_override_font_sizes/font_size = 10
+text = "+40 XP each   ·   Standard"

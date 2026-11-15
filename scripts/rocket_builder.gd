@@ -4,6 +4,9 @@ extends Node3D
 # The whole screen is laid out in res://scenes/rocket_builder.tscn: open it in the editor to move or restyle anything.
 # This script only fills in the choices and keeps the review, the flight plan, the briefing and the 3D rocket up to date.
 
+const DIRECTIVES_CARD_SCENE = preload("res://scenes/directives_card.tscn")
+const ENGINE_LAB_SCENE = preload("res://scenes/engine_test_lab.tscn")
+const GRAVITY_ASSIST_SCENE = preload("res://scenes/gravity_assist.tscn")
 const PROBE_SCENE = "res://scenes/probe_builder.tscn"
 const LAUNCH_SCENE = "res://scenes/launch.tscn"
 
@@ -67,6 +70,7 @@ var dragging = false
 var turning_by_itself = true
 
 func _ready():
+	GameState.fill_missing_choices()
 	enter_assembly_building()
 	place_launch_tower()
 	var destination_label = SolarSystemData.BODIES.get(GameState.destination, {}).get("label", GameState.destination)
@@ -74,6 +78,67 @@ func _ready():
 	fill_choices()
 	sync_controls()
 	refresh()
+	add_directives_card()
+	add_engine_lab_button()
+	add_gravity_assist_button()
+
+# The Engine Test Lab minigame (res://scenes/engine_test_lab.tscn): try the engines on a test stand
+func add_engine_lab_button():
+	var lab_button = Button.new()
+	lab_button.text = "Engine lab"
+	lab_button.tooltip_text = "Fire your engines on a test stand: work the throttle and mixture, watch thrust, Isp and heat, and earn research points"
+	lab_button.custom_minimum_size = Vector2(0, 40)
+	lab_button.pressed.connect(open_engine_lab)
+	var bar = $Screen/BottomBar
+	bar.add_child(lab_button)
+	bar.move_child(lab_button, 1)
+
+# Minigames open on their own layer above the builder's screen (layer 1), below the pause menu and toasts
+func show_minigame(minigame):
+	var minigame_layer = CanvasLayer.new()
+	minigame_layer.name = "MinigameLayer"
+	minigame_layer.layer = 50
+	add_child(minigame_layer)
+	minigame_layer.add_child(minigame)
+	minigame.tree_exited.connect(minigame_layer.queue_free)
+
+# The Gravity-Assist Planner minigame (res://scenes/gravity_assist.tscn): plan a flyby of a nearer planet so a
+# smaller rocket can do the job (GameState.gravity_assist lowers the speed the rocket needs)
+func add_gravity_assist_button():
+	var assist_button = Button.new()
+	assist_button.name = "GravityAssistButton"
+	assist_button.text = "Flyby planner"
+	assist_button.tooltip_text = "Plan a flyby of a nearer planet, like Cassini and Juno did, so your rocket needs less speed"
+	assist_button.custom_minimum_size = Vector2(0, 40)
+	assist_button.pressed.connect(open_gravity_assist)
+	var bar = $Screen/BottomBar
+	bar.add_child(assist_button)
+	bar.move_child(assist_button, 2)
+
+func open_gravity_assist():
+	var planner = GRAVITY_ASSIST_SCENE.instantiate()
+	show_minigame(planner)
+	planner.open_planner()
+	planner.closed.connect(refresh)
+
+func open_engine_lab(engine_id := ""):
+	var lab = ENGINE_LAB_SCENE.instantiate()
+	show_minigame(lab)
+	lab.open_lab(engine_id if engine_id != "" else GameState.rocket.get("bottom_engine", "merlin"))
+
+# This mission's bonus goals, low over the Vehicle Assembly Building view (res://scenes/directives_card.tscn)
+func add_directives_card():
+	var card = DIRECTIVES_CARD_SCENE.instantiate()
+	card.show_descriptions = false
+	$Screen.add_child(card)
+	card.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE)
+	card.custom_minimum_size.x = 340
+	card.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	card.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	card.offset_left = -170
+	card.offset_right = 170
+	card.offset_bottom = -76
+	UiMotion.slide_in(card, 0.6, Vector2(0, 24), 0.7)
 
 # The rocket is stacked indoors, in the Vehicle Assembly Building (res://scenes/places/vehicle_assembly_building.tscn),
 # standing on its mobile launcher. The outdoor pad that used to be here is hidden; the launch itself happens outside.
@@ -302,6 +367,12 @@ func update_review(report, numbers):
 	else:
 		lines.append(line("go", "Top stage strength", top_text))
 
+	if GameState.assist_planned():
+		var assist = GameState.gravity_assist
+		lines.append(line("info", "Gravity assist", "%s flyby planned: your rocket needs %s m/s instead of %s, and the trip takes %s%s." % [
+			assist["planet"], format_number(report["speed_needed"]), format_number(RocketData.SPEED_NEEDED[GameState.destination]),
+			("%.1f years longer" % assist["extra_years"]) if assist["extra_years"] > 0.0 else ("%.1f years less" % -assist["extra_years"]),
+			(", and your spacecraft spends %.2f km/s of its own fuel at the flyby" % assist["probe_burn_km_s"]) if assist["probe_burn_km_s"] > 0.0 else ""]))
 	var spare = report["total_speed"] - report["speed_needed"]
 	var speed_text = "%s of %s m/s needed. Bottom stage%s %s, top stage %s" % [format_number(report["total_speed"]), format_number(report["speed_needed"]),
 		" and boosters" if rocket["boosters"] != "none" else "", format_number(report["bottom_stage_speed"]), format_number(report["top_stage_speed"])]
@@ -310,8 +381,8 @@ func update_review(report, numbers):
 	speed_text += " m/s."
 	if spare < 0:
 		lines.append(line("no_go", "Speed to reach %s" % GameState.destination, speed_text + " %s m/s short. Try the RL10 top engine, a kick stage or a bigger rocket." % format_number(-spare)))
-	elif spare < report["speed_needed"] * 0.03:
-		lines.append(line("watch", "Speed to reach %s" % GameState.destination, speed_text + " Only %s m/s to spare. Real missions keep a little extra for a less-than-perfect launch." % format_number(spare)))
+	elif spare < report["speed_needed"] * 0.05:
+		lines.append(line("watch", "Speed to reach %s" % GameState.destination, speed_text + " Only %s m/s to spare. Real missions keep about 5%% extra for a less-than-perfect launch." % format_number(spare)))
 	else:
 		lines.append(line("go", "Speed to reach %s" % GameState.destination, speed_text + " %s m/s to spare." % format_number(spare)))
 
@@ -320,8 +391,8 @@ func update_review(report, numbers):
 	var cost_text = "Rocket %s + probe %s = %s of your %s budget." % [GameState.money_text(GameState.rocket_cost()), GameState.money_text(GameState.probe_cost()), GameState.money_text(cost), GameState.money_text(budget)]
 	if cost > budget:
 		lines.append(line("no_go", "Budget", cost_text + " RS-25 engines and giant boosters are the expensive parts."))
-	elif cost > budget * 0.9:
-		lines.append(line("watch", "Budget", cost_text + " Almost no money left for surprises."))
+	elif cost > budget * 0.75:
+		lines.append(line("watch", "Budget", cost_text + " Less than a quarter of the budget left in reserve. NASA keeps about 25% for surprises."))
 	else:
 		lines.append(line("go", "Budget", cost_text))
 
@@ -334,6 +405,18 @@ func update_review(report, numbers):
 		lines.append(line("go", "Squeeze on your probe", squeeze_text + " The engines throttle down near the end to keep it under %d g, like real rockets do." % int(SAFE_SQUEEZE_G)))
 	else:
 		lines.append(line("watch", "Squeeze on your probe", squeeze_text + " Even throttled down that's a rough ride for your probe. Use fewer engines or a bigger bottom tank."))
+
+	# The nose cone (fairing) has to fit the spacecraft: a lander's heat shield is about 4.5 m across, and big
+	# solar wings or a 4 m dish need a wide fairing too. Small rockets have 4 to 5 m fairings, SLS and Starship 8 to 9 m.
+	var probe_width = GameState.probe_width_m()
+	var fairing_width = 5.2 if report["liftoff_mass"] < 1500000.0 else 8.4
+	var fit_text = "Your spacecraft is about %.1f m across folded up; this rocket's fairing is about %.1f m wide inside." % [probe_width, fairing_width - 0.6]
+	if probe_width > fairing_width - 0.6:
+		lines.append(line("no_go", "Fits in the fairing", fit_text + " It doesn't fit. Use a bigger rocket, or a smaller heat shield or solar arrays."))
+	elif probe_width > fairing_width - 1.2:
+		lines.append(line("watch", "Fits in the fairing", fit_text + " A tight fit: the fairing shakes during launch, so engineers want room around the spacecraft."))
+	else:
+		lines.append(line("go", "Fits in the fairing", fit_text))
 
 	var count = rocket["bottom_engine_count"]
 	if count >= 9:
@@ -348,6 +431,10 @@ func update_review(report, numbers):
 		if problem.contains("fuel mismatch"):
 			lines.append(line("no_go", "Fuel", problem))
 	readiness_text.text = "\n".join(lines)
+	# The mission score counts NO-GO and WATCH items flown with (GameState.finish_mission)
+	var joined = "\n".join(lines)
+	GameState.readiness["rocket_no_go"] = joined.count("NO-GO")
+	GameState.readiness["rocket_watch"] = joined.count("● WATCH")
 
 func clock_text(seconds):
 	return "T+%d:%02d" % [int(seconds) / 60, int(seconds) % 60]

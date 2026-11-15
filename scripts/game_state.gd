@@ -6,7 +6,11 @@ const GAME_SETTINGS_SCRIPT = "res://scripts/game_settings.gd"
 const REQUIRED_FILES_SCRIPT = "res://scripts/required_files.gd"
 const PAUSE_MENU_SCENE = "res://scenes/pause_menu.tscn"
 
+const Career = preload("res://scripts/career.gd")
+const TOAST_LAYER_SCENE = "res://scenes/toast_layer.tscn"
 var settings: Node = null          # graphics quality, fullscreen and volumes (scripts/game_settings.gd)
+var career = {}                    # XP, research points, upgrades, achievements, best results (scripts/career.gd)
+var toasts: Node = null            # pop-up notes like "Achievement unlocked" (scenes/toast_layer.tscn)
 var loading_screen: Node = null    # the screen shown between scenes (scenes/loading_screen.tscn)
 
 # Starts the things that stay alive for the whole game, whatever scene is showing:
@@ -29,7 +33,26 @@ func _ready():
 		var pause_menu = load(PAUSE_MENU_SCENE).instantiate()
 		pause_menu.name = "PauseMenu"
 		get_tree().root.add_child.call_deferred(pause_menu)
+	if ResourceLoader.exists(TOAST_LAYER_SCENE) and get_tree().root.get_node_or_null("Toasts") == null:
+		toasts = load(TOAST_LAYER_SCENE).instantiate()
+		toasts.name = "Toasts"
+		get_tree().root.add_child.call_deferred(toasts)
+	career = Career.load_data()
 	check_game_files()
+
+# A technology upgrade bought with research points (scripts/career.gd)
+func has_upgrade(upgrade_id):
+	return upgrade_id in career.get("upgrades", [])
+
+func buy_upgrade(upgrade_id):
+	if Career.buy_upgrade(career, upgrade_id):
+		Career.save_data(career)
+		return true
+	return false
+
+func show_toast(title, text, kind = "achievement"):
+	if toasts and is_instance_valid(toasts):
+		toasts.show_toast(title, text, kind)
 
 # Checks that every file the game needs is in the project, and says so on screen if one isn't
 # (the list is in scripts/required_files.gd)
@@ -117,6 +140,9 @@ var choices = {
 	"landing": "landing_none",
 	"computer": "computer_standard",
 	"thermal": "thermal_heaters",
+	"structure": "structure_aluminum",
+	"attitude": "attitude_wheels",
+	"storage": "storage_small",
 }
 var instruments = ["instrument_camera"]
 # The date the mission launches (a Julian date), taken from the solar system's clock when you press
@@ -126,7 +152,7 @@ var launch_date: float = 0.0
 # ---------------------------------------------------------------------------
 # Game data: real spacecraft parts and numbers (see each part's "like" for the real mission it comes from)
 # ---------------------------------------------------------------------------
-const SLOT_ORDER = ["power", "battery", "antenna", "engine", "fuel", "shield", "landing", "computer", "thermal"]
+const SLOT_ORDER = ["power", "battery", "antenna", "engine", "fuel", "shield", "landing", "computer", "thermal", "structure", "attitude", "storage"]
 
 const SLOT_NAMES = {
 	"power": "Power source",
@@ -138,6 +164,9 @@ const SLOT_NAMES = {
 	"landing": "Landing system",
 	"computer": "Flight computer",
 	"thermal": "Temperature control",
+	"structure": "Structure",
+	"attitude": "Pointing control",
+	"storage": "Data recorder",
 }
 
 # The probe's body (the "bus"): frame, wiring, guidance and small steering thrusters. Always included.
@@ -309,7 +338,119 @@ const PARTS = {
 	"instrument_seismometer": {"slot": "instrument", "name": "Seismometer (landers only)", "mass": 15, "cost": 15, "power_used": 9,
 		"like": "Like InSight's, which recorded over 1,300 marsquakes",
 		"about": "Feels quakes to work out what's deep inside a world."},
+	"instrument_thermal": {"slot": "instrument", "name": "Thermal imager", "mass": 12, "cost": 25, "power_used": 15,
+		"like": "Like Mars Odyssey's THEMIS",
+		"about": "Sees heat instead of light: finds warm spots, buried ice and fresh lava, by day or night."},
+	"instrument_mass_spec": {"slot": "instrument", "name": "Mass spectrometer", "mass": 25, "cost": 40, "power_used": 30,
+		"like": "Like Cassini's INMS, which tasted Enceladus's plumes",
+		"about": "Weighs the molecules in an atmosphere or a plume, to find out exactly what they're made of."},
+	"instrument_altimeter": {"slot": "instrument", "name": "Laser altimeter", "mass": 15, "cost": 20, "power_used": 20,
+		"like": "Like Lunar Reconnaissance Orbiter's LOLA",
+		"about": "Fires laser pulses at the ground and times the echoes to make 3D maps of mountains and craters."},
+	"instrument_particles": {"slot": "instrument", "name": "Particle detector", "mass": 8, "cost": 15, "power_used": 8,
+		"like": "Like Juno's JEDI",
+		"about": "Measures the charged particles trapped in a planet's radiation belts and magnetic field."},
+	"instrument_arm": {"slot": "instrument", "name": "Robotic arm (landers only)", "mass": 45, "cost": 50, "power_used": 25,
+		"like": "Like Curiosity's 2.1 m arm",
+		"about": "Picks up rocks and soil and holds instruments right against them. Landers only."},
+	# Structure
+	"structure_aluminum": {"slot": "structure", "name": "Aluminum honeycomb frame", "mass": 0, "cost": 0,
+		"like": "Like Mars Reconnaissance Orbiter and most probes",
+		"about": "Strong, simple and well understood. (Its weight is already part of the probe's body.)"},
+	"structure_composite": {"slot": "structure", "name": "Carbon-composite frame", "mass": -60, "cost": 45,
+		"like": "Like the James Webb Space Telescope's backplane",
+		"about": "60 kg lighter, but expensive, and it can crack under the shaking of launch if the probe weighs over 2,500 kg."},
+	"structure_reinforced": {"slot": "structure", "name": "Reinforced titanium frame", "mass": 90, "cost": 25,
+		"like": "Like the frames of landers built for hard touchdowns",
+		"about": "90 kg heavier, but it shrugs off launch shaking and rough landings."},
+	# Pointing control
+	"attitude_thrusters": {"slot": "attitude", "name": "Thrusters only", "mass": 15, "cost": 5, "power_used": 5,
+		"like": "Like Pioneer 10, which spun to stay steady",
+		"about": "Cheap and simple, but every turn uses propellant (5% less speed change), and rough pointing halves the high-gain dish's data rate."},
+	"attitude_wheels": {"slot": "attitude", "name": "Reaction wheels and star tracker", "mass": 45, "cost": 25, "power_used": 40,
+		"like": "Like Kepler and Dawn",
+		"about": "Spinning wheels turn the probe precisely without propellant. But wheels wear out: Kepler and Dawn each lost two."},
+	"attitude_both": {"slot": "attitude", "name": "Wheels with thruster backup", "mass": 60, "cost": 35, "power_used": 45,
+		"like": "Like Cassini and Juno",
+		"about": "Precise pointing, and thrusters take over if a wheel fails. The safest, but the heaviest."},
+	# Data recorder
+	"storage_small": {"slot": "storage", "name": "Data recorder (16 GB)", "mass": 3, "cost": 5, "power_used": 5, "capacity_gb": 16,
+		"like": "Like New Horizons' two 8 GB recorders",
+		"about": "Holds data until there's time to send it home. Fills up fast if the instruments make more data than the radio can send."},
+	"storage_large": {"slot": "storage", "name": "Data recorder (128 GB)", "mass": 8, "cost": 15, "power_used": 10, "capacity_gb": 128,
+		"like": "Modern flash memory: about 6 times Mars Reconnaissance Orbiter's 20 GB",
+		"about": "Room for weeks of science even when the radio is slow."},
 }
+
+# How much data each instrument makes a day (megabytes), for the data recorder check. Cameras and radar make a lot.
+const INSTRUMENT_DATA_MB_PER_DAY = {
+	"instrument_camera": 900.0, "instrument_spectrometer": 300.0, "instrument_radar": 1500.0, "instrument_magnetometer": 5.0,
+	"instrument_drill": 10.0, "instrument_seismometer": 30.0, "instrument_thermal": 250.0, "instrument_mass_spec": 40.0,
+	"instrument_altimeter": 120.0, "instrument_particles": 15.0, "instrument_arm": 20.0,
+}
+# Where each instrument does its best science (the right tool for the place). Anywhere else it does less.
+# Cameras and spectrometers are useful everywhere.
+const INSTRUMENT_BEST_AT = {
+	"instrument_radar": ["Venus", "Titan", "Mars", "Europa", "Ganymede", "Callisto", "Moon", "Mercury"],
+	"instrument_magnetometer": ["Jupiter", "Ganymede", "Europa", "Io", "Callisto", "Saturn", "Uranus", "Neptune", "Mercury", "Enceladus"],
+	"instrument_drill": ["Mars", "Moon", "Ceres", "Europa", "Enceladus", "Titan", "Mercury"],
+	"instrument_seismometer": ["Mars", "Moon", "Europa", "Mercury", "Titan"],
+	"instrument_thermal": ["Mars", "Io", "Mercury", "Moon", "Enceladus", "Europa", "Venus", "Ceres"],
+	"instrument_mass_spec": ["Enceladus", "Titan", "Venus", "Mars", "Europa", "Jupiter", "Saturn", "Pluto", "Triton"],
+	"instrument_altimeter": ["Moon", "Mars", "Mercury", "Ceres", "Phobos", "Deimos", "Pluto", "Charon", "Ganymede", "Callisto"],
+	"instrument_particles": ["Jupiter", "Io", "Europa", "Ganymede", "Saturn", "Uranus", "Neptune", "Callisto", "Titan"],
+	"instrument_arm": ["Mars", "Moon", "Ceres", "Europa", "Titan", "Mercury", "Enceladus"],
+}
+const LANDER_ONLY_INSTRUMENTS = ["instrument_drill", "instrument_seismometer", "instrument_arm"]
+
+# How much science an instrument is worth here: 18 when it's the right tool for the place, 6 when it isn't
+# (a lander-only instrument on an orbiter does nothing). Cameras and spectrometers are always worth 12.
+func instrument_science(instrument_id):
+	if instrument_id in LANDER_ONLY_INSTRUMENTS and choices.get("landing", "landing_none") == "landing_none":
+		return 0
+	var bonus = 5 if has_upgrade("instruments") else 0
+	if not INSTRUMENT_BEST_AT.has(instrument_id):
+		return 12 + bonus
+	return (18 if destination in INSTRUMENT_BEST_AT[instrument_id] else 6) + bonus
+
+# How wide the spacecraft is folded up for launch (meters), for the fairing check in the rocket builder
+func probe_width_m():
+	var width = 2.5
+	if choices.get("shield", "") == "shield_heat":
+		width = 4.5      # like Perseverance's aeroshell
+	elif choices.get("shield", "") == "shield_venus":
+		width = 3.0
+	if choices.get("landing", "") == "landing_skycrane":
+		width = max(width, 4.5)
+	if choices.get("power", "") == "solar_large":
+		width = max(width, 3.5)    # Juno's wings fold up into a 3.5 m bundle
+	if choices.get("antenna", "") == "antenna_large":
+		width = max(width, 3.0)
+	return width
+
+func instrument_fits_here(instrument_id):
+	return not INSTRUMENT_BEST_AT.has(instrument_id) or destination in INSTRUMENT_BEST_AT[instrument_id]
+
+# Data: what the instruments make in a day, what the radio can send home in one 8-hour contact a day, and how
+# many days the recorder can hold the difference before it's full (then new science is lost)
+func data_made_mb_per_day():
+	var made = 0.0
+	for instrument_id in instruments:
+		made += INSTRUMENT_DATA_MB_PER_DAY.get(instrument_id, 50.0)
+	return made
+
+func data_sent_mb_per_day():
+	return data_rate_kilobits() * CONTACT_HOURS_PER_DAY * 3600.0 / 8.0 / 1000.0
+
+func recorder_days():
+	var piling_up = data_made_mb_per_day() - data_sent_mb_per_day()
+	if piling_up <= 0.0:
+		return 9999.0
+	return PARTS[choices.get("storage", "storage_small")]["capacity_gb"] * 1000.0 / piling_up
+
+# How much of the science survives a recorder that fills up: all of it if it holds a month, less if it fills fast
+func recorder_share():
+	return clamp(0.55 + 0.45 * recorder_days() / 30.0, 0.55, 1.0)
 
 # What the air is like, for landing
 const AIR = {
@@ -364,6 +505,13 @@ const REAL_MISSIONS = {
 # ---------------------------------------------------------------------------
 # Probe math
 # ---------------------------------------------------------------------------
+# Any slot without a part gets the default one (older saved designs and tests don't have the newer slots)
+const DEFAULT_CHOICES = {"structure": "structure_aluminum", "attitude": "attitude_wheels", "storage": "storage_small"}
+func fill_missing_choices():
+	for slot in DEFAULT_CHOICES:
+		if not choices.has(slot):
+			choices[slot] = DEFAULT_CHOICES[slot]
+
 func all_chosen_part_ids():
 	var part_ids = choices.values().duplicate()
 	part_ids.append_array(instruments)
@@ -373,6 +521,8 @@ func total_mass():
 	var mass = PROBE_BODY["mass"]
 	for part_id in all_chosen_part_ids():
 		mass += PARTS[part_id]["mass"]
+	if has_upgrade("light_structures"):
+		mass = int(round(mass * 0.92))
 	return mass
 
 func probe_cost():
@@ -395,14 +545,14 @@ func power_made():
 	var power_part = PARTS[choices["power"]]
 	if power_part.has("power_anywhere"):
 		return power_part["power_anywhere"] * pow(1.0 - power_part["fades_per_year"], trip_years())
-	return power_part["power_at_earth"] * sunlight_factor()
+	return power_part["power_at_earth"] * sunlight_factor() * (1.2 if has_upgrade("solar_cells") else 1.0)
 
 func power_at_launch():
 	var power_part = PARTS[choices["power"]]
 	return power_part.get("power_anywhere", power_part.get("power_at_earth", 0))
 
 func trip_years():
-	return DESTINATIONS[destination]["trip_years"]
+	return DESTINATIONS[destination]["trip_years"] + (gravity_assist.get("extra_years", 0.0) if assist_planned() else 0.0)
 
 # Average distance from Earth: sometimes the destination is on our side of the Sun, sometimes the far side
 func earth_distance_au():
@@ -417,7 +567,9 @@ func radio_delay_minutes():
 
 # How fast the probe can send data home (kilobits per second), falling with the square of the distance
 func data_rate_kilobits():
-	var gain = PARTS[choices["antenna"]]["data_gain"]
+	var gain = PARTS[choices["antenna"]]["data_gain"] * (1.5 if has_upgrade("ka_band") else 1.0)
+	if choices.get("attitude", "attitude_wheels") == "attitude_thrusters" and choices["antenna"] == "antenna_large":
+		gain *= 0.5   # thrusters alone can't hold a narrow dish beam on Earth for long
 	return min(HIGH_GAIN_KILOBITS_AT_1_AU * gain / pow(earth_distance_au(), 2.0), 100000.0)
 
 # How many high-resolution photos fit through one 8-hour Deep Space Network contact a day
@@ -436,6 +588,10 @@ func direct_entry():
 	return choices["landing"] != "landing_none" and choices["shield"] in ["shield_heat", "shield_venus"] and destination in ["Mars", "Venus", "Titan"]
 
 func arrival_burn_needed_km_s():
+	return base_arrival_burn_km_s() + (gravity_assist.get("probe_burn_km_s", 0.0) if assist_planned() else 0.0)
+
+# The braking burn alone (without a gravity-assist plan's burn at the flyby planet)
+func base_arrival_burn_km_s():
 	if direct_entry():
 		return 0.05
 	return DESTINATIONS[destination]["arrival_burn_km_s"]
@@ -447,7 +603,11 @@ func probe_speed_change_km_s():
 		return 0.0
 	var full_mass = float(total_mass())
 	var empty_mass = full_mass - propellant_mass()
-	return PARTS[choices["engine"]]["isp"] * RocketData.GRAVITY * log(full_mass / empty_mass) / 1000.0
+	var speed_change = PARTS[choices["engine"]]["isp"] * RocketData.GRAVITY * log(full_mass / empty_mass) / 1000.0
+	speed_change *= 1.1 if has_upgrade("better_propellant") else 1.0
+	if choices.get("attitude", "attitude_wheels") == "attitude_thrusters":
+		speed_change *= 0.95   # turning the probe with thrusters spends some of the propellant
+	return speed_change
 
 # How long the braking burn takes: under an hour for a chemical engine, months for ion engines
 func arrival_burn_seconds():
@@ -476,7 +636,7 @@ func power_needed():
 	return power
 
 func budget():
-	return DESTINATIONS[destination]["budget"]
+	return DESTINATIONS[destination]["budget"] * DIFFICULTY_BUDGET[difficulty] * (1.1 if has_upgrade("funding") else 1.0)
 
 # ---------------------------------------------------------------------------
 # Rocket math (the real rocket equation)
@@ -553,7 +713,8 @@ func rocket_report():
 		bottom_stage_speed = speed_from_burn(core_isp, liftoff_mass, liftoff_mass - core_propellant)
 
 	var total_speed = bottom_stage_speed + top_stage_speed + kick_speed
-	var speed_needed = RocketData.SPEED_NEEDED[destination]
+	# With a gravity-assist plan (scripts/gravity_assist.gd) the rocket only has to reach the flyby planet
+	var speed_needed = gravity_assist["launch_speed_needed"] if assist_planned() else RocketData.SPEED_NEEDED[destination]
 
 	if bottom_engine["fuel"] != bottom_tank["fuel"]:
 		problems.append("Bottom stage fuel mismatch: this engine burns %s, the tank holds %s." % [bottom_engine["fuel"], bottom_tank["fuel"]])
@@ -634,13 +795,75 @@ var score = 0
 var outcome = ""
 var ending = ""
 
+# ---------------------------------------------------------------------------
+# Playing again and again: difficulty, directives, and this mission's numbers
+# ---------------------------------------------------------------------------
+const MissionDirectives = preload("res://scripts/mission_directives.gd")
+const DIFFICULTY_NAMES = ["Cadet", "Standard", "Veteran"]
+const DIFFICULTY_HELP = [
+	"Cadet: a bigger budget, fewer surprises and fewer rocks in the belts.",
+	"Standard: real budgets and the usual surprises.",
+	"Veteran: a tight budget, more surprises, crowded belts, and 50% more XP.",
+]
+const DIFFICULTY_BUDGET = [1.15, 1.0, 0.85]
+const DIFFICULTY_XP = [0.8, 1.0, 1.5]
+var difficulty = 1                 # 0 Cadet, 1 Standard, 2 Veteran (kept by scripts/game_settings.gd)
+var directives = []                # this mission's three bonus goals (scripts/mission_directives.gd)
+var directives_destination = ""    # the destination they were drawn for
+var mission_stats = {}             # what happened on this flight, for the directives and achievements
+var skip_minigames = false         # (the automatic tests fly straight through the minigames)
+# A gravity-assist plan from the planner (res://scenes/gravity_assist.tscn): {"destination", "planet",
+# "launch_speed_needed" (m/s), "extra_years", "probe_burn_km_s", "score"}, or empty for the direct route.
+# It only counts for the destination it was planned for, and each new mission needs a new plan (a new window).
+var gravity_assist = {}
+
+func assist_planned():
+	return not gravity_assist.is_empty() and gravity_assist.get("destination", "") == destination
+
+# New directives for each new mission (the same ones stay while you go back and forth between the builders)
+func plan_directives():
+	if directives_destination == destination and not directives.is_empty():
+		return
+	directives = MissionDirectives.draw(DESTINATIONS.get(destination, {}).get("distance_from_sun_au", 1.0))
+	directives_destination = destination
+
+# After a mission ends, the next one gets new directives
+func forget_directives():
+	directives_destination = ""
+	gravity_assist = {}
+
+func reset_mission_stats():
+	mission_stats = {"flying": false, "rocks_hit": 0, "belts_cleared": 0, "shards": 0, "best_combo": 0,
+		"close_calls": 0, "photos": 0, "mapped": 0.0, "targets": 0, "landed": false}
+
+func add_mission_stat(stat_name, amount = 1):
+	mission_stats[stat_name] = mission_stats.get(stat_name, 0) + amount
+
+# Asteroid navigation: how many seconds the thrusters can fire while dodging in the belts (the bigger propellant
+# tank carries more for them, and the Extra thruster fuel upgrade adds 40%), and how hard they push the
+# spacecraft sideways (thrust divided by mass: a heavier spacecraft is more sluggish)
+func thruster_seconds():
+	var seconds = 12.0 if choices.get("fuel", "") == "fuel_large" else 8.0
+	if has_upgrade("thruster_fuel"):
+		seconds *= 1.4
+	return seconds
+
+func thruster_acceleration():
+	return 4.5 * clamp(sqrt(900.0 / max(total_mass(), 1.0)), 0.6, 1.5)
+
 func build_mission():
 	events = []
 	mission_log = []
-	science = 50 + 10 * instruments.size()
+	science = 50
+	for instrument_id in instruments:
+		science += instrument_science(instrument_id)
 	lost = false
 	lost_reason = ""
 	risky_choices = 0
+	fill_missing_choices()
+	plan_directives()
+	reset_mission_stats()
+	mission_stats["flying"] = true
 
 	var cruise_events = []
 	var world_events = []
@@ -659,8 +882,9 @@ func build_mission():
 				world_events.append(event)
 	cruise_events.shuffle()
 	world_events.shuffle()
-	events.append_array(cruise_events.slice(0, 2))
-	events.append_array(world_events.slice(0, randi_range(4, 6)))
+	# How many surprises: fewer for a Cadet, more for a Veteran
+	events.append_array(cruise_events.slice(0, [1, 2, 3][difficulty]))
+	events.append_array(world_events.slice(0, [randi_range(3, 4), randi_range(4, 6), randi_range(6, 7)][difficulty]))
 	events.append({"title": "Braking into orbit", "phase": "arrival", "insertion_check": true})
 	events.append({"title": "Arrival power check", "phase": "arrival", "power_check": true})
 	events.sort_custom(func(first, second): return event_order(first) < event_order(second))
@@ -716,6 +940,32 @@ func apply_event(event):
 	mission_log.append({"title": event["title"], "text": text, "ok": ok})
 	return {"text": text, "ok": ok}
 
+# The result of the Orbital Insertion minigame (scripts/orbital_insertion.gd). Returns {"text", "ok"}.
+# A tight orbit means more time close to the world (more science); a huge looping one means less.
+func apply_insertion(result):
+	var text = ""
+	var place = "the Moon" if destination == "Moon" else destination
+	var ok = true
+	match result.get("rating", "missed"):
+		"excellent":
+			science += 10
+			text = "A textbook insertion burn put the probe right into its planned orbit around %s. +10 science." % place
+		"good":
+			science += 4
+			text = "The braking burn worked: the probe is in orbit around %s, a little more stretched out than planned. +4 science." % place
+		"rough":
+			science -= 6
+			ok = false
+			text = "Gravity only just caught the probe, in a huge looping orbit around %s that spends most of its time far away. Lost 6 science." % place
+		_:
+			science -= 25
+			ok = false
+			text = "The burn didn't take off enough speed, so the probe flew past %s like New Horizons at Pluto, grabbing what science it could. Lost 25 science." % place
+	if result.get("autopilot", false):
+		text += " (Flown by the autopilot.)"
+	mission_log.append({"title": "Braking into orbit", "text": text, "ok": ok})
+	return {"text": text, "ok": ok}
+
 # Called when the player picks a choice. Returns {"text", "ok"}.
 # Each outcome is [chance, science change, text] or [chance, science change, text, reason the mission was lost].
 func resolve_choice(event, choice_index):
@@ -749,21 +999,44 @@ func resolve_choice(event, choice_index):
 	mission_log.append({"title": event["title"], "text": text, "ok": ok})
 	return {"text": text, "ok": ok}
 
+# The mission score, out of 100, in four parts, the way a real mission is judged:
+#   Science returned (60)  the science that actually reached Earth, against what a flagship mission aims for
+#   Readiness (15)         flying with NO-GO or WATCH items on the readiness reviews costs points
+#   Budget reserve (10)    NASA keeps about 25% of the budget in reserve for surprises
+#   Flight (15)            every event that went wrong costs points
+# An A+ (95 or more) needs a full science return, a clean review, a real reserve and a flawless flight.
+const SCIENCE_GOAL = [110.0, 140.0, 165.0]   # Cadet, Standard, Veteran
+var score_parts = {}
+var readiness = {"probe_no_go": 0, "probe_watch": 0, "rocket_no_go": 0, "rocket_watch": 0}
+
 func finish_mission():
 	if choices["antenna"] == "antenna_large":
 		data_share = 1.0
 	else:
-		data_share = DESTINATIONS[destination]["small_antenna_data_share"]
+		data_share = min(1.0, DESTINATIONS[destination]["small_antenna_data_share"] + (0.15 if has_upgrade("ka_band") else 0.0))
+	data_share *= recorder_share()   # a recorder that fills up loses some of the science
 
 	if lost:
 		score = 0
+		score_parts = {}
 		outcome = "Mission lost"
 		ending = lost_reason
 		return
 
-	var money_left = budget() - total_cost()
-	score = min(100, int(round(0.8 * max(science, 0) * data_share + min(10.0, money_left / 30.0))))
-	if science >= 140 and risky_choices > 0:
+	var returned = max(science, 0) * data_share
+	var goal = SCIENCE_GOAL[difficulty]
+	var money_left_share = (budget() - total_cost()) / max(budget(), 1.0)
+	var went_wrong = mission_log.filter(func(entry): return not entry.get("ok", true)).size()
+	var no_go = readiness.get("probe_no_go", 0) + readiness.get("rocket_no_go", 0)
+	var watch = readiness.get("probe_watch", 0) + readiness.get("rocket_watch", 0)
+	score_parts = {
+		"science": int(round(60.0 * clamp(returned / goal, 0.0, 1.0))),
+		"readiness": max(0, 15 - 5 * no_go - 2 * watch),
+		"budget": int(round(10.0 * clamp(money_left_share / 0.25, 0.0, 1.0))),
+		"flight": max(0, 15 - 4 * went_wrong),
+	}
+	score = clamp(score_parts["science"] + score_parts["readiness"] + score_parts["budget"] + score_parts["flight"], 0, 100)
+	if returned >= goal * 1.15 and risky_choices > 0 and score >= 85:
 		outcome = "Legendary discovery!"
 		ending = "You took big risks and they paid off. Scientists will study your data for years."
 	elif score >= 70:
