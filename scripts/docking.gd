@@ -11,6 +11,9 @@ extends Control
 # Translation (moving): W/S up and down, A/D left and right, E toward the port, Q away from it
 # Rotation (turning):   arrow keys pitch and yaw, Z/C roll
 # Hold Shift for fine control (a quarter of the push). R toggles rate hold (the computer stops the turning).
+# PILOT ASSIST (P, on for Cadet and Standard): the flight computer keeps the spacecraft lined up (pitch, yaw and
+# roll held at zero, like Crew Dragon's attitude hold), so the pilot only moves it: W A S D to center, E and Q
+# for speed. The status line names the exact key to press next.
 #
 # To dock, touch the port slowly, centered and lined up. Scoring: docked 50, contact speed 15, centering 15,
 # lined up 10, propellant left 10. Medals, personal best and research points like the other minigames.
@@ -67,7 +70,7 @@ const TARGETS = {
 @onready var reticle: Control = $Reticle
 @onready var readouts: Label = $Left/Column/Readouts
 @onready var status_label: Label = $Status
-@onready var rate_hold_button: Button = $Bottom/RateHoldButton
+@onready var assist_button: Button = $Bottom/AssistButton
 @onready var restart_button: Button = $Bottom/RestartButton
 @onready var result_box: PanelContainer = $Result
 @onready var result_title: Label = $Result/Column/Title
@@ -106,6 +109,10 @@ var attempts_left = 2
 var reported = false               # (sample return: the result has been sent)
 var return_result = {"docked": false, "score": 0}
 var current_step = ""              # what to do next, for the status line
+var pilot_assist = true            # the computer holds the attitude (lined up); the pilot only translates
+var assist_chosen = false          # the pilot switched assist on or off: keep that choice for the next attempt
+const ASSIST_HINTS = [["W A S D", "center"], ["E", "move in"], ["Q", "slow down"], ["Shift", "fine"], ["P", "assist off"], ["T", "fast-forward"]]
+const MANUAL_HINTS = [["W A S D", "move"], ["E", "in"], ["Q", "out"], ["← → ↑ ↓", "turn"], ["Z C", "roll"], ["Shift", "fine"], ["R", "rate hold"], ["P", "assist on"], ["T", "fast-forward"]]
 
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -113,7 +120,9 @@ func _ready():
 	restart_button.pressed.connect(start)
 	again_button.pressed.connect(start)
 	done_button.pressed.connect(close)
-	rate_hold_button.pressed.connect(func(): set_rate_hold(not rate_hold))
+	assist_button.pressed.connect(func():
+		assist_chosen = true
+		set_pilot_assist(not pilot_assist))
 	for target_id in TARGETS:
 		target_picker.add_item(TARGETS[target_id]["title"])
 	target_picker.item_selected.connect(func(index):
@@ -225,6 +234,8 @@ func start():
 	var tilt = [2.0, 4.0, 6.0][difficulty]
 	var spin = [0.0, 0.1, 0.25][difficulty]
 	propellant_budget = [9.0, 6.0, 4.5][difficulty] * (1.3 if GameState.has_upgrade("rcs_upgrade") else 1.0)
+	if sample_return:
+		GameState.note_tech("rcs_upgrade", "30% more propellant for the sample-return docking")
 	capture_offset = CAPTURE_OFFSETS[difficulty]
 	capture_angle = CAPTURE_ANGLES[difficulty]
 	limits_label.text = "Touch the port at %d to %d cm/s, within %d cm of the center, lined up within %d°.\nSideways speed under %d cm/s." % [
@@ -232,6 +243,7 @@ func start():
 	reticle.angle_limit = capture_angle
 	reticle.offset_limit = capture_offset
 	set_rate_hold(difficulty < 2)
+	set_pilot_assist(pilot_assist if assist_chosen else difficulty < 2)
 	reticle.show_prediction = difficulty < 2
 	physics.set_state(from_port_frame(Vector3(randf_range(-offset, offset), randf_range(-offset, offset), distance)),
 		from_port_frame(Vector3(randf_range(-0.01, 0.01), randf_range(-0.01, 0.01), 0.0)))
@@ -249,11 +261,18 @@ func start():
 	last_warning = ""
 	result_box.visible = false
 	status_label.text = "Holding %d m %s. Follow the checklist on the right." % [int(distance), TARGETS[target]["where"]]
+	if sample_return:
+		status_label.text = "The ascent stage is up, %d m %s. Dock gently and the samples go home." % [int(distance), TARGETS[target]["where"]]
 	update_view()
 
 func set_rate_hold(on):
 	rate_hold = on
-	rate_hold_button.text = "Rate hold: %s (R)" % ("ON" if on else "OFF")
+
+# Pilot assist: the computer flies the attitude, the pilot flies the position (see the top of this file)
+func set_pilot_assist(on):
+	pilot_assist = on
+	assist_button.text = "Pilot assist: %s (P)" % ("ON" if on else "OFF")
+	keys_row.hints = ASSIST_HINTS if on else MANUAL_HINTS
 
 # Every key belongs to the trainer while it's open (the flying keys are read with Input.is_key_pressed; this only
 # stops the menus underneath from reacting to them, like arrow keys moving their focus)
@@ -267,6 +286,9 @@ func _input(event):
 		close()
 	elif event.keycode == KEY_R and running:
 		set_rate_hold(not rate_hold)
+	elif event.keycode == KEY_P and running:
+		assist_chosen = true
+		set_pilot_assist(not pilot_assist)
 	elif event.keycode == KEY_T and running:
 		fast_forward = not fast_forward and port_position().z >= FAST_FORWARD_CLOSEST
 
@@ -298,12 +320,18 @@ func _process(delta):
 	propellant_used += push_world.length() * delta
 	# Rotation
 	var turn = Vector3.ZERO
-	if not out_of_propellant:
+	if not out_of_propellant and not pilot_assist:
 		turn.x = (1.0 if held(KEY_UP) else 0.0) - (1.0 if held(KEY_DOWN) else 0.0)
 		turn.y = (1.0 if held(KEY_LEFT) else 0.0) - (1.0 if held(KEY_RIGHT) else 0.0)
 		turn.z = (1.0 if held(KEY_Z) else 0.0) - (1.0 if held(KEY_C) else 0.0)
 	var turn_rate_change = turn * TURN * share * delta
-	if rate_hold and not out_of_propellant:
+	if pilot_assist and not out_of_propellant:
+		# The computer turns the spacecraft back to lined up and holds it there: a turn rate that shrinks as the
+		# angle shrinks, reached with no more than a held key's worth of thrust
+		for axis in 3:
+			var wanted_rate = clamp(-attitude[axis] * 0.6, -1.5, 1.5)
+			turn_rate_change[axis] = clamp(wanted_rate - attitude_rate[axis], -TURN * delta, TURN * delta)
+	elif rate_hold and not out_of_propellant:
 		# The computer fires against any turning you aren't commanding (about as hard as a held key) until it stops
 		for axis in 3:
 			if turn[axis] == 0.0:
@@ -378,6 +406,7 @@ func update_view():
 		"ORBITAL DRIFT  %+.2f up  %+.2f right mm/s²" % [drift.y, drift.x],
 		"",
 		"RCS PROPELLANT %d%%" % int(round(100.0 * max(propellant_budget - propellant_used, 0.0) / propellant_budget)),
+		"ATTITUDE       %s" % ("held by the computer" if pilot_assist else ("rate hold" if rate_hold else "manual")),
 		"TIME           %d:%02d%s" % [int(clock) / 60, int(clock) % 60, "   ×3 (T)" if fast_forward else ""],
 	]
 	readouts.text = "\n".join(lines)
@@ -411,14 +440,22 @@ func update_view():
 # one that isn't done is the next thing to do, and the status line at the bottom says exactly how.
 func update_checklist(place, closing, offset):
 	var angle = max(abs(attitude.x), abs(attitude.y), abs(attitude.z))
+	var speed = port_velocity()
+	var centered = offset.length() <= max(capture_offset * 2.0, min(0.6, place.z * 0.05))
+	var moving_in = closing >= 0.05 or (place.z <= 5.0 and closing >= SLOWEST_CONTACT) or place.z < 1.0
+	var move_in_text = "Move in: tap E (closing at %.2f m/s; aim for about 0.15)." % closing
+	if closing > 0.2:
+		move_in_text = "A little fast: tap Q (closing at %.2f m/s; aim for about 0.15)." % closing
+	var slow_text = "Coming in nicely at %.2f m/s. When the range reaches 5 m, slow down to 0.03 to 0.10 m/s." % closing
+	if place.z <= 5.0:
+		slow_text = ("Slow down: tap Q (closing at %.2f m/s; aim for 0.03 to 0.10)." % closing) if closing > 0.10 else ("Too slow to latch: tap E once (closing at %.3f m/s)." % closing)
 	var steps = [
-		["Stop the spin", attitude_rate.length() < 0.15, "Stop the spin: press R for rate hold (or tap the arrow keys against the turn)."],
-		["Line up (gauges green)", angle <= capture_angle * 0.8, "Line up: arrow keys and Z/C until the pitch, yaw and roll gauges turn green."],
-		["Center on the target", offset.length() <= max(capture_offset * 2.0, min(0.6, place.z * 0.05)), "Center: W A S D until the orange cross sits on the black cross, inside the green circle."],
-		["Move in at 0.10 to 0.20 m/s", closing >= 0.05 or (place.z <= 5.0 and closing >= SLOWEST_CONTACT) or place.z < 1.0, "Move in: tap E until the closing rate reads 0.10 to 0.20 m/s (Shift for small taps)."],
-		["Slow down inside 5 m", place.z <= 5.0 and closing >= SLOWEST_CONTACT and closing <= 0.10,
-			("Coming in nicely at %.2f m/s. When the range reaches 5 m, tap Q to slow to 0.03 to 0.10 m/s." % closing) if place.z > 5.0 else "Slow down: tap Q until the closing rate is 0.03 to 0.10 m/s."],
-		["Touch the port", false, "Hold it steady and centered: let it drift in, and the latches catch it."],
+		["Stop the spin", attitude_rate.length() < 0.15, "Pilot assist is stopping the spin..." if pilot_assist else "Stop the spin: press R for rate hold (or tap the arrow keys against the turn)."],
+		["Line up (gauges green)", angle <= capture_angle * 0.8, "Pilot assist is lining you up..." if pilot_assist else "Line up: arrow keys and Z/C until the pitch, yaw and roll gauges turn green."],
+		["Center on the target", centered, "Center: %s Put the orange cross on the black cross." % centering_advice(offset, speed)],
+		["Move in at 0.10 to 0.20 m/s", moving_in, move_in_text],
+		["Slow down inside 5 m", place.z <= 5.0 and closing >= SLOWEST_CONTACT and closing <= 0.10, slow_text],
+		["Touch the port", false, "Nearly there: %s" % centering_advice(offset, speed)],
 	]
 	var lines = []
 	current_step = ""
@@ -430,6 +467,20 @@ func update_checklist(place, closing, offset):
 				current_step = step[2]
 		lines.append("%s  %s" % [marker, step[0]])
 	checklist_label.text = "\n".join(lines)
+
+# Which keys move the spacecraft toward the docking axis right now: drift in at a speed that shrinks as the
+# offset shrinks (8 cm/s for each meter off, at most 10 cm/s), and coast once it's already drifting that way
+func centering_advice(offset, speed):
+	var wanted = Vector2(clamp(-offset.x * 0.08, -0.1, 0.1), clamp(-offset.y * 0.08, -0.1, 0.1))
+	var error = wanted - Vector2(speed.x, speed.y)
+	var keys = []
+	if abs(error.x) > 0.008:
+		keys.append("D (right)" if error.x > 0.0 else "A (left)")
+	if abs(error.y) > 0.008:
+		keys.append("W (up)" if error.y > 0.0 else "S (down)")
+	if keys.is_empty():
+		return "drifting the right way, so let it coast."
+	return "tap %s." % " and ".join(keys)
 
 # The spacecraft's docking ring reaches the port
 func contact():

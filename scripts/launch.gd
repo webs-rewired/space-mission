@@ -84,6 +84,7 @@ const STEER_SPEED = 2.2
 const BELT_HUD_SCENE = preload("res://scenes/belt_hud.tscn")
 const ORBITAL_INSERTION_SCENE = preload("res://scenes/orbital_insertion.tscn")
 const TITLE_CARD_SCENE = preload("res://scenes/title_card.tscn")
+const LANDING_CUT_SCENE = preload("res://scenes/landing_cut.tscn")
 const DOCKING_SCENE = preload("res://scenes/docking.tscn")
 const MinigameLayer = preload("res://scripts/minigame_layer.gd")
 const DIRECTIVES_CARD_SCENE = preload("res://scenes/directives_card.tscn")
@@ -808,6 +809,13 @@ func show_title_card(title, subtitle := "", color := Color(1.0, 0.82, 0.35)):
 		return
 	var card = TITLE_CARD_SCENE.instantiate()
 	layer.add_child(card)
+	# A caption on screen at the same time: the card moves down below it instead of covering it
+	if caption_label and caption_seconds_left > 0.0 and caption_label.text != "":
+		var caption_bottom = caption_label.offset_top + caption_label.get_minimum_size().y + 16.0
+		var card_top = get_viewport().get_visible_rect().size.y / 2.0 + card.offset_top
+		if caption_bottom > card_top:
+			card.offset_top += caption_bottom - card_top
+			card.offset_bottom += caption_bottom - card_top
 	card.play(title, subtitle, color)
 
 func show_caption(text, seconds = 5.0):
@@ -918,6 +926,7 @@ func steer_through_belt(delta, belt):
 			continue
 		var rock = scenery.dodge_rocks[index]
 		if probe.position.distance_to(rock[0]) < (rock[1] * ROCK_HIT_SHARE + PROBE_HIT_RADIUS) * (0.85 if GameState.has_upgrade("collision_radar") else 1.0):
+			GameState.note_tech("collision_radar", "rocks had to come 15% closer to hit")
 			rocks_hit[index] = true
 			GameState.add_mission_stat("rocks_hit")
 			combo = 0
@@ -958,6 +967,7 @@ func collect_science_shards():
 		combo = min(combo + 1, MOST_COMBO) if now - last_shard_time < COMBO_SECONDS else 1
 		last_shard_time = now
 		var gained = SHARD_SCIENCE + combo - 1 + (1 if GameState.has_upgrade("shard_scanner") else 0)
+		GameState.note_tech("shard_scanner", "+1 science per shard")
 		GameState.science += gained
 		GameState.add_mission_stat("shards")
 		GameState.mission_stats["best_combo"] = max(GameState.mission_stats.get("best_combo", 0), combo)
@@ -1451,10 +1461,15 @@ func open_surface_view():
 	if audio():
 		audio().stop_music(4.0)
 		audio().stop_ambience(2.0)
+	# Saturn has no ground: its landers go down to its moon Titan, like ESA's Huygens did
+	var landing_world = "Titan" if GameState.destination == "Saturn" else GameState.destination
+	# Building the site takes a moment: cut to black with the landing's name while it builds, instead of freezing
+	var cut = LANDING_CUT_SCENE.instantiate()
+	add_child(cut)
+	await cut.cover(landing_world)
 	surface_view = SURFACE_SCENE.instantiate()
 	add_child(surface_view)
-	# Saturn has no ground: its landers go down to its moon Titan, like ESA's Huygens did
-	surface_view.set_up("Titan" if GameState.destination == "Saturn" else GameState.destination)
+	surface_view.set_up(landing_world)
 	# Only one sky at a time: use the landing site's
 	var surface_sky = surface_view.get_node_or_null("WorldEnvironment")
 	for child in get_children():
@@ -1470,6 +1485,7 @@ func open_surface_view():
 	surface_view.crash_landing = landing_will_fail()
 	if flight_controls:
 		flight_controls.visible = false
+	cut.lift()
 
 # ---------------------------------------------------------------------------
 # Science from orbit (probes with no lander): mapping, pictures and data, until you end the orbit mission
@@ -1565,6 +1581,7 @@ func play_sample_return():
 	var sample_science = 0
 	for points in surface_view.samples:
 		sample_science += points
+	show_caption("", 0.0)   # (the drive's summary clears first, so it never sits on top of the title)
 	show_title_card("ASCENT", "%d sample%s lift off for the orbiter" % [surface_view.samples.size(), "" if surface_view.samples.size() == 1 else "s"], Color(1.0, 0.75, 0.4))
 	play_sound("whoosh", -6.0)
 	await get_tree().create_timer(2.8).timeout
@@ -1580,8 +1597,9 @@ func play_sample_return():
 		GameState.add_mission_stat("samples_returned", surface_view.samples.size())
 		GameState.mission_stats["sample_return_score"] = result["score"]
 		GameState.mission_log.append({"title": "Samples returned", "text": "The ascent stage docked with the orbiter (%d/100) and %d sample%s headed home to Earth's labs. +%d science." % [result["score"], surface_view.samples.size(), "" if surface_view.samples.size() == 1 else "s", bonus], "ok": true})
-		show_caption("Samples secured! They're on their way home. +%d science." % bonus, 6.0)
 		show_title_card("SAMPLES SECURED", "+%d science" % bonus, Color(0.5, 1.0, 0.7))
+		await get_tree().create_timer(2.6).timeout
+		show_caption("Samples secured! They're on their way home. +%d science." % bonus, 6.0)
 	else:
 		GameState.mission_log.append({"title": "Samples lost", "text": "The ascent stage couldn't dock with the orbiter, so the samples stayed in orbit. The rest of the mission carried on.", "ok": false})
 		show_caption("The samples couldn't be docked. The rest of the mission carries on.", 6.0)

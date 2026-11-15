@@ -59,6 +59,10 @@ func _ready():
 		lines.append("[color=%s][b]%s[/b][/color]: %s" % [color, log_entry["title"], log_entry["text"]])
 	if not GameState.lost and GameState.data_share < 1.0:
 		lines.append("[color=yellow][b]Small antenna[/b][/color]: only %d%% of your science data reached Earth from %s." % [int(GameState.data_share * 100), GameState.destination])
+	# The research you bought, doing its job (GameState.tech_used_this_mission)
+	var tech = GameState.tech_used_this_mission()
+	if not tech.is_empty():
+		lines.append("[color=#7fc8ff][b]Research at work[/b][/color]: " + ", ".join(tech.map(func(entry): return "%s (%s)" % [entry[0], entry[1]])) + ".")
 	events_label.text = "\n\n".join(lines)
 	real_mission_label.text = "How NASA did it: " + GameState.REAL_MISSIONS.get(GameState.destination, "")
 	show_grade()

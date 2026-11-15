@@ -12,6 +12,8 @@ const SolarSystemData = preload("res://scripts/solar_system_data.gd")
 const TAB_NAMES = ["research", "achievements", "best", "training"]
 const DOCKING_SCENE = preload("res://scenes/docking.tscn")
 const ENGINE_LAB_SCENE = preload("res://scenes/engine_test_lab.tscn")
+const LIFE_SEARCH_SCENE = preload("res://scenes/life_search.tscn")
+const SEISMOMETER_SCENE = preload("res://scenes/seismometer.tscn")
 const MinigameLayer = preload("res://scripts/minigame_layer.gd")
 
 @onready var panel: PanelContainer = $Center/Panel
@@ -23,7 +25,7 @@ const MinigameLayer = preload("res://scripts/minigame_layer.gd")
 @onready var upgrades_grid: GridContainer = $"Center/Panel/Column/Tabs/Research lab/Scroll/Upgrades"
 @onready var achievements_grid: GridContainer = $Center/Panel/Column/Tabs/Achievements/Grid
 @onready var best_list: VBoxContainer = $"Center/Panel/Column/Tabs/Best results/List"
-@onready var simulators_grid: GridContainer = $Center/Panel/Column/Tabs/Training/Simulators
+@onready var simulators_grid: GridContainer = $Center/Panel/Column/Tabs/Training/Scroll/Simulators
 
 func _ready():
 	$Center/Panel/Column/Header/CloseButton.pressed.connect(close)
@@ -202,10 +204,18 @@ func fill_simulators():
 		for world in rover_bests:
 			parts.append("%s %d" % [SolarSystemData.BODIES.get(world, {}).get("label", world), rover_bests[world]])
 		rover_text = "Best traverse: " + ", ".join(parts)
+	var life_bests = GameState.career.get("life_best", {})
+	var life_text = "Not searched yet" if life_bests.is_empty() else "Best: " + ", ".join(life_bests.keys().map(func(world): return "%s %d" % [world, life_bests[world]]))
+	add_simulator_card("Signs of life", "Search a real site for signs of life with a rover's instruments, weigh the evidence and decide what to tell the world, the way NASA judges any claim of life beyond Earth.",
+		life_text, Callable(), [["Mars", open_life_search.bind("Mars")], ["Europa", open_life_search.bind("Europa")], ["Enceladus", open_life_search.bind("Enceladus")], ["Titan", open_life_search.bind("Titan")], ["Ceres", open_life_search.bind("Ceres")]])
+	var seismic_bests = GameState.career.get("seismic_best", {})
+	var seismic_text = "Not tried yet" if seismic_bests.is_empty() else "Best: " + ", ".join(seismic_bests.keys().map(func(world): return "%s %d" % [world, seismic_bests[world]]))
+	add_simulator_card("Seismic station", "Level a seismometer, catch a quake's P and S waves, and work out how far away it was, like InSight on Mars and the Apollo astronauts on the Moon.",
+		seismic_text, Callable(), [["Mars", open_seismometer.bind("Mars")], ["Moon", open_seismometer.bind("Moon")]])
 	add_simulator_card("Rover traverse", "Every rover you land gets a traverse rating: science targets reached, wheels kept healthy, battery kept in reserve and an efficient route. Fly a mission with a rover to drive.",
 		rover_text, Callable())
 
-func add_simulator_card(title, text, best_text, action):
+func add_simulator_card(title, text, best_text, action, world_buttons := []):
 	var card = make_card(Color(1.0, 0.82, 0.35, 0.45))
 	var column = VBoxContainer.new()
 	column.add_theme_constant_override("separation", 6)
@@ -216,6 +226,18 @@ func add_simulator_card(title, text, best_text, action):
 	description.custom_minimum_size.x = 300
 	column.add_child(description)
 	column.add_child(make_label(best_text, 12, Color(1.0, 0.82, 0.35), "DataLabel"))
+	if not world_buttons.is_empty():
+		# One button for each world the simulator can open on
+		var row = HFlowContainer.new()
+		row.add_theme_constant_override("h_separation", 6)
+		row.add_theme_constant_override("v_separation", 6)
+		for entry in world_buttons:
+			var world_button = Button.new()
+			world_button.text = entry[0]
+			world_button.custom_minimum_size = Vector2(84, 32)
+			world_button.pressed.connect(entry[1])
+			row.add_child(world_button)
+		column.add_child(row)
 	if not action.is_valid():
 		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		simulators_grid.add_child(card)
@@ -239,6 +261,18 @@ func show_simulator(simulator):
 
 func open_docking():
 	show_simulator(DOCKING_SCENE.instantiate())
+
+func open_life_search(world):
+	var search = LIFE_SEARCH_SCENE.instantiate()
+	show_simulator(search)
+	search.training = true
+	search.start("Training site", world)
+
+func open_seismometer(world):
+	var station = SEISMOMETER_SCENE.instantiate()
+	show_simulator(station)
+	station.training = true
+	station.start("Training site", world)
 
 func open_engine_lab():
 	var lab = ENGINE_LAB_SCENE.instantiate()

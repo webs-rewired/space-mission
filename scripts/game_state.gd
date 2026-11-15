@@ -44,6 +44,41 @@ func _ready():
 func has_upgrade(upgrade_id):
 	return upgrade_id in career.get("upgrades", [])
 
+# A research upgrade doing its job right now on this mission (shown in the mission report's "Research at work").
+# effect says what it did, in a few words. Only upgrades you own are noted.
+func note_tech(upgrade_id, effect):
+	if not has_upgrade(upgrade_id):
+		return
+	var used = mission_stats.get("tech", {})
+	used[upgrade_id] = effect
+	mission_stats["tech"] = used
+
+# The research upgrades that helped this mission: the ones that work on every mission (lighter structure, bigger
+# budget...), the power ones that match the power source, and any noted while flying (note_tech). [title, effect]
+const ALWAYS_ON_TECH = {
+	"light_structures": "8% lighter spacecraft", "printed_parts": "another 5% lighter", "funding": "10% bigger budget",
+	"partners": "another 10% of budget", "better_propellant": "10% more engine speed change", "densified_propellant": "another 5% speed change",
+	"engine_uprate": "2% more rocket Isp", "lithium_tanks": "lighter rocket tanks", "reusable_boosters": "15% cheaper launch",
+	"bulk_contracts": "10% cheaper parts", "instruments": "+5 science per instrument", "cryo_detectors": "+4 science per instrument",
+	"ka_band": "faster downlink", "laser_comms": "faster downlink again", "dsn_priority": "more science home through a small antenna",
+	"data_compression": "40% less data to store", "outreach": "15% more XP", "university_labs": "20% more research points",
+}
+func tech_used_this_mission():
+	var used = []
+	for upgrade_id in career.get("upgrades", []):
+		var effect = ""
+		if mission_stats.get("tech", {}).has(upgrade_id):
+			effect = mission_stats["tech"][upgrade_id]
+		elif ALWAYS_ON_TECH.has(upgrade_id):
+			effect = ALWAYS_ON_TECH[upgrade_id]
+		elif upgrade_id in ["solar_cells", "tandem_cells"] and not PARTS.get(choices.get("power", ""), {}).has("power_anywhere"):
+			effect = "more power from the solar arrays"
+		elif upgrade_id == "next_gen_rtg" and PARTS.get(choices.get("power", ""), {}).has("power_anywhere"):
+			effect = "more nuclear power, fading half as fast"
+		if effect != "":
+			used.append([Career.UPGRADES.get(upgrade_id, {}).get("title", upgrade_id), effect])
+	return used
+
 func buy_upgrade(upgrade_id):
 	if Career.buy_upgrade(career, upgrade_id):
 		Career.save_data(career)
@@ -613,6 +648,7 @@ func arrival_burn_needed_km_s():
 func base_arrival_burn_km_s():
 	if direct_entry():
 		return 0.05
+	note_tech("precision_navigation", "5% smaller braking burn at arrival")
 	return DESTINATIONS[destination]["arrival_burn_km_s"] * (0.95 if has_upgrade("precision_navigation") else 1.0)
 
 # How much the probe can change its own speed, from the rocket equation:
@@ -870,6 +906,8 @@ func add_mission_stat(stat_name, amount = 1):
 # spacecraft sideways (thrust divided by mass: a heavier spacecraft is more sluggish)
 func thruster_seconds():
 	var seconds = 20.0 if choices.get("fuel", "") == "fuel_large" else 14.0
+	note_tech("thruster_fuel", "40% more thruster time in the belts")
+	note_tech("rcs_upgrade", "20% more steering push in the belts")
 	if has_upgrade("thruster_fuel"):
 		seconds *= 1.4
 	return seconds * [1.5, 1.0, 0.75][clamp(difficulty, 0, 2)]

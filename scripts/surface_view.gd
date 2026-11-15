@@ -12,6 +12,17 @@ signal driving_finished(summary)
 
 const RocketModel = preload("res://scripts/rocket_model.gd")
 const SAMPLE_LAB_SCENE = preload("res://scenes/sample_lab.tscn")
+const LIFE_SEARCH_SCENE = preload("res://scenes/life_search.tscn")
+const SEISMOMETER_SCENE = preload("res://scenes/seismometer.tscn")
+const GeologySamples = preload("res://scripts/geology_samples.gd")
+const LifeSigns = preload("res://scripts/life_signs.gd")
+# Rover teams name the rocks they study after places on Earth (Curiosity's "Rocknest", Perseverance's "Cheyava Falls")
+const FIELD_NAMES = ["Bunsen Peak", "Shark Bay", "Pilbara", "Atacama", "Rio Tinto", "Svalbard", "Haughton", "Kilauea", "Mono Lake",
+	"Death Valley", "Dry Valleys", "Lonar", "Barberton", "Painted Desert", "Mauna Kea", "Skye", "Eifel", "Ries", "Sudbury", "Tindouf"]
+const LOOK_WORDS = {"vesicles": "pitted dark rock", "crystals": "coarse-grained rock", "spheres": "rock with tiny balls", "vein": "rock with a bright vein",
+	"layers": "layered outcrop", "fragments": "jumbled rock", "soil": "loose soil", "ice": "smooth ice", "crust": "bright crust"}
+# The kinds of science stop, and the color of their beacons: rock samples, the search for life, the seismometer site
+const TARGET_COLORS = {"sample": Color(0.3, 0.9, 1.0, 0.55), "life": Color(0.4, 1.0, 0.5, 0.6), "seismic": Color(1.0, 0.7, 0.3, 0.6)}
 const MinigameLayer = preload("res://scripts/minigame_layer.gd")
 const Career = preload("res://scripts/career.gd")
 const TRAVERSE_MEDALS = [[85, "GOLD", 15], [65, "SILVER", 8], [40, "BRONZE", 4]]
@@ -40,8 +51,9 @@ const Spacecraft = preload("res://scripts/spacecraft.gd")
 const ROVER_MASS = 1025.0                     # kg
 const WHEEL_RADIUS = 0.2625                   # Perseverance's wheels are 52.5 cm across (aluminum, with curved treads)
 const WHEELS_MODEL = "perseverance_wheels.glb"
-const TERRAIN_SPACING = 2.0                   # meters between the ground's collision points
-const TERRAIN_POINTS = 241                    # 241 x 241 points: 480 m square
+const TERRAIN_SPACING = 1.5                   # meters between the ground's collision points: exactly the spacing of the
+const TERRAIN_POINTS = 321                    # site's ground mesh (480 m, 320 squares), so the wheels roll on the same
+                                              # bumps you see instead of sinking into them (321 x 321 points)
 const LOWEST_GRAVITY = 0.25                   # m/s^2: on Phobos (0.0057) a bump would launch the rover for minutes, so it's raised to this
 const SURFACE_GRIP = {"soil": 2.4, "sand": 0.7, "ice": 0.9, "rock": 4.0}
 const DRIVE_AREA_RADIUS = 215.0               # meters from the landing spot: the edge of the mission's planned driving area
@@ -100,19 +112,6 @@ const CONDITIONS = {
 	"Pluto": [0.62, -230, 0], "Haumea": [0.4, -240, 0], "Makemake": [0.5, -240, 0], "Eris": [0.82, -240, 0],
 }
 
-# Things worth driving to, by world
-const SCIENCE_TARGETS = {
-	"Mars": ["Layered mudstone from an ancient lake", "Rounded river pebbles", "Hematite \"blueberries\"", "Clay-rich rock", "Wind-carved boulder"],
-	"Moon": ["Orange volcanic glass beads", "Bright highland rock", "Fresh crater ejecta", "Ancient lava rock", "A boulder that rolled down a hill"],
-	"Venus": ["Basalt lava plain", "Folded \"tessera\" rock", "Lava channel edge"],
-	"Mercury": ["Hollows of vanishing rock", "Shrinkage cliff rubble", "Dark carbon-rich soil"],
-	"Titan": ["Water-ice pebbles", "Hydrocarbon sand dune", "Dry methane riverbed"],
-	"Io": ["Fresh sulfur frost", "Cooling lava crust", "Volcanic plume fallout"],
-	"Europa": ["Salt-stained ice", "Fresh crack in the ice shell", "Reddish ice ridge"],
-	"Enceladus": ["Snow from the geysers", "Tiger-stripe crack edge", "Salty ice grains"],
-	"Ceres": ["Bright salt deposit", "Clay-rich soil", "Icy crater rim"],
-	"Pluto": ["Nitrogen ice glacier", "Methane snow", "Reddish tholin dust"],
-}
 const DRIVE_SPEED = 3.0                    # meters per second on screen (real rovers creep at about 4 cm/s; time runs faster here)
 const MINUTES_PER_DRIVING_SECOND = 1.0     # each second of driving is a minute on the mission clock
 const STUDY_SECONDS = 3.0
@@ -167,7 +166,7 @@ var odometer = 0.0
 var traverse_result = {}
 var lowest_battery = 100.0     # the lowest the battery got on this drive (for the traverse rating)
 var mission_minutes = 0.0
-var targets = []                # {"node", "name", "place", "studied"}
+var targets = []                # {"node", "name", "place", "studied", "kind" ("sample", "life", "seismic"), "sample"}
 var studying = null
 var study_time = 0.0
 var science_found = 0
@@ -190,6 +189,10 @@ var paused = false:
 		paused = value
 		if rover_body:
 			rover_body.freeze = value   # the rover can't roll away while a decision is on screen
+		# The rover's messages hide while a decision (or a minigame) is on screen, so they never cover its buttons
+		var drive_message = get_node_or_null("DriveScreen/DriveMessage")
+		if drive_message:
+			drive_message.visible = not value
 var reached_decision_point = false
 var crash_landing = false          # a landing check failed or a decision went wrong: it comes down far too hard
 var drive_seconds = 0.0            # time spent driving, so surface events come every so often while you drive
@@ -309,6 +312,7 @@ func use_site(site_scene):
 	if near_ground:
 		ground.queue_free()
 		ground = near_ground
+		ground_shape_numbers = []
 	dust_color = site.get_meta("dust_color", dust_color)
 	sights = Array(site.get_meta("sights", PackedStringArray()))
 	var material = ground.get_active_material(0)
@@ -530,6 +534,16 @@ func deploy_rover():
 	vehicle.remove_child(platform)
 	add_child(platform)
 	platform.global_transform = platform_place
+	# It's solid: drive back into it and the rover stops against it instead of passing through
+	var blocker = StaticBody3D.new()
+	blocker.name = "PlatformCollider"
+	var blocker_shape = CollisionShape3D.new()
+	var blocker_box = BoxShape3D.new()
+	blocker_box.size = Vector3(3.6, 1.6, 3.6)   # the deck, its tanks and engines, and the folded legs (rover_platform.tscn)
+	blocker_shape.shape = blocker_box
+	blocker_shape.position = Vector3(0, 0.8, 0)
+	blocker.add_child(blocker_shape)
+	platform.add_child(blocker)
 	vehicle.global_position += vehicle.global_transform.basis * lander.position
 	lander.position = Vector3.ZERO
 	rover_ready = true
@@ -1035,13 +1049,25 @@ func start_driving():
 	place_science_targets()
 	if destination == "Mars":
 		place_sand_patches()
-	rover_heading = randf() * TAU
+	# The rover keeps facing the way it came down (or drove off its platform)
+	var facing = vehicle.global_transform.basis.z
+	rover_heading = atan2(facing.x, facing.z) if Vector2(facing.x, facing.z).length() > 0.1 else randf() * TAU
 	last_ground_height = ground_height(Vector2(vehicle.position.x, vehicle.position.z))
 	make_rover_body()
 	add_mission_boundary()
 	if audio():
 		audio().start_engine("mars_rover_drive", -60.0, air_pitch())
-	show_message(intro_message(), 9.0)
+	show_message(intro_message() + "\n" + targets_message(), 11.0)
+
+# What the beacons mean (the drive starts with this under the world's introduction)
+func targets_message():
+	var kinds = targets.map(func(target): return target.get("kind", "sample"))
+	var parts = ["blue beacons are rocks to sample"]
+	if "life" in kinds:
+		parts.append("green is a place to search for signs of life")
+	if "seismic" in kinds:
+		parts.append("orange is a spot for a seismometer")
+	return "Science stops: " + ", ".join(parts) + ". Drive up and press E."
 
 func intro_message():
 	var conditions = CONDITIONS[destination]
@@ -1067,11 +1093,49 @@ func intro_message():
 		return "%d °C: cold enough to freeze batteries solid." % conditions[1] + (" Your heaters (or your RTG's warmth) keep the rover alive." if has_rtg or choices.get("thermal", "") in ["thermal_heaters", "thermal_both"] else " Without heaters, the cold soaks in fast!")
 	return "Gravity here is %d %% of Earth's." % int(gravity_share)
 
+# Five science stops around the landing site. Most are rocks to sample, each a different real material from this
+# world (scripts/geology_samples.gd); worlds where life could exist get a place to search for it (life_search.gd),
+# and Mars and the Moon get a quiet spot for a seismometer (seismometer.gd).
+func target_plan():
+	var random = RandomNumberGenerator.new()
+	random.seed = destination.hash() + 11
+	var kinds = ["sample", "sample", "sample", "sample", "sample"]
+	if LifeSigns.has_scenario(destination):
+		kinds[1] = "life"
+	if destination in ["Mars", "Moon"]:
+		kinds[3] = "seismic"
+	var materials = GeologySamples.samples_for(destination).duplicate()
+	var names = FIELD_NAMES.duplicate()
+	for shuffle_step in range(names.size() - 1, 0, -1):
+		var other = random.randi_range(0, shuffle_step)
+		var kept = names[shuffle_step]
+		names[shuffle_step] = names[other]
+		names[other] = kept
+	for shuffle_step in range(materials.size() - 1, 0, -1):
+		var other = random.randi_range(0, shuffle_step)
+		var kept = materials[shuffle_step]
+		materials[shuffle_step] = materials[other]
+		materials[other] = kept
+	var plan = []
+	var material_index = 0
+	for index in kinds.size():
+		match kinds[index]:
+			"life":
+				plan.append({"kind": "life", "name": LifeSigns.SCENARIOS[destination]["target"], "sample": ""})
+			"seismic":
+				plan.append({"kind": "seismic", "name": "Quiet, flat ground for a seismometer", "sample": ""})
+			_:
+				var material = materials[material_index % materials.size()]
+				material_index += 1
+				var look = GeologySamples.look_of(material)[1]
+				plan.append({"kind": "sample", "name": "%s (%s)" % [names[index], LOOK_WORDS.get(look, "rock")], "sample": material})
+	return plan
+
 func place_science_targets():
-	var names = SCIENCE_TARGETS.get(destination, ["Unusual rock", "Crater rim", "Dark patch", "Bright patch", "Big boulder"])
+	var plan = target_plan()
 	var random = RandomNumberGenerator.new()
 	random.seed = destination.hash() + 7
-	for index in min(5, names.size()):
+	for index in plan.size():
 		var angle = random.randf() * TAU
 		var place = Vector2(cos(angle), sin(angle)) * random.randf_range(14.0, 48.0)
 		var marker = Node3D.new()
@@ -1087,7 +1151,7 @@ func place_science_targets():
 		glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		glow.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		glow.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-		glow.albedo_color = Color(0.3, 0.9, 1.0, 0.55)
+		glow.albedo_color = TARGET_COLORS[plan[index]["kind"]]
 		beam.material_override = glow
 		beam.position.y = 5.6
 		beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -1117,7 +1181,7 @@ func place_science_targets():
 		marker.add_child(rock)
 		add_child(marker)
 		marker.position = Vector3(place.x, ground_height(place), place.y)
-		targets.append({"node": marker, "name": names[index], "place": place, "studied": false})
+		targets.append({"node": marker, "name": plan[index]["name"], "place": place, "studied": false, "kind": plan[index]["kind"], "sample": plan[index]["sample"]})
 
 func place_sand_patches():
 	var random = RandomNumberGenerator.new()
@@ -1165,10 +1229,14 @@ func noise_at(texture_place):
 	var bottom = lerp(height_image.get_pixel(posmod(x0, width), posmod(y0 + 1, height_pixels)).r, height_image.get_pixel(posmod(x0 + 1, width), posmod(y0 + 1, height_pixels)).r, fx)
 	return lerp(top, bottom, fy)
 
+var ground_shape_numbers = []   # [hill height, flat radius] from the ground's shader, read once (see ground_height)
 func ground_height(place):
-	var material = ground.get_active_material(0)
-	var hill_height = material.get_shader_parameter("hill_height") if material is ShaderMaterial else 0.0
-	var flat_radius = material.get_shader_parameter("flat_radius") if material is ShaderMaterial else 30.0
+	if ground_shape_numbers.is_empty():
+		var material = ground.get_active_material(0)
+		ground_shape_numbers = [material.get_shader_parameter("hill_height") if material is ShaderMaterial else 0.0,
+			material.get_shader_parameter("flat_radius") if material is ShaderMaterial else 30.0]
+	var hill_height = ground_shape_numbers[0]
+	var flat_radius = ground_shape_numbers[1]
 	var keep_flat = smoothstep(flat_radius, flat_radius * 4.0, place.length())
 	return (noise_at(place * 0.0035) - 0.5) * hill_height * keep_flat + (noise_at(place * 0.03) - 0.5) * 0.5 \
 		+ craters_height(place) - place.length_squared() / (2.0 * world_radius)
@@ -1280,6 +1348,8 @@ func update_driving(delta):
 	if temperature < -100 and has_heaters and not has_rtg:
 		drain += 0.3   # running the heaters
 	battery = clamp(battery + (recharge - drain * (0.7 if GameState.has_upgrade("better_batteries") else 1.0)) * delta, 0.0, 100.0)
+	if throttle != 0.0:
+		GameState.note_tech("better_batteries", "the rover's battery drained 30% slower")
 	mission_minutes += delta * MINUTES_PER_DRIVING_SECOND
 
 	# Heat, cold and radiation soak in over time
@@ -1338,6 +1408,7 @@ func update_science(delta):
 			if study_laser:
 				study_laser.visible = false
 			var points = 3 + (2 if GameState.has_upgrade("auto_targeting") else 0)
+			GameState.note_tech("auto_targeting", "+2 science per target")
 			if "instrument_drill" in GameState.instruments or "instrument_spectrometer" in GameState.instruments:
 				points += 2   # the right tools tell you much more
 			science_found += points
@@ -1348,7 +1419,8 @@ func update_science(delta):
 		return
 	for target in targets:
 		if not target["studied"] and here.distance_to(target["place"]) < 4.0 + lander_size * 0.4:
-			show_message_once("near_" + target["name"], "%s. Press E to study it." % target["name"], 3.0)
+			var action = {"sample": "Press E to sample it with the robotic arm.", "life": "Press E to search it for signs of life.", "seismic": "Press E to set up the seismometer."}[target.get("kind", "sample")]
+			show_message_once("near_" + target["name"], "%s. %s" % [target["name"], action], 4.0)
 			if Input.is_key_pressed(KEY_E) and not GameState.skip_minigames:
 				open_sample_lab(target)
 				return
@@ -1361,26 +1433,47 @@ func update_science(delta):
 						audio().play_effect("laser", -6.0 + air_loudness(), 1.0, zap * 0.35)
 				show_message("Studying the %s..." % target["name"].to_lower(), STUDY_SECONDS)
 
-# Studying a target is two minigames (res://scenes/sample_lab.tscn): grab a sample with the robotic arm, then
-# identify it with the instruments on board. The rover waits while the lab is open.
+# Studying a target opens its minigame: a rock sample is two (res://scenes/sample_lab.tscn: grab a sample with the
+# robotic arm, then identify it), a place where life could be is the search for signs of life
+# (res://scenes/life_search.tscn), and a seismometer site is the seismic station (res://scenes/seismometer.tscn).
+# The rover waits while it's open.
 var sample_lab_open = false
 func open_sample_lab(target):
 	if sample_lab_open:
 		return
 	sample_lab_open = true
 	paused = true
-	# The lab gets its own layer above everything, and the drive screen (panel, terrain map) hides meanwhile
+	# The minigame gets its own layer above everything, and the drive screen (panel, terrain map) hides meanwhile
+	var kind = target.get("kind", "sample")
+	if kind in ["life", "seismic"]:
+		var game = (LIFE_SEARCH_SCENE if kind == "life" else SEISMOMETER_SCENE).instantiate()
+		MinigameLayer.show_minigame(self, game)
+		$DriveScreen.visible = false
+		game.start(target["name"], destination)
+		var outcome = await game.finished
+		$DriveScreen.visible = true
+		finish_target(target)
+		science_found += outcome["science"]
+		if kind == "life":
+			findings.append("%s (life search: rung %d of 7)" % [target["name"], outcome["levels"]])
+			GameState.add_mission_stat("life_searches")
+			show_message("%s: your evidence reached rung %d of 7 on the CoLD scale. +%d science!" % [target["name"], outcome["levels"], outcome["science"]], 6.0)
+		else:
+			findings.append("%s (quake located within %d%%)" % [target["name"], int(round(outcome["distance_error"] * 100.0))])
+			GameState.add_mission_stat("quakes_located")
+			show_message("Seismometer set up: quake located within %d%%. +%d science!" % [int(round(outcome["distance_error"] * 100.0)), outcome["science"]], 6.0)
+		paused = false
+		sample_lab_open = false
+		return
 	var lab = SAMPLE_LAB_SCENE.instantiate()
 	MinigameLayer.show_minigame(self, lab)
 	$DriveScreen.visible = false
-	lab.start(target["name"])
+	lab.start(target["name"], target.get("sample", ""))
 	var result = await lab.finished
 	$DriveScreen.visible = true
-	target["studied"] = true
-	if target["node"].get_child_count() > 0:
-		target["node"].get_child(0).visible = false
-	if target["node"].has_node("Ring"):
-		target["node"].get_node("Ring").visible = false
+	if result.get("medal", "") == "GOLD":
+		GameState.award_achievement("rock_hound")
+	finish_target(target)
 	science_found += result["science"]
 	samples.append(result["science"])
 	findings.append("%s (%s)" % [target["name"], result["name"].to_lower()])
@@ -1389,6 +1482,14 @@ func open_sample_lab(target):
 	show_message("%s: %s%s. +%d science!" % [target["name"], result["name"], "" if result["correct"] else " (misidentified at first)", result["science"]], 5.0)
 	paused = false
 	sample_lab_open = false
+
+# A target is done: its beacon and ring go out
+func finish_target(target):
+	target["studied"] = true
+	if target["node"].get_child_count() > 0:
+		target["node"].get_child(0).visible = false
+	if target["node"].has_node("Ring"):
+		target["node"].get_node("Ring").visible = false
 
 # The laser the rover studies rocks with (Perseverance's SuperCam fires from the top of its mast and reads the
 # light of the spark): a flickering green line from the mast to the rock, with sparks where it hits
@@ -1445,7 +1546,7 @@ func update_terrain_map():
 	map.rover_place = Vector2(vehicle.position.x, vehicle.position.z)
 	map.rover_heading = rover_heading
 	map.sand_patches = sand_patches
-	map.targets = targets.map(func(target): return [target["place"], target["studied"], target["name"]])
+	map.targets = targets.map(func(target): return [target["place"], target["studied"], target["name"], target.get("kind", "sample")])
 	if map.track.is_empty() or map.track[map.track.size() - 1].distance_to(map.rover_place) > 2.0:
 		map.track.append(map.rover_place)
 
@@ -1859,4 +1960,5 @@ func end_driving(reason):
 
 # Titanium wheels (a research upgrade) take less damage
 func wheel_wear():
+	GameState.note_tech("titanium_wheels", "40% less wheel damage")
 	return 0.6 if GameState.has_upgrade("titanium_wheels") else 1.0

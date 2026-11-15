@@ -1,0 +1,164 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/key_hints.tscn" id="91_keys"]
+[ext_resource type="Texture2D" path="res://assets/textures/2k_stars_milky_way.jpg" id="90_stars"]
+[ext_resource type="Script" path="res://scripts/seismometer.gd" id="1_station"]
+[ext_resource type="Script" path="res://scripts/seismic_view.gd" id="2_view"]
+
+[sub_resource type="StyleBoxFlat" id="panel_style"]
+content_margin_left = 16.0
+content_margin_top = 14.0
+content_margin_right = 16.0
+content_margin_bottom = 14.0
+bg_color = Color(0.03, 0.05, 0.09, 0.94)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.45, 0.8, 1, 0.4)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="Seismometer" type="Control"]
+editor_description = "Minigame: the seismic station (seismometer.gd, drawn by seismic_view.gd). surface_view.gd opens it at a target on Mars or the Moon."
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_station")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.01, 0.015, 0.03, 1)
+
+[node name="Stars" type="TextureRect" parent="."]
+modulate = Color(1, 1, 1, 0.22)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("90_stars")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Header" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 24.0
+offset_top = 14.0
+offset_right = -24.0
+offset_bottom = 54.0
+grow_horizontal = 2
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"TitleLabel"
+theme_override_font_sizes/font_size = 24
+text = "SEISMIC STATION"
+vertical_alignment = 1
+clip_text = true
+
+[node name="Stage" type="Label" parent="Header"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 13
+text = "LEVEL  ›  LISTEN  ›  LOCATE"
+vertical_alignment = 1
+
+[node name="Body" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = 64.0
+offset_right = -24.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 14
+
+[node name="View" type="Control" parent="Body"]
+clip_contents = true
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("2_view")
+
+[node name="Side" type="PanelContainer" parent="Body"]
+custom_minimum_size = Vector2(390, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("panel_style")
+
+[node name="Column" type="VBoxContainer" parent="Body/Side"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Kicker" type="Label" parent="Body/Side/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(0.45, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 11
+text = "LISTEN FOR QUAKES"
+
+[node name="Steps" type="Label" parent="Body/Side/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(1, 0.86, 0.55, 1)
+theme_override_font_sizes/font_size = 12
+text = "▶  Level the seismometer"
+autowrap_mode = 3
+
+[node name="Status" type="Label" parent="Body/Side/Column"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Level it."
+autowrap_mode = 3
+
+[node name="Readout" type="Label" parent="Body/Side/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_font_sizes/font_size = 13
+autowrap_mode = 3
+
+[node name="KeyHints" parent="Body/Side/Column" instance=ExtResource("91_keys")]
+layout_mode = 2
+alignment = 0
+hints = [["A D", "tilt"], ["W S", "tilt"]]
+
+[node name="ActionButton" type="Button" parent="Body/Side/Column"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+focus_mode = 0
+text = "Lower the wind shield (SPACE)"
+
+[node name="Result" type="Label" parent="Body/Side/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.9, 1, 1)
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 3
+
+[node name="Spacer" type="Control" parent="Body/Side/Column"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ContinueButton" type="Button" parent="Body/Side/Column"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+focus_mode = 0
+text = "Back to driving"
