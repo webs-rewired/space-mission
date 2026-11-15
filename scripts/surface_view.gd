@@ -1224,7 +1224,7 @@ func update_driving(delta):
 			if next_place.distance_to(rock[0]) < rock[1] + lander_size * 0.3:
 				if abs(rover_speed) > 0.4 and bump_cooldown <= 0.0:
 					bump_cooldown = 1.0
-					wheel_damage = min(100.0, wheel_damage + abs(rover_speed) * 4.0)
+					wheel_damage = min(100.0, wheel_damage + abs(rover_speed) * 4.0 * wheel_wear())
 					shake = 0.4
 					play_sound("impact", 0.0)
 					show_message("Bang! You hit a rock. Curiosity's wheels got holes punched in them by sharp Mars rocks." if destination == "Mars" else "Bang! You hit a rock and damaged a wheel.", 3.0)
@@ -1279,7 +1279,7 @@ func update_driving(delta):
 	var has_heaters = choices.get("thermal", "") in ["thermal_heaters", "thermal_both"]
 	if temperature < -100 and has_heaters and not has_rtg:
 		drain += 0.3   # running the heaters
-	battery = clamp(battery + (recharge - drain) * delta, 0.0, 100.0)
+	battery = clamp(battery + (recharge - drain * (0.7 if GameState.has_upgrade("better_batteries") else 1.0)) * delta, 0.0, 100.0)
 	mission_minutes += delta * MINUTES_PER_DRIVING_SECOND
 
 	# Heat, cold and radiation soak in over time
@@ -1337,7 +1337,7 @@ func update_science(delta):
 			studying["node"].get_node("Ring").visible = false
 			if study_laser:
 				study_laser.visible = false
-			var points = 3
+			var points = 3 + (2 if GameState.has_upgrade("auto_targeting") else 0)
 			if "instrument_drill" in GameState.instruments or "instrument_spectrometer" in GameState.instruments:
 				points += 2   # the right tools tell you much more
 			science_found += points
@@ -1646,7 +1646,7 @@ func drive_physics(delta, throttle, steering, in_sand, top_speed):
 			if touching and touching.name == "RockColliders":
 				surface = "rock"
 				if abs(speed) > 1.2:
-					wheel_damage = min(100.0, wheel_damage + abs(speed) * delta * 0.6)   # sharp rocks chew the wheels
+					wheel_damage = min(100.0, wheel_damage + abs(speed) * delta * 0.6 * wheel_wear())   # sharp rocks chew the wheels
 		wheel.wheel_friction_slip = SURFACE_GRIP[surface]
 	if in_sand:
 		rover_body.apply_central_force(-rover_body.linear_velocity * ROVER_MASS * 0.8)   # sinking wheels drag
@@ -1856,3 +1856,7 @@ func end_driving(reason):
 	landed = true
 	camera_angle = rover_heading + PI
 	driving_finished.emit(summary)
+
+# Titanium wheels (a research upgrade) take less damage
+func wheel_wear():
+	return 0.6 if GameState.has_upgrade("titanium_wheels") else 1.0

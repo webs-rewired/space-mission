@@ -84,16 +84,34 @@ func start(new_target_name):
 	arm_view.tool_length = 0.25 if long_arm else 0.2
 	arm_view.tool_name = "DRILL" if has_drill else "SCOOP"
 	var reach = arm_view.upper_length + arm_view.lower_length
-	# A rock somewhere in reach (a different place every time), with the sample spot on top
-	var rock_middle = randf_range(0.75, reach * 0.8)
-	var rock_height = randf_range(0.12, 0.4)
-	var rock_width = randf_range(0.35, 0.6)
+	# A rock in a different place every time, with the sample spot on top (drill) or in the loose soil just in
+	# front of it (scoop). The spot is always one the arm can actually reach with the tool pointing straight down:
+	# the wrist has to get to just above it, comfortably inside the arm's full stretch.
+	var rock_middle = 1.0
+	var rock_height = 0.25
+	var rock_width = 0.45
+	var found_spot = false
+	for attempt in 80:
+		rock_middle = randf_range(0.9, reach * 0.85 + 0.35)
+		rock_height = randf_range(0.12, 0.4)
+		rock_width = randf_range(0.3, 0.55)
+		if has_drill:
+			arm_view.spot = Vector2(rock_middle - rock_width * 0.1 + randf_range(-0.05, 0.12), rock_height * 0.97)
+		else:
+			arm_view.spot = Vector2(rock_middle - rock_width - randf_range(0.12, 0.25), 0.0)   # the loose soil in front of the rock
+		var wrist_needed = arm_view.spot + Vector2(0, arm_view.tool_length)
+		var stretch = wrist_needed.distance_to(arm_view.base)
+		if arm_view.spot.x >= 0.6 and rock_middle - rock_width >= 0.45 and stretch <= reach * 0.85 and stretch >= abs(arm_view.upper_length - arm_view.lower_length) + 0.15:
+			found_spot = true
+			break
+	if not found_spot:
+		# (a placement both arms can always reach)
+		rock_middle = 1.0 if has_drill else 1.25
+		rock_height = 0.2
+		rock_width = 0.4 if has_drill else 0.35
+		arm_view.spot = Vector2(rock_middle - rock_width * 0.1, rock_height * 0.97) if has_drill else Vector2(rock_middle - rock_width - 0.15, 0.0)
 	arm_view.rock_points = PackedVector2Array([Vector2(rock_middle - rock_width, 0), Vector2(rock_middle - rock_width * 0.7, rock_height * 0.8),
 		Vector2(rock_middle - rock_width * 0.1, rock_height), Vector2(rock_middle + rock_width * 0.5, rock_height * 0.85), Vector2(rock_middle + rock_width, 0)])
-	if has_drill:
-		arm_view.spot = Vector2(rock_middle - rock_width * 0.1 + randf_range(-0.05, 0.15), rock_height * 0.97)
-	else:
-		arm_view.spot = Vector2(rock_middle + rock_width + 0.18, 0.0)   # the loose soil beside the rock
 	arm_view.spot_normal = Vector2(0, 1)   # straight up (y points up here; Vector2.UP is the screen's up)
 	arm_view.rock_color = Color(0.32, 0.3, 0.28).lerp(Color(0.85, 0.88, 0.95), sample["brightness"] * 0.6)
 	if GameState.destination in ["Europa", "Enceladus", "Titan", "Pluto", "Triton", "Charon", "Ganymede", "Callisto", "Eris", "Haumea", "Makemake", "Titania"]:
@@ -110,7 +128,7 @@ func start(new_target_name):
 	arm_view.sky_horizon = sky[1]
 	arm_view.airless = sky[2]
 	collect_help.text = ("A/D swing the shoulder, W/S bend the elbow, Q/E turn the tool. Put the %s on the glowing spot, pointing straight into the surface, and hold SPACE. Keep the arm still while it works, then carry the sample to the inlet on the deck and press SPACE." % ("drill" if has_drill else "scoop")) + ("" if has_drill else " (No drill on board: you can only scoop loose soil.)")
-	runs_left = INSTRUMENT_RUNS[GameState.difficulty]
+	runs_left = INSTRUMENT_RUNS[GameState.difficulty] + (1 if GameState.has_upgrade("lab_power") else 0)
 	UiMotion.reveal_text(title_label, 0.1, 0.6, 0.4)
 	UiMotion.slide_in($CollectStage/Side, 0.15, Vector2(30, 0), 0.5)
 
@@ -148,7 +166,7 @@ func _process(delta):
 		arm_view.elbow_angle = before[1]
 		arm_view.tool_angle = before[2]
 		if moving:
-			arm_view.stress = min(arm_view.stress + 30.0 * delta, 100.0)
+			arm_view.stress = min(arm_view.stress + 30.0 * strain_factor() * delta, 100.0)
 			arm_view.flash = 0.6
 			if arm_view.stress > 25.0 and collection == "clean":
 				collection = "rough"
@@ -166,7 +184,7 @@ func _process(delta):
 			work += delta / (DRILL_SECONDS if has_drill else SCOOP_SECONDS)
 			if moving and has_drill:
 				# Moving the arm while the drill is turning bends the bit
-				arm_view.stress = min(arm_view.stress + 45.0 * delta, 100.0)
+				arm_view.stress = min(arm_view.stress + 45.0 * strain_factor() * delta, 100.0)
 				if arm_view.stress >= 100.0 and not jammed:
 					jammed = true
 					collection = "damaged"
@@ -325,3 +343,7 @@ func play_sound(sound_name):
 	var audio = get_node_or_null("/root/AudioManager")
 	if audio:
 		audio.play_effect(sound_name, -6.0)
+
+# Arm force sensors (a research upgrade) make the strain build more slowly
+func strain_factor():
+	return 0.6 if GameState.has_upgrade("force_sensors") else 1.0

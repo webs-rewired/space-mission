@@ -422,7 +422,7 @@ const LANDER_ONLY_INSTRUMENTS = ["instrument_drill", "instrument_seismometer", "
 func instrument_science(instrument_id):
 	if instrument_id in LANDER_ONLY_INSTRUMENTS and choices.get("landing", "landing_none") == "landing_none":
 		return 0
-	var bonus = 5 if has_upgrade("instruments") else 0
+	var bonus = (5 if has_upgrade("instruments") else 0) + (4 if has_upgrade("cryo_detectors") else 0)
 	if not INSTRUMENT_BEST_AT.has(instrument_id):
 		return 12 + bonus
 	return (18 if destination in INSTRUMENT_BEST_AT[instrument_id] else 6) + bonus
@@ -450,7 +450,7 @@ func instrument_fits_here(instrument_id):
 func data_made_mb_per_day():
 	var made = 0.0
 	for instrument_id in instruments:
-		made += INSTRUMENT_DATA_MB_PER_DAY.get(instrument_id, 50.0)
+		made += INSTRUMENT_DATA_MB_PER_DAY.get(instrument_id, 50.0) * (0.6 if has_upgrade("data_compression") else 1.0)
 	return made
 
 func data_sent_mb_per_day():
@@ -537,12 +537,16 @@ func total_mass():
 		mass += PARTS[part_id]["mass"]
 	if has_upgrade("light_structures"):
 		mass = int(round(mass * 0.92))
+	if has_upgrade("printed_parts"):
+		mass = int(round(mass * 0.95))
 	return mass
 
 func probe_cost():
 	var cost = PROBE_BODY["cost"]
 	for part_id in all_chosen_part_ids():
 		cost += PARTS[part_id]["cost"]
+	if has_upgrade("bulk_contracts"):
+		cost = int(round(cost * 0.9))
 	return cost
 
 func total_cost():
@@ -558,8 +562,9 @@ func sunlight_factor():
 func power_made():
 	var power_part = PARTS[choices["power"]]
 	if power_part.has("power_anywhere"):
-		return power_part["power_anywhere"] * pow(1.0 - power_part["fades_per_year"], trip_years())
-	return power_part["power_at_earth"] * sunlight_factor() * (1.2 if has_upgrade("solar_cells") else 1.0)
+		var better = has_upgrade("next_gen_rtg")
+		return power_part["power_anywhere"] * (1.25 if better else 1.0) * pow(1.0 - power_part["fades_per_year"] * (0.5 if better else 1.0), trip_years())
+	return power_part["power_at_earth"] * sunlight_factor() * (1.2 if has_upgrade("solar_cells") else 1.0) * (1.15 if has_upgrade("tandem_cells") else 1.0)
 
 func power_at_launch():
 	var power_part = PARTS[choices["power"]]
@@ -581,7 +586,7 @@ func radio_delay_minutes():
 
 # How fast the probe can send data home (kilobits per second), falling with the square of the distance
 func data_rate_kilobits():
-	var gain = PARTS[choices["antenna"]]["data_gain"] * (1.5 if has_upgrade("ka_band") else 1.0)
+	var gain = PARTS[choices["antenna"]]["data_gain"] * (1.5 if has_upgrade("ka_band") else 1.0) * (1.3 if has_upgrade("laser_comms") else 1.0)
 	if choices.get("attitude", "attitude_wheels") == "attitude_thrusters" and choices["antenna"] == "antenna_large":
 		gain *= 0.5   # thrusters alone can't hold a narrow dish beam on Earth for long
 	return min(HIGH_GAIN_KILOBITS_AT_1_AU * gain / pow(earth_distance_au(), 2.0), 100000.0)
@@ -608,7 +613,7 @@ func arrival_burn_needed_km_s():
 func base_arrival_burn_km_s():
 	if direct_entry():
 		return 0.05
-	return DESTINATIONS[destination]["arrival_burn_km_s"]
+	return DESTINATIONS[destination]["arrival_burn_km_s"] * (0.95 if has_upgrade("precision_navigation") else 1.0)
 
 # How much the probe can change its own speed, from the rocket equation:
 #   speed change = Isp × g × ln(mass with propellant / mass without it)
@@ -619,6 +624,7 @@ func probe_speed_change_km_s():
 	var empty_mass = full_mass - propellant_mass()
 	var speed_change = PARTS[choices["engine"]]["isp"] * RocketData.GRAVITY * log(full_mass / empty_mass) / 1000.0
 	speed_change *= 1.1 if has_upgrade("better_propellant") else 1.0
+	speed_change *= 1.05 if has_upgrade("densified_propellant") else 1.0
 	if choices.get("attitude", "attitude_wheels") == "attitude_thrusters":
 		speed_change *= 0.95   # turning the probe with thrusters spends some of the propellant
 	return speed_change
@@ -650,7 +656,7 @@ func power_needed():
 	return power
 
 func budget():
-	return DESTINATIONS[destination]["budget"] * DIFFICULTY_BUDGET[difficulty] * (1.1 if has_upgrade("funding") else 1.0)
+	return DESTINATIONS[destination]["budget"] * DIFFICULTY_BUDGET[difficulty] * (1.1 if has_upgrade("funding") else 1.0) * (1.1 if has_upgrade("partners") else 1.0)
 
 # ---------------------------------------------------------------------------
 # Rocket math (the real rocket equation)
@@ -665,10 +671,16 @@ func rocket_cost():
 	cost += RocketData.ENGINES[rocket["top_engine"]]["cost"] * rocket["top_engine_count"]
 	cost += RocketData.TANKS[rocket["top_tank"]]["cost"]
 	cost += RocketData.KICK_STAGES[rocket["kick_stage"]].get("cost", 0)
+	if has_upgrade("reusable_boosters"):
+		cost = int(round(cost * 0.85))
 	return cost
 
 func speed_from_burn(isp, mass_before, mass_after):
-	return isp * RocketData.GRAVITY * log(mass_before / mass_after)
+	return isp * (1.02 if has_upgrade("engine_uprate") else 1.0) * RocketData.GRAVITY * log(mass_before / mass_after)
+
+# A rocket tank's empty mass (Aluminum-lithium tanks make them 10% lighter)
+func tank_empty_mass(tank):
+	return tank["empty_mass"] * (0.9 if has_upgrade("lithium_tanks") else 1.0)
 
 # Works out everything about the current rocket. Returns a dictionary.
 func rocket_report():
@@ -689,7 +701,7 @@ func rocket_report():
 	var top_tank = RocketData.TANKS[rocket["top_tank"]]
 	var top_engine_count = rocket["top_engine_count"]
 	var mass_above_top_stage = probe_mass + kick_empty_mass + kick_propellant
-	var top_stage_empty_mass = top_tank["empty_mass"] + top_engine["mass"] * top_engine_count
+	var top_stage_empty_mass = tank_empty_mass(top_tank) + top_engine["mass"] * top_engine_count
 	var top_stage_full_mass = mass_above_top_stage + top_stage_empty_mass + top_tank["propellant"]
 	var top_stage_speed = speed_from_burn(top_engine["isp_vacuum"], top_stage_full_mass, mass_above_top_stage + top_stage_empty_mass)
 	var top_thrust_to_weight = top_engine["thrust_vacuum"] * 1000.0 * top_engine_count / (top_stage_full_mass * gravity)
@@ -700,7 +712,7 @@ func rocket_report():
 	var bottom_engine_count = rocket["bottom_engine_count"]
 	var booster = RocketData.BOOSTERS[rocket["boosters"]]
 	var booster_count = booster["count"]
-	var core_empty_mass = bottom_tank["empty_mass"] + bottom_engine["mass"] * bottom_engine_count
+	var core_empty_mass = tank_empty_mass(bottom_tank) + bottom_engine["mass"] * bottom_engine_count
 	var core_propellant = bottom_tank["propellant"]
 	# Average Isp while climbing from the ground into space
 	var core_isp = (bottom_engine["isp_sea_level"] + bottom_engine["isp_vacuum"]) / 2.0
@@ -863,7 +875,7 @@ func thruster_seconds():
 	return seconds * [1.5, 1.0, 0.75][clamp(difficulty, 0, 2)]
 
 func thruster_acceleration():
-	return 4.5 * clamp(sqrt(900.0 / max(total_mass(), 1.0)), 0.6, 1.5)
+	return 4.5 * clamp(sqrt(900.0 / max(total_mass(), 1.0)), 0.6, 1.5) * (1.2 if has_upgrade("rcs_upgrade") else 1.0)
 
 func build_mission():
 	events = []
@@ -1030,7 +1042,7 @@ func finish_mission():
 	if choices["antenna"] == "antenna_large":
 		data_share = 1.0
 	else:
-		data_share = min(1.0, DESTINATIONS[destination]["small_antenna_data_share"] + (0.15 if has_upgrade("ka_band") else 0.0))
+		data_share = min(1.0, DESTINATIONS[destination]["small_antenna_data_share"] + (0.15 if has_upgrade("ka_band") else 0.0) + (0.1 if has_upgrade("dsn_priority") else 0.0))
 	data_share *= recorder_share()   # a recorder that fills up loses some of the science
 
 	if lost:

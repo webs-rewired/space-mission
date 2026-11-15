@@ -224,7 +224,7 @@ func start():
 	var offset = [0.8, 1.8, 3.0][difficulty]
 	var tilt = [2.0, 4.0, 6.0][difficulty]
 	var spin = [0.0, 0.1, 0.25][difficulty]
-	propellant_budget = [9.0, 6.0, 4.5][difficulty]
+	propellant_budget = [9.0, 6.0, 4.5][difficulty] * (1.3 if GameState.has_upgrade("rcs_upgrade") else 1.0)
 	capture_offset = CAPTURE_OFFSETS[difficulty]
 	capture_angle = CAPTURE_ANGLES[difficulty]
 	limits_label.text = "Touch the port at %d to %d cm/s, within %d cm of the center, lined up within %d°.\nSideways speed under %d cm/s." % [

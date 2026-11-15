@@ -120,95 +120,101 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 14
 
-[node name="Left" type="VBoxContainer" parent="Layout"]
-custom_minimum_size = Vector2(300, 0)
+[node name="LeftScroll" type="ScrollContainer" parent="Layout"]
+custom_minimum_size = Vector2(318, 0)
 layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="Left" type="VBoxContainer" parent="Layout/LeftScroll"]
+custom_minimum_size = Vector2(306, 0)
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 7
 
-[node name="Goal" type="Label" parent="Layout/Left"]
+[node name="Goal" type="Label" parent="Layout/LeftScroll/Left"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
 text = "Swing past a planet to speed up toward Jupiter."
 autowrap_mode = 3
 
-[node name="Steps" type="Label" parent="Layout/Left"]
+[node name="Steps" type="Label" parent="Layout/LeftScroll/Left"]
 layout_mode = 2
 theme_type_variation = &"DataLabel"
 theme_override_font_sizes/font_size = 12
 text = "1  Pick a planet"
 autowrap_mode = 3
 
-[node name="PlanetPicker" type="OptionButton" parent="Layout/Left"]
+[node name="PlanetPicker" type="OptionButton" parent="Layout/LeftScroll/Left"]
 layout_mode = 2
 focus_mode = 0
 clip_text = true
 
-[node name="PlanetNote" type="Label" parent="Layout/Left"]
+[node name="PlanetNote" type="Label" parent="Layout/LeftScroll/Left"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.68, 0.74, 0.82, 1)
 theme_override_font_sizes/font_size = 11
 text = "Cassini flew past Venus twice."
 autowrap_mode = 3
 
-[node name="AltitudeValue" type="Label" parent="Layout/Left"]
+[node name="AltitudeValue" type="Label" parent="Layout/LeftScroll/Left"]
 layout_mode = 2
 theme_type_variation = &"DataLabel"
 theme_override_font_sizes/font_size = 12
 text = "Closest pass: 1,000 km"
 autowrap_mode = 3
 
-[node name="Altitude" type="HSlider" parent="Layout/Left"]
+[node name="Altitude" type="HSlider" parent="Layout/LeftScroll/Left"]
 layout_mode = 2
 focus_mode = 0
 max_value = 1.0
 step = 0.001
 value = 0.6
 
-[node name="SideButton" type="Button" parent="Layout/Left"]
+[node name="SideButton" type="Button" parent="Layout/LeftScroll/Left"]
 custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
 focus_mode = 0
 text = "Swing: counterclockwise (F to switch)"
 
-[node name="BurnValue" type="Label" parent="Layout/Left"]
+[node name="BurnValue" type="Label" parent="Layout/LeftScroll/Left"]
 layout_mode = 2
 theme_type_variation = &"DataLabel"
 theme_override_font_sizes/font_size = 12
 text = "Engine burn at the closest point: 0.00 km/s"
 autowrap_mode = 3
 
-[node name="Burn" type="HSlider" parent="Layout/Left"]
+[node name="Burn" type="HSlider" parent="Layout/LeftScroll/Left"]
 layout_mode = 2
 focus_mode = 0
 max_value = 1.0
 step = 0.01
 
-[node name="Buttons" type="HBoxContainer" parent="Layout/Left"]
+[node name="Buttons" type="HBoxContainer" parent="Layout/LeftScroll/Left"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="ExecuteButton" type="Button" parent="Layout/Left/Buttons"]
+[node name="ExecuteButton" type="Button" parent="Layout/LeftScroll/Left/Buttons"]
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
 text = "Execute flyby"
 
-[node name="WindowButton" type="Button" parent="Layout/Left/Buttons"]
+[node name="WindowButton" type="Button" parent="Layout/LeftScroll/Left/Buttons"]
 custom_minimum_size = Vector2(0, 38)
 layout_mode = 2
 size_flags_horizontal = 3
 focus_mode = 0
 text = "New window"
 
-[node name="ClearButton" type="Button" parent="Layout/Left"]
+[node name="ClearButton" type="Button" parent="Layout/LeftScroll/Left"]
 custom_minimum_size = Vector2(0, 30)
 layout_mode = 2
 focus_mode = 0
 theme_override_font_sizes/font_size = 12
 text = "Fly direct instead (no gravity assist)"
 
-[node name="KeyHints" parent="Layout/Left" instance=ExtResource("4_keys")]
+[node name="KeyHints" parent="Layout/LeftScroll/Left" instance=ExtResource("4_keys")]
 layout_mode = 2
 hints = [["A D", "pass height"], ["F", "switch side"], ["W S", "burn"], ["Q E", "planet"], ["Space", "execute"], ["N", "new window"]]
 

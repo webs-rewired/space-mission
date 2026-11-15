@@ -27,6 +27,35 @@ const UPGRADES = {
 	"better_propellant": {"title": "High-performance propellant", "text": "Your spacecraft's engine can change its speed 10% more.", "cost": 150},
 	"instruments": {"title": "Next-generation instruments", "text": "Every instrument starts the mission with 5 more science.", "cost": 160},
 	"shard_scanner": {"title": "Shard scanner", "text": "Science shards in the belts are easier to catch and worth 1 more science each.", "cost": 90},
+	# Power
+	"tandem_cells": {"title": "Perovskite tandem solar cells", "text": "Solar arrays make another 15% more power.", "cost": 180, "requires": "solar_cells"},
+	"next_gen_rtg": {"title": "Next-generation RTG", "text": "Nuclear power sources make 25% more power and fade half as fast on long trips.", "cost": 220},
+	"better_batteries": {"title": "Lithium-sulfur batteries", "text": "Rovers drain their batteries 30% more slowly.", "cost": 110},
+	# Structure and propulsion
+	"printed_parts": {"title": "3D-printed titanium parts", "text": "Your spacecraft is another 5% lighter.", "cost": 160, "requires": "light_structures"},
+	"densified_propellant": {"title": "Densified propellant", "text": "Your spacecraft's engine changes its speed another 5% more.", "cost": 200, "requires": "better_propellant"},
+	"engine_uprate": {"title": "Rocket engine uprate", "text": "Every rocket engine's Isp goes up 2%, so every rocket goes a little faster.", "cost": 240},
+	"lithium_tanks": {"title": "Aluminum-lithium tanks", "text": "Rocket tanks weigh 10% less when empty (the Space Shuttle's Super Lightweight Tank did this).", "cost": 190},
+	"reusable_boosters": {"title": "Reusable boosters", "text": "Rockets cost 15% less to launch.", "cost": 260},
+	"bulk_contracts": {"title": "Bulk part contracts", "text": "Spacecraft parts cost 10% less.", "cost": 170},
+	"precision_navigation": {"title": "Optical navigation", "text": "Arrivals are aimed more precisely: braking into orbit needs 5% less speed change.", "cost": 150},
+	# Communications
+	"laser_comms": {"title": "Laser communications", "text": "Sends data home 30% faster again (like the DSOC laser that flew on Psyche).", "cost": 230, "requires": "ka_band"},
+	"dsn_priority": {"title": "Deep Space Network priority", "text": "A small antenna gets another 10% of your science home.", "cost": 140},
+	"data_compression": {"title": "Onboard data compression", "text": "Instruments make 40% less data, so the data recorder fills up more slowly.", "cost": 100},
+	# Science
+	"cryo_detectors": {"title": "Cryocooled detectors", "text": "Every instrument starts the mission with another 4 science.", "cost": 250, "requires": "instruments"},
+	"auto_targeting": {"title": "Autonomous science targeting", "text": "Rovers get 2 more science from every target they study.", "cost": 130},
+	"lab_power": {"title": "Sample lab power budget", "text": "One more instrument run when identifying rock samples.", "cost": 120},
+	"force_sensors": {"title": "Arm force sensors", "text": "The robotic arm's strain builds 40% more slowly when it bumps something.", "cost": 90},
+	# Piloting and rovers
+	"collision_radar": {"title": "Collision-avoidance radar", "text": "Rocks in the belts have to come 15% closer to count as a hit.", "cost": 140},
+	"rcs_upgrade": {"title": "Upgraded thrusters", "text": "20% more push for steering through belts, and 30% more propellant in the docking trainer and sample return.", "cost": 160},
+	"titanium_wheels": {"title": "Titanium wheels", "text": "Rover wheels take 40% less damage (Curiosity's aluminum wheels got holes from sharp rocks).", "cost": 120},
+	# Program
+	"partners": {"title": "International partners", "text": "Every mission budget is another 10% bigger, like ESA and JAXA joining a NASA mission.", "cost": 280, "requires": "funding"},
+	"outreach": {"title": "Public outreach", "text": "Every mission earns 15% more XP.", "cost": 110},
+	"university_labs": {"title": "University partnerships", "text": "The science your missions send home earns 20% more research points.", "cost": 300},
 }
 
 const ACHIEVEMENTS = {
@@ -91,9 +120,9 @@ static func record_mission(data, report):
 	var summary = {"xp_before": data["xp"], "rank_before": rank_for(data["xp"])}
 	var xp_multiplier = [0.8, 1.0, 1.5][clamp(report["difficulty"], 0, 2)]
 	var xp = 20 if report["lost"] else report["score"] + 40 * report["directives_done"]
-	summary["xp_gained"] = int(round(xp * xp_multiplier))
+	summary["xp_gained"] = int(round(xp * xp_multiplier * (1.15 if "outreach" in data["upgrades"] else 1.0)))
 	# The science that made it home becomes research points (a lost mission still teaches a little)
-	var research = int(max(report["science"], 0) * (0.25 if report["lost"] else report["data_share"]))
+	var research = int(max(report["science"], 0) * (0.25 if report["lost"] else report["data_share"]) * (1.2 if "university_labs" in data["upgrades"] else 1.0))
 	summary["research_gained"] = research
 	data["xp"] += summary["xp_gained"]
 	data["research"] += research
@@ -157,6 +186,8 @@ static func award(data, achievement_id):
 # Buys an upgrade if there are enough research points. Returns true if it was bought.
 static func buy_upgrade(data, upgrade_id):
 	if not UPGRADES.has(upgrade_id) or upgrade_id in data["upgrades"]:
+		return false
+	if UPGRADES[upgrade_id].has("requires") and not UPGRADES[upgrade_id]["requires"] in data["upgrades"]:
 		return false
 	if data["research"] < UPGRADES[upgrade_id]["cost"]:
 		return false
