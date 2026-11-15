@@ -133,7 +133,7 @@ theme_override_styles/panel = SubResource("panel_style")
 
 [node name="Column" type="VBoxContainer" parent="CollectStage/Side" unique_id=1674571445]
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 7
 
 [node name="Kicker" type="Label" parent="CollectStage/Side/Column" unique_id=1044012852]
 layout_mode = 2
@@ -145,8 +145,16 @@ text = "STEP 1  ·  ROBOTIC ARM"
 [node name="Help" type="Label" parent="CollectStage/Side/Column" unique_id=1461414906]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.78, 0.83, 0.9, 1)
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 12
 text = "Controls"
+autowrap_mode = 3
+
+[node name="Steps" type="Label" parent="CollectStage/Side/Column"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(1, 0.86, 0.55, 1)
+theme_override_font_sizes/font_size = 12
+text = "▶  Tool on the spot"
 autowrap_mode = 3
 
 [node name="Status" type="Label" parent="CollectStage/Side/Column" unique_id=502624625]
@@ -173,7 +181,7 @@ show_percentage = false
 layout_mode = 2
 theme_type_variation = &"DataLabel"
 theme_override_font_sizes/font_size = 11
-text = "STRAIN ON THE ARM"
+text = "STRAIN ON THE ARM (FAULT AT 100%)"
 
 [node name="StressBar" type="ProgressBar" parent="CollectStage/Side/Column" unique_id=1364417175]
 custom_minimum_size = Vector2(0, 10)

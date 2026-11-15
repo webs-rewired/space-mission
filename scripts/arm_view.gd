@@ -19,7 +19,12 @@ var tool_angle = -1.57                # the turret's direction (radians, world a
 var upper_length = 1.0
 var lower_length = 0.8
 var tool_length = 0.25
-var rock_points = PackedVector2Array()  # the rock's outline (meters)
+var rock_points = PackedVector2Array()  # the target rock's outline (meters)
+var rocks = []                          # every rock in view: {"points", "color", "look", "features"} (set_rocks)
+var soil_patch = {}                     # a scoop site's soil heap at the spot: {"color", "look"} (empty for rock sites)
+var abraded = false                     # the abrasion patch is ground: fresh rock shows at the spot
+var fresh_color = Color(0.5, 0.5, 0.5)  # the rock's true color under its dusty rind
+var tool_wiggle = 0.0                   # the scoop shaking its sieve (radians)
 var spot = Vector2(1.4, 0.3)          # the sample spot (meters)
 var spot_normal = Vector2(0, 1)   # straight up (in these meters y points up, unlike the screen)
 var inlet = Vector2(0.25, 1.05)       # where the sample goes in, on the front of the deck (within the arm's reach,
@@ -104,8 +109,12 @@ func _draw():
 	for mark in range(-2, 7):
 		var place = to_screen(Vector2(mark * 0.5, 0))
 		draw_line(place, place + Vector2(0, 6), Color(1, 1, 1, 0.25), 1.0)
-	# The rock: shadow on the ground, a lit face and a shaded face, and layers if it's layered
-	if rock_points.size() >= 3:
+	# The rocks, each with its own texture (geology_samples.gd LOOKS), and a scoop site's soil heap
+	for rock in rocks:
+		draw_rock(rock, ground_top)
+	if not soil_patch.is_empty():
+		draw_soil_patch(ground_top)
+	if rocks.is_empty() and rock_points.size() >= 3:
 		var screen_rock = PackedVector2Array()
 		var left_x = INF
 		var right_x = -INF
@@ -130,6 +139,11 @@ func _draw():
 			draw_line(Vector2(left_x + 6, layer_y), Vector2(right_x - 6, layer_y + 2), Color(rock_color.lightened(0.2), 0.35), 1.0, true)
 		screen_rock.append(screen_rock[0])
 		draw_polyline(screen_rock, rock_color.lightened(0.3), 1.5, true)
+	# The abrasion patch: a stripe of fresh, unweathered rock where the abrader ground the rind away
+	if abraded:
+		var patch_center = to_screen(spot)
+		var across = Vector2(spot_normal.y, spot_normal.x) * 0.045 * pixels_per_meter
+		draw_line(patch_center - across, patch_center + across, fresh_color.lightened(0.15), 4.0, true)
 	# The sample spot (it pulses until the sample is taken)
 	if not spot_taken:
 		var pulse = 0.6 + 0.4 * sin(clock * 4.0)
@@ -200,12 +214,110 @@ func draw_rover():
 			draw_line(center + Vector2(cos(angle), sin(angle)) * radius * 0.9, center + Vector2(cos(angle), sin(angle)) * radius * 1.05, Color(0.45, 0.46, 0.5), 2.0, true)
 		draw_circle(center, radius * 0.18, Color(0.75, 0.76, 0.8))
 
+# The rocks: set by sample_lab.gd as [{"points": PackedVector2Array (meters), "color", "look"}]. The texture
+# marks (gas holes, crystals, layers...) are placed once here, inside each outline.
+func set_rocks(new_rocks):
+	rocks = new_rocks
+	var random = RandomNumberGenerator.new()
+	random.seed = 4711 + new_rocks.size()
+	for rock in rocks:
+		var points = rock["points"]
+		var low = Vector2(INF, INF)
+		var high = Vector2(-INF, -INF)
+		for point in points:
+			low = Vector2(min(low.x, point.x), min(low.y, point.y))
+			high = Vector2(max(high.x, point.x), max(high.y, point.y))
+		var features = []
+		for attempt in 120:
+			var place = Vector2(random.randf_range(low.x, high.x), random.randf_range(low.y, high.y))
+			if Geometry2D.is_point_in_polygon(place, points) and features.size() < 26:
+				features.append([place, random.randf_range(0.6, 1.4), random.randf_range(-1.0, 1.0)])
+		rock["features"] = features
+
+func draw_rock(rock, ground_top):
+	var screen_rock = PackedVector2Array()
+	var left_x = INF
+	var right_x = -INF
+	var top_y = INF
+	for point in rock["points"]:
+		var place = to_screen(point)
+		screen_rock.append(place)
+		left_x = min(left_x, place.x)
+		right_x = max(right_x, place.x)
+		top_y = min(top_y, place.y)
+	var color = rock["color"]
+	var shadow = PackedVector2Array()
+	for step in 24:
+		var angle = TAU * step / 24.0
+		shadow.append(Vector2((left_x + right_x) / 2.0 + 18.0, ground_top + 3.0) + Vector2(cos(angle) * (right_x - left_x) * 0.62, sin(angle) * 7.0))
+	draw_colored_polygon(shadow, Color(0, 0, 0, 0.3))
+	draw_colored_polygon(screen_rock, color.darkened(0.25))
+	# the sunlit upper left part
+	var lit = PackedVector2Array()
+	for place in screen_rock:
+		lit.append(place.lerp(Vector2(left_x, ground_top - (right_x - left_x) * 0.6), 0.18))
+	draw_colored_polygon(lit, color)
+	var look = rock["look"]
+	if look == "vesicles":
+		for feature in rock["features"]:
+			draw_circle(to_screen(feature[0]), 1.6 * feature[1], color.darkened(0.55))
+	elif look == "crystals":
+		for feature in rock["features"]:
+			var place = to_screen(feature[0])
+			var glint = Color(color.lightened(0.5), 0.6 + 0.4 * sin(clock * 2.0 + feature[2] * 6.0))
+			draw_line(place - Vector2(2.5, 0) * feature[1], place + Vector2(2.5, 0) * feature[1], glint, 1.2)
+			draw_line(place - Vector2(0, 2.5) * feature[1], place + Vector2(0, 2.5) * feature[1], glint, 1.2)
+	elif look == "spheres":
+		for feature in rock["features"]:
+			var place = to_screen(feature[0])
+			draw_circle(place, 2.4 * feature[1], color.darkened(0.35))
+			draw_circle(place - Vector2(0.7, 0.7), 0.9 * feature[1], color.lightened(0.35))
+	elif look == "vein":
+		var vein = PackedVector2Array()
+		for step in 9:
+			var along = step / 8.0
+			vein.append(Vector2(lerp(left_x + 4.0, right_x - 4.0, along), lerp(ground_top - 4.0, top_y + 8.0, along) + sin(along * 17.0) * 3.0))
+		draw_polyline(vein, Color(0.95, 0.93, 0.88), 3.0, true)
+	elif look in ["layers", "soil"]:
+		for layer in 6:
+			var layer_y = lerp(ground_top, top_y, (layer + 1) / 7.0)
+			draw_line(Vector2(left_x + 5, layer_y), Vector2(right_x - 5, layer_y + 1.5), Color(color.lightened(0.25), 0.4), 1.0, true)
+	elif look == "fragments":
+		for feature in rock["features"].slice(0, 12):
+			var place = to_screen(feature[0])
+			var piece = 3.5 * feature[1]
+			draw_colored_polygon(PackedVector2Array([place + Vector2(-piece, 0), place + Vector2(0, -piece * 0.8), place + Vector2(piece, piece * 0.3), place + Vector2(0, piece)]),
+				color.lightened(0.25) if feature[2] > 0.0 else color.darkened(0.35))
+	elif look == "crust":
+		var coat = PackedVector2Array()
+		for index in range(1, screen_rock.size() - 1):
+			coat.append(screen_rock[index])
+		draw_polyline(coat, color.lightened(0.45), 4.0, true)
+	elif look == "ice":
+		draw_line(Vector2(left_x + (right_x - left_x) * 0.25, top_y + 6.0), Vector2(left_x + (right_x - left_x) * 0.55, top_y + 10.0), Color(1, 1, 1, 0.55), 2.0, true)
+	var outline = screen_rock.duplicate()
+	outline.append(screen_rock[0])
+	draw_polyline(outline, color.lightened(0.3), 1.5, true)
+
+# A scoop site's sample: a low heap of loose soil, colored like the material it is
+func draw_soil_patch(ground_top):
+	var center = to_screen(spot)
+	var color = soil_patch["color"]
+	var heap = PackedVector2Array()
+	for step in 17:
+		var along = step / 16.0
+		heap.append(Vector2(center.x - 30.0 + 60.0 * along, ground_top + 1.0 - sin(along * PI) * 8.0))
+	draw_colored_polygon(heap, color)
+	for grain in 14:
+		var x = center.x - 24.0 + fmod(grain * 37.0, 48.0)
+		draw_circle(Vector2(x, ground_top - 2.0 - fmod(grain * 13.0, 4.0)), 1.1, color.lightened(0.3) if grain % 2 == 0 else color.darkened(0.3))
+
 func draw_arm():
-	# The arm: shoulder, upper arm, elbow, forearm, wrist and the tool turret
+	# The arm: shoulder, upper arm, elbow, forearm, wrist and the tool turret (shaking when it sieves)
 	var shoulder = to_screen(base)
 	var elbow = to_screen(elbow_position())
 	var wrist = to_screen(wrist_position())
-	var tip = to_screen(tool_tip())
+	var tip = to_screen(wrist_position() + Vector2(cos(tool_angle + tool_wiggle), sin(tool_angle + tool_wiggle)) * tool_length)
 	var arm_color = ARM_COLOR.lerp(Color(1.0, 0.4, 0.35), clamp(stress / 100.0, 0.0, 1.0))
 	draw_line(shoulder + Vector2(3, 3), elbow + Vector2(3, 3), Color(0, 0, 0, 0.25), 9.0, true)
 	draw_line(elbow + Vector2(3, 3), wrist + Vector2(3, 3), Color(0, 0, 0, 0.25), 8.0, true)

@@ -88,6 +88,9 @@ const ACHIEVEMENTS = {
 	"gold_plan": {"title": "Gravity master", "text": "Earn a gold plan in the flyby planner."},
 	"smooth_operator": {"title": "Smooth operator", "text": "Earn a gold traverse rating with a rover."},
 	"overachiever": {"title": "Overachiever", "text": "Earn 3 gold medals in minigames during one mission."},
+	"astrobiologist": {"title": "Astrobiologist", "text": "Report a potential biosignature honestly, with contamination ruled out and the place shown habitable."},
+	"seismologist": {"title": "Seismologist", "text": "Locate a quake within 10% of its real distance."},
+	"rock_hound": {"title": "Rock hound", "text": "Earn gold in the sample lab."},
 }
 
 static func load_data():
