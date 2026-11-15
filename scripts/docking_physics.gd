@@ -23,6 +23,7 @@ const MEAN_MOTION = TAU / ORBIT_SECONDS
 # Position and velocity in the station's frame (meters, meters per second): x up, y forward, z sideways
 var position = Vector3.ZERO
 var velocity = Vector3.ZERO
+var mean_motion = MEAN_MOTION     # radians per second around the world being orbited (the Space Station's by default)
 
 func set_state(new_position, new_velocity):
 	position = new_position
@@ -34,7 +35,7 @@ func step(delta, thrust_acceleration := Vector3.ZERO, longest_step := 0.02):
 	var steps = max(1, int(ceil(delta / longest_step)))
 	var small = delta / steps
 	for index in steps:
-		var n = MEAN_MOTION
+		var n = mean_motion
 		var acceleration = Vector3(
 			3.0 * n * n * position.x + 2.0 * n * velocity.y,
 			-2.0 * n * velocity.x,
@@ -44,5 +45,5 @@ func step(delta, thrust_acceleration := Vector3.ZERO, longest_step := 0.02):
 
 # The drift orbital mechanics alone adds per second right now (for the screen's "drift" readout)
 func natural_acceleration():
-	var n = MEAN_MOTION
+	var n = mean_motion
 	return Vector3(3.0 * n * n * position.x + 2.0 * n * velocity.y, -2.0 * n * velocity.x, -n * n * position.z)

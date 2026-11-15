@@ -33,6 +33,7 @@ const OBJECTIVES = {
 @onready var throttle_slider: HSlider = $Layout/Left/ThrottleRow/Throttle
 @onready var throttle_label: Label = $Layout/Left/ThrottleValue
 @onready var mixture_slider: HSlider = $Layout/Left/MixtureRow/Mixture
+@onready var keys_row: Control = $Layout/Left/KeyHints
 @onready var mixture_label: Label = $Layout/Left/MixtureValue
 @onready var place_picker: OptionButton = $Layout/Left/PlacePicker
 @onready var ignite_button: Button = $Layout/Left/Buttons/IgniteButton
@@ -57,6 +58,7 @@ var model = EngineModel.new()
 var engine_ids = []
 var objective_id = "rated_power"
 var clock = 0.0
+var warned_fixed_thrust = false
 var sample_timer = 0.0
 var progress_seconds = 0.0    # time spent meeting the objective
 var best_isp_seen = 0.0
@@ -211,15 +213,28 @@ func bucket_band(seconds):
 
 func _process(delta):
 	clock += delta
-	# Keys: W/S throttle, A/D mixture
-	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
-		throttle_slider.value += 30.0 * delta
-	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
-		throttle_slider.value -= 30.0 * delta
-	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
-		mixture_slider.value += model.details[1] * 0.12 * delta
-	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
-		mixture_slider.value -= model.details[1] * 0.12 * delta
+	# Keys: W/S throttle, A/D mixture. The changes build up in the model's own numbers (a slider rounds each
+	# change to its step, so at a high frame rate tiny per-frame changes would round away and the keys would
+	# seem dead), then the sliders just show them.
+	var throttle_keys = (1.0 if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP) else 0.0) - (1.0 if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN) else 0.0)
+	var mixture_keys = (1.0 if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT) else 0.0) - (1.0 if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT) else 0.0)
+	if throttle_keys != 0.0:
+		if model.can_throttle():
+			model.throttle = clamp(model.throttle + throttle_keys * 0.3 * delta, throttle_slider.min_value / 100.0, throttle_slider.max_value / 100.0)
+			throttle_slider.set_value_no_signal(model.throttle * 100.0)
+			update_control_labels()
+		elif not warned_fixed_thrust:
+			warned_fixed_thrust = true
+			GameState.show_toast("Fixed thrust", "%s can't throttle: like the real engine, it only runs at full power. Try Merlin, RS-25 or Raptor." % model.engine.get("name", "This engine"), "info")
+	if mixture_keys != 0.0:
+		model.mixture = clamp(model.mixture + mixture_keys * model.details[1] * 0.12 * delta, mixture_slider.min_value, mixture_slider.max_value)
+		mixture_slider.set_value_no_signal(model.mixture)
+		update_control_labels()
+	keys_row.light_key("W", throttle_keys > 0.0)
+	keys_row.light_key("S", throttle_keys < 0.0)
+	keys_row.light_key("A", mixture_keys < 0.0)
+	keys_row.light_key("D", mixture_keys > 0.0)
+	keys_row.light_key("Space", Input.is_key_pressed(KEY_SPACE))
 	var was_running = model.running
 	model.step(delta)
 	if was_running and not model.running and model.failed != "":
@@ -313,6 +328,12 @@ func end_test(failure_reason):
 		research = max(medal[3] - previous_medal_points, 0)
 	tests[key] = max(previous_best, score)
 	GameState.career["engine_tests"] = tests
+	var golds = 0
+	for test_key in tests:
+		if tests[test_key] >= MEDALS[0][0]:
+			golds += 1
+	if golds >= 5:
+		GameState.award_achievement("test_stand")
 	GameState.career["research"] = GameState.career.get("research", 0) + research
 	Career.save_data(GameState.career)
 	result_title.text = (medal[1] + " MEDAL  ·  %d / 100" % score) if medal else "TEST FAILED  ·  %d / 100" % score
@@ -326,6 +347,7 @@ func end_test(failure_reason):
 	result_text.text = "\n".join(lines)
 	result_box.visible = true
 	UiMotion.pop_in(result_box, 0.0, 0.5)
+	UiMotion.stamp(result_title, 0.3)
 	if research > 0:
 		GameState.show_toast("%s medal" % medal[1].capitalize(), "%s, %s test. +%d research points." % [RocketData.ENGINES[model.engine_id]["name"], OBJECTIVES[objective_id][0].to_lower(), research], "research")
 	play_sound("confirm" if medal else "alarm")

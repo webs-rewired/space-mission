@@ -1,5 +1,7 @@
 [gd_scene format=3 uid="uid://doyaxm8ggn7m0"]
 
+[ext_resource type="PackedScene" path="res://scenes/key_hints.tscn" id="91_keys"]
+[ext_resource type="Texture2D" path="res://assets/textures/2k_stars_milky_way.jpg" id="90_stars"]
 [ext_resource type="Script" uid="uid://b77xscy5wbjju" path="res://scripts/sample_lab.gd" id="1_lab"]
 [ext_resource type="Script" uid="uid://dhxhep08pd0pl" path="res://scripts/arm_view.gd" id="2_arm"]
 
@@ -57,7 +59,20 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.01, 0.015, 0.03, 0.95)
+color = Color(0.01, 0.015, 0.03, 1)
+
+[node name="Stars" type="TextureRect" parent="."]
+modulate = Color(1, 1, 1, 0.22)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("90_stars")
+expand_mode = 1
+stretch_mode = 6
 
 [node name="Header" type="HBoxContainer" parent="." unique_id=959864557]
 layout_mode = 1
@@ -166,6 +181,11 @@ layout_mode = 2
 theme_override_styles/background = SubResource("bar_back")
 theme_override_styles/fill = SubResource("stress_fill")
 show_percentage = false
+
+[node name="KeyHints" parent="CollectStage/Side/Column" instance=ExtResource("91_keys")]
+layout_mode = 2
+alignment = 0
+hints = [["A D", "shoulder"], ["W S", "elbow"], ["Q E", "tool"], ["Space", "drill / drop"]]
 
 [node name="Spacer" type="Control" parent="CollectStage/Side/Column" unique_id=1954138639]
 layout_mode = 2

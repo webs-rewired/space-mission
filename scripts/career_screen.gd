@@ -12,6 +12,7 @@ const SolarSystemData = preload("res://scripts/solar_system_data.gd")
 const TAB_NAMES = ["research", "achievements", "best", "training"]
 const DOCKING_SCENE = preload("res://scenes/docking.tscn")
 const ENGINE_LAB_SCENE = preload("res://scenes/engine_test_lab.tscn")
+const MinigameLayer = preload("res://scripts/minigame_layer.gd")
 
 @onready var panel: PanelContainer = $Center/Panel
 @onready var rank_label: Label = $Center/Panel/Column/Header/TitleBlock/Rank
@@ -180,7 +181,7 @@ func fill_simulators():
 		simulators_grid.remove_child(old)
 		old.queue_free()
 	var docking_best = GameState.career.get("docking_best", 0)
-	add_simulator_card("Docking trainer", "Fly the last meters to the Space Station's forward or zenith port through the docking camera, with real orbital mechanics pulling you off course.",
+	add_simulator_card("Docking trainer", "Practice for sample-return missions: fly the last meters to the Space Station's forward or zenith port through the docking camera, with real orbital mechanics pulling you off course.",
 		"Best: %d / 100" % docking_best if docking_best > 0 else "Not flown yet", open_docking)
 	var engine_tests = GameState.career.get("engine_tests", {})
 	var engine_best = 0
@@ -224,13 +225,9 @@ func add_simulator_card(title, text, best_text, action):
 
 # A simulator opens on its own layer above the menus; the career screen refreshes when it closes
 func show_simulator(simulator):
-	var simulator_layer = CanvasLayer.new()
+	var simulator_layer = MinigameLayer.show_minigame(get_tree().root, simulator, 105)   # (above the main menu's 100)
 	simulator_layer.name = "SimulatorLayer"
-	simulator_layer.layer = 110
-	get_tree().root.add_child(simulator_layer)
-	simulator_layer.add_child(simulator)
 	simulator.tree_exited.connect(func():
-		simulator_layer.queue_free()
 		if is_inside_tree():
 			refresh())
 

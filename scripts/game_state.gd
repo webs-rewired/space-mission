@@ -54,6 +54,16 @@ func show_toast(title, text, kind = "achievement"):
 	if toasts and is_instance_valid(toasts):
 		toasts.show_toast(title, text, kind)
 
+# An achievement earned in a minigame: saved now, with a toast (mission achievements come with the mission report)
+func award_achievement(achievement_id):
+	if Career.award(career, achievement_id):
+		Career.save_data(career)
+		show_toast("Achievement: " + Career.ACHIEVEMENTS[achievement_id]["title"], Career.ACHIEVEMENTS[achievement_id]["text"], "achievement")
+
+# A gold medal in any minigame during a mission counts toward the Overachiever achievement
+func note_gold_medal():
+	add_mission_stat("gold_medals")
+
 # Checks that every file the game needs is in the project, and says so on screen if one isn't
 # (the list is in scripts/required_files.gd)
 func check_game_files():
@@ -353,6 +363,9 @@ const PARTS = {
 	"instrument_arm": {"slot": "instrument", "name": "Robotic arm (landers only)", "mass": 45, "cost": 50, "power_used": 25,
 		"like": "Like Curiosity's 2.1 m arm",
 		"about": "Picks up rocks and soil and holds instruments right against them. Landers only."},
+	"instrument_sample_return": {"slot": "instrument", "name": "Sample return (landers only)", "mass": 320, "cost": 140, "power_used": 15,
+		"like": "Like China's Chang'e 5, which brought 1,731 g of Moon rock home in 2020",
+		"about": "An ascent rocket on the lander and a return capsule on the orbiter. The rock samples you collect fly up and dock with the orbiter, then ride home, where labs study them for decades. Heavy and expensive: your rocket has to carry it all."},
 	# Structure
 	"structure_aluminum": {"slot": "structure", "name": "Aluminum honeycomb frame", "mass": 0, "cost": 0,
 		"like": "Like Mars Reconnaissance Orbiter and most probes",
@@ -386,7 +399,7 @@ const PARTS = {
 const INSTRUMENT_DATA_MB_PER_DAY = {
 	"instrument_camera": 900.0, "instrument_spectrometer": 300.0, "instrument_radar": 1500.0, "instrument_magnetometer": 5.0,
 	"instrument_drill": 10.0, "instrument_seismometer": 30.0, "instrument_thermal": 250.0, "instrument_mass_spec": 40.0,
-	"instrument_altimeter": 120.0, "instrument_particles": 15.0, "instrument_arm": 20.0,
+	"instrument_altimeter": 120.0, "instrument_particles": 15.0, "instrument_arm": 20.0, "instrument_sample_return": 0.0,
 }
 # Where each instrument does its best science (the right tool for the place). Anywhere else it does less.
 # Cameras and spectrometers are useful everywhere.
@@ -400,8 +413,9 @@ const INSTRUMENT_BEST_AT = {
 	"instrument_altimeter": ["Moon", "Mars", "Mercury", "Ceres", "Phobos", "Deimos", "Pluto", "Charon", "Ganymede", "Callisto"],
 	"instrument_particles": ["Jupiter", "Io", "Europa", "Ganymede", "Saturn", "Uranus", "Neptune", "Callisto", "Titan"],
 	"instrument_arm": ["Mars", "Moon", "Ceres", "Europa", "Titan", "Mercury", "Enceladus"],
+	"instrument_sample_return": ["Moon", "Mars", "Ceres", "Mercury", "Phobos", "Deimos", "Europa", "Enceladus", "Titan"],
 }
-const LANDER_ONLY_INSTRUMENTS = ["instrument_drill", "instrument_seismometer", "instrument_arm"]
+const LANDER_ONLY_INSTRUMENTS = ["instrument_drill", "instrument_seismometer", "instrument_arm", "instrument_sample_return"]
 
 # How much science an instrument is worth here: 18 when it's the right tool for the place, 6 when it isn't
 # (a lander-only instrument on an orbiter does nothing). Cameras and spectrometers are always worth 12.
@@ -843,10 +857,10 @@ func add_mission_stat(stat_name, amount = 1):
 # tank carries more for them, and the Extra thruster fuel upgrade adds 40%), and how hard they push the
 # spacecraft sideways (thrust divided by mass: a heavier spacecraft is more sluggish)
 func thruster_seconds():
-	var seconds = 12.0 if choices.get("fuel", "") == "fuel_large" else 8.0
+	var seconds = 20.0 if choices.get("fuel", "") == "fuel_large" else 14.0
 	if has_upgrade("thruster_fuel"):
 		seconds *= 1.4
-	return seconds
+	return seconds * [1.5, 1.0, 0.75][clamp(difficulty, 0, 2)]
 
 func thruster_acceleration():
 	return 4.5 * clamp(sqrt(900.0 / max(total_mass(), 1.0)), 0.6, 1.5)
@@ -943,6 +957,9 @@ func apply_event(event):
 # The result of the Orbital Insertion minigame (scripts/orbital_insertion.gd). Returns {"text", "ok"}.
 # A tight orbit means more time close to the world (more science); a huge looping one means less.
 func apply_insertion(result):
+	add_mission_stat("insertion_" + result.get("rating", "missed"))
+	if result.get("rating", "") == "excellent":
+		note_gold_medal()
 	var text = ""
 	var place = "the Moon" if destination == "Moon" else destination
 	var ok = true

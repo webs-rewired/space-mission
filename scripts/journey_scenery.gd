@@ -50,7 +50,7 @@ const ROUTE_SWING_LIMIT = 1.12       # a coasting route may swing this far past 
 const SHORTEST_BELT = 0.08           # a belt covers at least this share of the trip, so there's time to steer
 const DODGE_ROCKS_PER_BELT = 12      # the rocks near the path (the ones you can hit)
 const DODGE_REACH = 0.95             # they sit at most this far from the middle of the path (you can steer 1.4 away)
-const ROCKS_FOR_DIFFICULTY = [0.65, 1.0, 1.45]   # fewer rocks for a Cadet, more for a Veteran
+const ROCKS_FOR_DIFFICULTY = [0.5, 0.85, 1.3]   # fewer rocks for a Cadet, more for a Veteran
 # Science shards: glowing bits of ice and dust in a belt that the probe can fly into for bonus science.
 # They come in short lines of three, so flying straight through a line makes a combo (launch.gd counts them).
 const SHARD_LINES_PER_BELT = 3

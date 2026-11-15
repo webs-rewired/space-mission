@@ -15,10 +15,23 @@ extends Control
 # To dock, touch the port slowly, centered and lined up. Scoring: docked 50, contact speed 15, centering 15,
 # lined up 10, propellant left 10. Medals, personal best and research points like the other minigames.
 # Opened from the career screen's Training tab; closing it sends closed. A failed docking only ends the attempt.
+#
+# SAMPLE RETURN (start_sample_return): on a landing mission with the Sample return part, the ascent stage carrying
+# your rock samples has to dock with your orbiter around that world, like China's Chang'e 5 did at the Moon in
+# 2020. The same flying, around the destination instead of Earth, with two approaches' worth of propellant.
+# Sends sample_return_finished({"docked", "score"}) when it's over.
 
 signal closed
+signal sample_return_finished(result)
 
 const DockingPhysics = preload("res://scripts/docking_physics.gd")
+const SolarSystemData = preload("res://scripts/solar_system_data.gd")
+const SpaceTextures = preload("res://scripts/space_textures.gd")
+const OrbitScience = preload("res://scripts/orbit_science.gd")
+const OrbitPhysics = preload("res://scripts/orbit_physics.gd")
+const EARTH_TEXTURE = preload("res://assets/textures/2k_earth_daymap.jpg")
+const WORLD_SCALE = 2.0         # meters in the 3D view for each real kilometer of the world below (500× smaller)
+const AIR_COLORS = {"Earth": Color(0.35, 0.6, 1.0, 0.22), "Mars": Color(0.85, 0.6, 0.45, 0.12), "Titan": Color(0.95, 0.65, 0.3, 0.35), "Venus": Color(1.0, 0.9, 0.6, 0.3)}
 const Career = preload("res://scripts/career.gd")
 const MEDALS = [[85, "GOLD", Color(1.0, 0.82, 0.35), 15], [65, "SILVER", Color(0.8, 0.85, 0.92), 8], [40, "BRONZE", Color(0.85, 0.55, 0.35), 4]]
 
@@ -45,6 +58,8 @@ const TARGETS = {
 		"lesson": "You and the station are both in orbit. Coming in from in front, you're a little slower than the station, so you slowly sink toward Earth (the Clohessy-Wiltshire equations NASA plans rendezvous with). Keep nudging up."},
 	"zenith": {"title": "Zenith port (R-bar)", "station": "StationZenith", "where": "above the station's zenith port, with Earth below",
 		"lesson": "Above the station, tides in Earth's gravity slowly push you farther up, and moving down toward the port makes you drift forward (the Coriolis term in the Clohessy-Wiltshire equations). Keep braking and nudging back."},
+	"orbiter": {"title": "Sample return", "station": "Orbiter", "where": "in front of your orbiter",
+		"lesson": "Your ascent stage is carrying the samples. Dock with the orbiter and they ride home; miss, and they stay behind. Orbital mechanics still pulls you off course, at this world's own orbital rate."},
 }
 
 @onready var camera: Camera3D = $View/Viewport/World/Camera
@@ -62,6 +77,8 @@ const TARGETS = {
 @onready var limits_label: Label = $Right/Column/Limits
 @onready var lesson_label: Label = $Right/Column/Lesson
 @onready var target_picker: OptionButton = $Bottom/TargetPicker
+@onready var checklist_label: Label = $Right/Column/Checklist
+@onready var keys_row: Control = $Right/Column/KeyHints
 
 var physics = DockingPhysics.new()
 var attitude = Vector3.ZERO        # pitch, yaw, roll in degrees
@@ -83,6 +100,12 @@ var target = "forward"
 var capture_offset = 0.2           # this attempt's limits (from CAPTURE_OFFSETS and CAPTURE_ANGLES)
 var capture_angle = 4.0
 var base = Basis.IDENTITY          # the docking camera's direction when lined up with the port (3D world)
+var sample_return = false          # flying the sample-return ascent stage on a mission (not the trainer)
+var return_world = "Moon"
+var attempts_left = 2
+var reported = false               # (sample return: the result has been sent)
+var return_result = {"docked": false, "score": 0}
+var current_step = ""              # what to do next, for the status line
 
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -102,8 +125,21 @@ func _ready():
 	UiMotion.stagger([$Left, $Right], 0.2, 0.1, Vector2(0, 16), 0.6)
 
 func close():
+	if sample_return and not reported:
+		reported = true
+		sample_return_finished.emit(return_result)
 	closed.emit()
 	queue_free()
+
+# A mission's sample return: dock the ascent stage with the orbiter around this world
+func start_sample_return(world):
+	sample_return = true
+	return_world = world
+	target = "orbiter"
+	attempts_left = 2
+	target_picker.visible = false
+	restart_button.visible = false
+	start()
 
 # The 3D world has y up and the station flying toward +z; the orbit frame has x up (away from Earth), y forward,
 # z sideways. The port frame is right, up and range (out along the docking axis) as the docking camera sees them.
@@ -129,20 +165,62 @@ func port_velocity():
 func set_up_target():
 	for target_id in TARGETS:
 		get_node("View/Viewport/World/" + TARGETS[target_id]["station"]).visible = target_id == target
+	set_up_world(return_world if target == "orbiter" else "Earth")
 	if target == "zenith":
 		# Looking straight down at the port, with the station's direction of flight at the top of the picture
 		base = Basis(Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 1, 0))
 	else:
 		base = Basis.IDENTITY
 	lesson_label.text = TARGETS[target]["lesson"]
-	$Header/Title.text = "DOCKING TRAINER  ·  SPACE STATION %s" % TARGETS[target]["title"].to_upper()
-	target_picker.selected = TARGETS.keys().find(target)
+	if target == "orbiter":
+		$Header/Title.text = "SAMPLE RETURN  ·  DOCK WITH YOUR ORBITER AT %s" % SolarSystemData.BODIES.get(return_world, {}).get("label", return_world).to_upper()
+	else:
+		$Header/Title.text = "DOCKING TRAINER  ·  SPACE STATION %s" % TARGETS[target]["title"].to_upper()
+		target_picker.selected = TARGETS.keys().find(target)
+
+# The world below: Earth under the Space Station, or the mission's destination under the orbiter. It's drawn 500
+# times smaller and 500 times closer, so it fills the same part of the sky, and the orbital rate (for the
+# Clohessy-Wiltshire drift) is the real one for a low orbit there.
+func set_up_world(world):
+	var data = SolarSystemData.BODIES.get(world, {})
+	var radius_km = 6371.0 if world == "Earth" else data.get("radius_km", 1737.0)
+	var altitude_km = 420.0 if world == "Earth" else clamp(radius_km * 0.06, 15.0, 400.0)
+	var surface: MeshInstance3D = earth.get_node("Surface")
+	var clouds: MeshInstance3D = earth.get_node("Clouds")
+	var air: MeshInstance3D = $View/Viewport/World/Air
+	# (the meshes and materials are copied first, so changing them never leaks into the next time the scene opens)
+	surface.mesh = surface.mesh.duplicate()
+	surface.mesh.radius = radius_km * WORLD_SCALE
+	surface.mesh.height = radius_km * WORLD_SCALE * 2.0
+	var material = surface.get_surface_override_material(0).duplicate()
+	var map = EARTH_TEXTURE if world == "Earth" else SpaceTextures.find_texture(data.get("images", []))
+	material.albedo_texture = map
+	material.albedo_color = Color.WHITE if map else data.get("color", Color(0.6, 0.6, 0.6))
+	surface.set_surface_override_material(0, material)
+	clouds.visible = world == "Earth"
+	earth.position = Vector3(0, -(radius_km + altitude_km) * WORLD_SCALE, 0)
+	air.visible = AIR_COLORS.has(world)
+	if air.visible:
+		air.mesh = air.mesh.duplicate()
+		air.mesh.radius = (radius_km + min(100.0, radius_km * 0.03)) * WORLD_SCALE
+		air.mesh.height = air.mesh.radius * 2.0
+		var air_material = air.get_surface_override_material(0).duplicate()
+		air_material.albedo_color = AIR_COLORS[world]
+		air.set_surface_override_material(0, air_material)
+		air.position = earth.position
+	camera.far = (radius_km + altitude_km) * WORLD_SCALE * 3.0
+	if world == "Earth":
+		physics.mean_motion = DockingPhysics.MEAN_MOTION
+	else:
+		var mu = OrbitScience.WORLDS.get(world, {}).get("gm", data.get("mass_earths", 0.0123) * OrbitPhysics.EARTH_MU)
+		var orbit_radius = radius_km + altitude_km
+		physics.mean_motion = sqrt(mu / (orbit_radius * orbit_radius * orbit_radius))
 
 # A new approach: a hold point on the docking axis, a little off it and a little crooked
 func start():
 	set_up_target()
 	var difficulty = clamp(GameState.difficulty, 0, 2)
-	var distance = [20.0, 30.0, 40.0][difficulty]
+	var distance = [20.0, 30.0, 40.0][difficulty] * (0.7 if sample_return else 1.0)
 	var offset = [0.8, 1.8, 3.0][difficulty]
 	var tilt = [2.0, 4.0, 6.0][difficulty]
 	var spin = [0.0, 0.1, 0.25][difficulty]
@@ -164,9 +242,13 @@ func start():
 	fast_forward = false
 	running = true
 	finished = false
+	again_button.visible = true
+	if not sample_return:
+		again_button.text = "Fly again"
+		done_button.text = "Done"
 	last_warning = ""
 	result_box.visible = false
-	status_label.text = "Holding %d m %s. Press E to start moving in." % [int(distance), TARGETS[target]["where"]]
+	status_label.text = "Holding %d m %s. Follow the checklist on the right." % [int(distance), TARGETS[target]["where"]]
 	update_view()
 
 func set_rate_hold(on):
@@ -237,7 +319,7 @@ func _process(delta):
 		var audio = get_node_or_null("/root/AudioManager")
 		if audio:
 			audio.play_effect("thruster", -20.0 if share < 1.0 else -14.0, randf_range(1.4, 1.8))
-	earth.rotate_x(-DockingPhysics.MEAN_MOTION * delta)
+	earth.rotate_x(-physics.mean_motion * delta)
 	if port_position().z <= 0.0:
 		contact()
 		return
@@ -274,6 +356,7 @@ func update_view():
 	if forecast_wait <= 0:
 		forecast_wait = 6
 		var forecast = DockingPhysics.new()
+		forecast.mean_motion = physics.mean_motion
 		forecast.set_state(physics.position, physics.velocity)
 		var seconds = 0.0
 		while to_port_frame(forecast.position).z > 0.0 and seconds < 900.0 and to_port_frame(forecast.velocity).z < 0.0:
@@ -308,13 +391,45 @@ func update_view():
 		warning = "Off center: line up with the target before contact."
 	elif closing < -0.02:
 		warning = "Backing away from the station."
+	update_checklist(place, closing, offset)
 	if warning != "":
 		status_label.text = warning
 		if warning != last_warning:
 			reticle.flash = 0.6
-	elif clock > 1.0 and closing > 0.0:
-		status_label.text = "Line the standoff cross up with the cross behind it, then come in slowly. Shift for fine control."
+	else:
+		status_label.text = current_step
 	last_warning = warning
+	# The keys light up while held
+	for pair in [["W", KEY_W], ["A", KEY_A], ["S", KEY_S], ["D", KEY_D], ["E", KEY_E], ["Q", KEY_Q], ["Z", KEY_Z], ["C", KEY_C], ["Shift", KEY_SHIFT]]:
+		keys_row.light_key(pair[0], held(pair[1]))
+	keys_row.light_key("←", held(KEY_LEFT))
+	keys_row.light_key("→", held(KEY_RIGHT))
+	keys_row.light_key("↑", held(KEY_UP))
+	keys_row.light_key("↓", held(KEY_DOWN))
+
+# The checklist on the right: what a pilot does, in order, ticked off as each one is true right now. The first
+# one that isn't done is the next thing to do, and the status line at the bottom says exactly how.
+func update_checklist(place, closing, offset):
+	var angle = max(abs(attitude.x), abs(attitude.y), abs(attitude.z))
+	var steps = [
+		["Stop the spin", attitude_rate.length() < 0.15, "Stop the spin: press R for rate hold (or tap the arrow keys against the turn)."],
+		["Line up (gauges green)", angle <= capture_angle * 0.8, "Line up: arrow keys and Z/C until the pitch, yaw and roll gauges turn green."],
+		["Center on the target", offset.length() <= max(capture_offset * 2.0, min(0.6, place.z * 0.05)), "Center: W A S D until the orange cross sits on the black cross, inside the green circle."],
+		["Move in at 0.10 to 0.20 m/s", closing >= 0.05 or (place.z <= 5.0 and closing >= SLOWEST_CONTACT) or place.z < 1.0, "Move in: tap E until the closing rate reads 0.10 to 0.20 m/s (Shift for small taps)."],
+		["Slow down inside 5 m", place.z <= 5.0 and closing >= SLOWEST_CONTACT and closing <= 0.10,
+			("Coming in nicely at %.2f m/s. When the range reaches 5 m, tap Q to slow to 0.03 to 0.10 m/s." % closing) if place.z > 5.0 else "Slow down: tap Q until the closing rate is 0.03 to 0.10 m/s."],
+		["Touch the port", false, "Hold it steady and centered: let it drift in, and the latches catch it."],
+	]
+	var lines = []
+	current_step = ""
+	for step in steps:
+		var marker = "✓"
+		if not step[1]:
+			marker = "▶" if current_step == "" else "·"
+			if current_step == "":
+				current_step = step[2]
+		lines.append("%s  %s" % [marker, step[0]])
+	checklist_label.text = "\n".join(lines)
 
 # The spacecraft's docking ring reaches the port
 func contact():
@@ -371,7 +486,12 @@ func contact():
 		if score >= entry[0]:
 			medal = entry
 			break
+	if sample_return:
+		finish_sample_return(score, medal, closing, offset, angle)
+		return
 	var research = record_best(score, medal)
+	if medal and medal[1] == "GOLD":
+		GameState.award_achievement("ace_pilot")
 	result_title.text = ("%s · DOCKED · %d / 100" % [medal[1], score]) if medal else "DOCKED · %d / 100" % score
 	result_title.add_theme_color_override("font_color", medal[2] if medal else Color(0.75, 0.9, 1.0))
 	result_text.text = "Soft capture, then hard capture: the latches pulled the rings together.\nContact at %.3f m/s, %d cm off center, %.1f° off, after %d:%02d.\n\nSpeed %d/15 · centered %d/15 · lined up %d/10 · propellant %d/10%s" % [
@@ -388,7 +508,18 @@ func end_attempt(title, text):
 	finished = true
 	result_title.text = title
 	result_title.add_theme_color_override("font_color", Color(1.0, 0.5, 0.45))
-	result_text.text = text + "\n\nNo harm done: this is the trainer. Try again?"
+	if sample_return:
+		attempts_left -= 1
+		if attempts_left > 0:
+			result_text.text = text + "\n\nThe ascent stage backed off safely and has propellant for one more approach."
+			again_button.text = "Try again (last approach)"
+			done_button.text = "Give up on the samples"
+		else:
+			result_text.text = text + "\n\nThat was the last of the ascent stage's propellant. The samples drift away in orbit, but the rest of your mission carries on."
+			again_button.visible = false
+			done_button.text = "Continue the mission"
+	else:
+		result_text.text = text + "\n\nNo harm done: this is the trainer. Try again?"
 	reticle.flash = 1.0
 	var audio = get_node_or_null("/root/AudioManager")
 	if audio:
@@ -401,6 +532,19 @@ func show_result():
 	status_label.text = ""
 	result_box.visible = true
 	UiMotion.pop_in(result_box, 0.0, 0.5)
+	UiMotion.stamp(result_title, 0.25)
+
+# Sample return docked: the samples move into the orbiter's return capsule
+func finish_sample_return(score, medal, closing, offset, angle):
+	if medal and medal[1] == "GOLD":
+		GameState.note_gold_medal()
+	result_title.text = "SAMPLES SECURED  ·  %d / 100" % score
+	result_title.add_theme_color_override("font_color", medal[2] if medal else Color(0.5, 1.0, 0.7))
+	result_text.text = "Capture! The canister is inside the orbiter's return capsule, heading home.\nContact at %.3f m/s, %d cm off center, %.1f° off.\nA gentler, cleaner docking keeps more of the samples in perfect condition: the better your score, the more science they're worth." % [closing, int(round(offset * 100)), angle]
+	again_button.visible = false
+	done_button.text = "Bring them home"
+	return_result = {"docked": true, "score": score}
+	show_result()
 
 # Personal best and research points (only for beating your best medal)
 func record_best(score, medal):

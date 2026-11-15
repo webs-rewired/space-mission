@@ -1,0 +1,186 @@
+[gd_scene load_steps=19 format=3]
+
+[sub_resource type="StandardMaterial3D" id="gold_blanket"]
+albedo_color = Color(0.86, 0.64, 0.26, 1)
+metallic = 0.65
+roughness = 0.38
+
+[sub_resource type="StandardMaterial3D" id="metal"]
+albedo_color = Color(0.76, 0.77, 0.79, 1)
+metallic = 0.75
+roughness = 0.3
+
+[sub_resource type="StandardMaterial3D" id="solar_cells"]
+albedo_color = Color(0.06, 0.1, 0.26, 1)
+metallic = 0.5
+roughness = 0.25
+
+[sub_resource type="StandardMaterial3D" id="target_white"]
+albedo_color = Color(0.72, 0.72, 0.72, 1)
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="target_black"]
+albedo_color = Color(0.02, 0.02, 0.02, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="standoff"]
+albedo_color = Color(1, 0.75, 0.15, 1)
+emission_enabled = true
+emission = Color(1, 0.7, 0.1, 1)
+emission_energy_multiplier = 0.35
+
+[sub_resource type="StandardMaterial3D" id="light_green"]
+albedo_color = Color(0.3, 1, 0.4, 1)
+emission_enabled = true
+emission = Color(0.3, 1, 0.4, 1)
+emission_energy_multiplier = 3.0
+
+[sub_resource type="BoxMesh" id="body"]
+size = Vector3(1.8, 1.7, 2.4)
+
+[sub_resource type="TorusMesh" id="capture_ring"]
+inner_radius = 0.42
+outer_radius = 0.52
+rings = 40
+ring_segments = 10
+
+[sub_resource type="CylinderMesh" id="ring_mount"]
+top_radius = 0.55
+bottom_radius = 0.7
+height = 0.5
+radial_segments = 40
+
+[sub_resource type="BoxMesh" id="panel"]
+size = Vector3(5.2, 0.04, 1.5)
+
+[sub_resource type="BoxMesh" id="boom"]
+size = Vector3(1.2, 0.06, 0.06)
+
+[sub_resource type="CylinderMesh" id="dish"]
+top_radius = 0.65
+bottom_radius = 0.08
+height = 0.28
+radial_segments = 36
+
+[sub_resource type="CylinderMesh" id="nozzle"]
+top_radius = 0.18
+bottom_radius = 0.4
+height = 0.6
+radial_segments = 28
+
+[sub_resource type="CylinderMesh" id="backplate"]
+top_radius = 0.2
+bottom_radius = 0.2
+height = 0.02
+radial_segments = 32
+
+[sub_resource type="BoxMesh" id="cross_bar"]
+size = Vector3(0.3, 0.025, 0.012)
+
+[sub_resource type="CylinderMesh" id="standoff_post"]
+top_radius = 0.01
+bottom_radius = 0.01
+height = 0.22
+
+[sub_resource type="BoxMesh" id="standoff_bar"]
+size = Vector3(0.11, 0.018, 0.012)
+
+[sub_resource type="SphereMesh" id="port_light"]
+radius = 0.035
+height = 0.07
+
+[node name="SampleOrbiter" type="Node3D"]
+editor_description = "The orbiter that waits in orbit for a sample-return ascent stage, for the Docking Trainer's sample return (res://scenes/docking.tscn). Like China's Chang'e 5, whose ascender docked with its orbiter in lunar orbit in December 2020 to hand over 1.7 kg of Moon rock. The docking plane is at the origin and the port faces +Z. Sizes in meters (rough, built for the game)."
+
+[node name="CaptureRing" type="MeshInstance3D" parent="."]
+rotation = Vector3(1.5708, 0, 0)
+mesh = SubResource("capture_ring")
+surface_material_override/0 = SubResource("metal")
+
+[node name="RingMount" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0, -0.25)
+rotation = Vector3(1.5708, 0, 0)
+mesh = SubResource("ring_mount")
+surface_material_override/0 = SubResource("metal")
+
+[node name="Target" type="Node3D" parent="."]
+position = Vector3(0, 0, -0.2)
+
+[node name="Backplate" type="MeshInstance3D" parent="Target"]
+rotation = Vector3(1.5708, 0, 0)
+mesh = SubResource("backplate")
+surface_material_override/0 = SubResource("target_white")
+
+[node name="CrossHorizontal" type="MeshInstance3D" parent="Target"]
+position = Vector3(0, 0, 0.016)
+mesh = SubResource("cross_bar")
+surface_material_override/0 = SubResource("target_black")
+
+[node name="CrossVertical" type="MeshInstance3D" parent="Target"]
+position = Vector3(0, 0, 0.016)
+rotation = Vector3(0, 0, 1.5708)
+mesh = SubResource("cross_bar")
+surface_material_override/0 = SubResource("target_black")
+
+[node name="Post" type="MeshInstance3D" parent="Target"]
+position = Vector3(0, 0, 0.12)
+rotation = Vector3(1.5708, 0, 0)
+mesh = SubResource("standoff_post")
+surface_material_override/0 = SubResource("target_black")
+
+[node name="StandoffHorizontal" type="MeshInstance3D" parent="Target"]
+position = Vector3(0, 0, 0.23)
+mesh = SubResource("standoff_bar")
+surface_material_override/0 = SubResource("standoff")
+
+[node name="StandoffVertical" type="MeshInstance3D" parent="Target"]
+position = Vector3(0, 0, 0.23)
+rotation = Vector3(0, 0, 1.5708)
+mesh = SubResource("standoff_bar")
+surface_material_override/0 = SubResource("standoff")
+
+[node name="LightLeft" type="MeshInstance3D" parent="."]
+position = Vector3(-0.7, 0.55, -0.45)
+mesh = SubResource("port_light")
+surface_material_override/0 = SubResource("light_green")
+
+[node name="LightRight" type="MeshInstance3D" parent="."]
+position = Vector3(0.7, 0.55, -0.45)
+mesh = SubResource("port_light")
+surface_material_override/0 = SubResource("light_green")
+
+[node name="Body" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0, -1.7)
+mesh = SubResource("body")
+surface_material_override/0 = SubResource("gold_blanket")
+
+[node name="BoomLeft" type="MeshInstance3D" parent="."]
+position = Vector3(-1.5, 0, -1.7)
+mesh = SubResource("boom")
+surface_material_override/0 = SubResource("metal")
+
+[node name="BoomRight" type="MeshInstance3D" parent="."]
+position = Vector3(1.5, 0, -1.7)
+mesh = SubResource("boom")
+surface_material_override/0 = SubResource("metal")
+
+[node name="PanelLeft" type="MeshInstance3D" parent="."]
+position = Vector3(-4.6, 0, -1.7)
+mesh = SubResource("panel")
+surface_material_override/0 = SubResource("solar_cells")
+
+[node name="PanelRight" type="MeshInstance3D" parent="."]
+position = Vector3(4.6, 0, -1.7)
+mesh = SubResource("panel")
+surface_material_override/0 = SubResource("solar_cells")
+
+[node name="Dish" type="MeshInstance3D" parent="."]
+position = Vector3(0, 1.0, -2.2)
+mesh = SubResource("dish")
+surface_material_override/0 = SubResource("metal")
+
+[node name="Nozzle" type="MeshInstance3D" parent="."]
+position = Vector3(0, 0, -3.2)
+rotation = Vector3(1.5708, 0, 0)
+mesh = SubResource("nozzle")
+surface_material_override/0 = SubResource("metal")

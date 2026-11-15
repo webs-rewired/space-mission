@@ -11,20 +11,39 @@ var incoming_direction = Vector2(0, 1)   # the spacecraft's velocity relative to
 var outgoing_direction = Vector2(1, 0)   # ...and going out
 var planet_motion = Vector2(0, 1)         # which way the planet moves around the Sun (screen up)
 var turn_side = 1.0
+var planet_disc: TextureRect      # the planet as a textured globe (gravity_assist.gd sets it)
+var travel = -1.0                 # the swing playing out after Execute (0 to 1), or -1
+var clock = 0.0
+var stars = []
 
-func _process(_delta):
+func _ready():
+	var random = RandomNumberGenerator.new()
+	random.seed = 77
+	for index in 70:
+		stars.append([Vector2(random.randf(), random.randf()), random.randf_range(0.15, 0.55)])
+
+func _process(delta):
+	clock += delta
+	if planet_disc:
+		planet_disc.material.set_shader_parameter("turn", clock * 0.01)
 	if is_visible_in_tree():
 		queue_redraw()
 
 func _draw():
 	var middle = size / 2.0
 	var font = get_theme_default_font()
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.04, 0.07))
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.03, 0.06))
+	for star in stars:
+		draw_circle(star[0] * size, 0.8, Color(1, 1, 1, star[1]))
 	# Scale: the closest pass sits at a fixed size on screen, with the planet drawn in proportion inside it
 	var pass_pixels = min(size.x, size.y) * 0.18
 	var planet_pixels = clamp(pass_pixels * planet_radius_km / closest_km, 3.0, pass_pixels)
-	draw_circle(middle, planet_pixels, planet_color.darkened(0.3))
-	draw_circle(middle - Vector2(planet_pixels, planet_pixels) * 0.2, planet_pixels * 0.8, planet_color)
+	draw_circle(middle, planet_pixels * 1.25, Color(0.45, 0.7, 1.0, 0.08))
+	if planet_disc:
+		planet_disc.size = Vector2.ONE * planet_pixels * 2.0
+		planet_disc.position = middle - Vector2.ONE * planet_pixels
+	else:
+		draw_circle(middle, planet_pixels, planet_color)
 	# The path: in along one line, around the closest point, out along the other
 	var screen_in = Vector2(incoming_direction.x, -incoming_direction.y).normalized()
 	var screen_out = Vector2(outgoing_direction.x, -outgoing_direction.y).normalized()
@@ -42,7 +61,13 @@ func _draw():
 		var a = start.lerp(control, t)
 		var b = control.lerp(finish, t)
 		curve.append(a.lerp(b, t))
+	draw_polyline(curve, Color(0.45, 0.85, 1.0, 0.25), 6.0, true)
 	draw_polyline(curve, Color(0.45, 0.85, 1.0), 2.0, true)
+	# The spacecraft swinging through (looping, or once during the flyby after Execute)
+	var share = travel if travel >= 0.0 else fmod(clock * 0.3, 1.0)
+	var craft = curve[clamp(int(share * (curve.size() - 1)), 0, curve.size() - 1)]
+	draw_circle(craft, 6.0, Color(1, 1, 1, 0.2))
+	draw_circle(craft, 2.8, Color(1, 1, 1))
 	draw_circle(closest_point, 3.0, Color(1.0, 0.82, 0.35))
 	draw_string(font, closest_point + bisector * 10.0 + Vector2(4, 4), "closest", HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(1.0, 0.82, 0.35))
 	# Arrow heads

@@ -1,6 +1,7 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/belt_hud.gd" id="1_hud"]
+[ext_resource type="PackedScene" path="res://scenes/key_hints.tscn" id="2_keys"]
 
 [sub_resource type="StyleBoxFlat" id="hud_style"]
 content_margin_left = 16.0
@@ -89,6 +90,14 @@ theme_override_font_sizes/font_size = 12
 text = "CLOSE CALLS 0"
 vertical_alignment = 1
 
+[node name="Strikes" type="Label" parent="Column/Row"]
+layout_mode = 2
+theme_type_variation = &"DataLabel"
+theme_override_colors/font_color = Color(1, 0.55, 0.5, 1)
+theme_override_font_sizes/font_size = 12
+text = "STRIKES 0"
+vertical_alignment = 1
+
 [node name="Combo" type="Label" parent="Column/Row"]
 visible = false
 layout_mode = 2
@@ -98,9 +107,13 @@ theme_override_font_sizes/font_size = 18
 text = "3× COMBO"
 vertical_alignment = 1
 
+[node name="Keys" parent="Column" instance=ExtResource("2_keys")]
+layout_mode = 2
+hints = [["W A S D", "fire thrusters (or arrows)"]]
+
 [node name="Hint" type="Label" parent="Column"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.72, 0.76, 0.84, 1)
 theme_override_font_sizes/font_size = 12
-text = "WASD / arrows fire the thrusters. You keep drifting until you push the other way."
+text = "Let go and the autopilot slows your drift."
 horizontal_alignment = 1

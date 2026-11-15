@@ -102,6 +102,13 @@ func start(new_target_name):
 		arm_view.ground_color = Color(0.42, 0.42, 0.44)
 	elif GameState.destination == "Io":
 		arm_view.ground_color = Color(0.7, 0.6, 0.25)
+	# The sky over the rock: butterscotch on Mars (dust in the air), orange haze on Titan, black everywhere airless
+	var skies = {"Mars": [Color(0.42, 0.3, 0.22), Color(0.78, 0.6, 0.42), false], "Titan": [Color(0.35, 0.22, 0.08), Color(0.75, 0.5, 0.2), false],
+		"Venus": [Color(0.4, 0.3, 0.12), Color(0.8, 0.62, 0.3), false]}
+	var sky = skies.get(GameState.destination, [Color(0.01, 0.01, 0.02), Color(0.04, 0.045, 0.06), true])
+	arm_view.sky_top = sky[0]
+	arm_view.sky_horizon = sky[1]
+	arm_view.airless = sky[2]
 	collect_help.text = ("A/D swing the shoulder, W/S bend the elbow, Q/E turn the tool. Put the %s on the glowing spot, pointing straight into the surface, and hold SPACE. Keep the arm still while it works, then carry the sample to the inlet on the deck and press SPACE." % ("drill" if has_drill else "scoop")) + ("" if has_drill else " (No drill on board: you can only scoop loose soil.)")
 	runs_left = INSTRUMENT_RUNS[GameState.difficulty]
 	UiMotion.reveal_text(title_label, 0.1, 0.6, 0.4)
