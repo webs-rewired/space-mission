@@ -1489,9 +1489,16 @@ func start_rover():
 	surface_view.driving_finished.connect(_on_driving_finished)
 	surface_view.start_driving()
 	show_caption("Your rover is down! Drive it to the glowing science targets.", 5.0)
+	set_directives_card_shown(false)   # (the rover's own panel goes in that corner)
+
+func set_directives_card_shown(shown):
+	var card = get_node_or_null("CanvasLayer/DirectivesCard")
+	if card:
+		card.visible = shown
 
 func _on_driving_finished(summary):
 	rover_state = "done"
+	set_directives_card_shown(true)
 	seconds_since_last_event = 0.0
 	var lost_rover = summary.begins_with("The ") or summary.begins_with("Too many") or summary.begins_with("Jupiter")
 	GameState.science += surface_view.science_found

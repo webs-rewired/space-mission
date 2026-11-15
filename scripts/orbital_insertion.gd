@@ -70,6 +70,7 @@ func _ready():
 	continue_button.pressed.connect(_on_continue_pressed)
 
 func start():
+	get_viewport().gui_release_focus()
 	var destination = GameState.destination
 	var data = SolarSystemData.BODIES.get(destination, {})
 	world_radius = data.get("radius_km", 1000.0)
@@ -103,7 +104,7 @@ func start():
 	UiMotion.slide_in($Panel, 0.1, Vector2(40, 0), 0.6)
 	UiMotion.reveal_text(title_label, 0.2, 0.7, 0.4)
 
-func _unhandled_input(event):
+func _input(event):
 	if event is InputEventKey and event.keycode == KEY_SPACE and not event.echo:
 		burning_by_key = event.pressed
 		get_viewport().set_input_as_handled()

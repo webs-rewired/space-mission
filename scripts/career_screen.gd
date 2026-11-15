@@ -9,7 +9,9 @@ signal closed
 const Career = preload("res://scripts/career.gd")
 const StarsDisplay = preload("res://scripts/stars_display.gd")
 const SolarSystemData = preload("res://scripts/solar_system_data.gd")
-const TAB_NAMES = ["research", "achievements", "best"]
+const TAB_NAMES = ["research", "achievements", "best", "training"]
+const DOCKING_SCENE = preload("res://scenes/docking.tscn")
+const ENGINE_LAB_SCENE = preload("res://scenes/engine_test_lab.tscn")
 
 @onready var panel: PanelContainer = $Center/Panel
 @onready var rank_label: Label = $Center/Panel/Column/Header/TitleBlock/Rank
@@ -20,6 +22,7 @@ const TAB_NAMES = ["research", "achievements", "best"]
 @onready var upgrades_grid: GridContainer = $"Center/Panel/Column/Tabs/Research lab/Scroll/Upgrades"
 @onready var achievements_grid: GridContainer = $Center/Panel/Column/Tabs/Achievements/Grid
 @onready var best_list: VBoxContainer = $"Center/Panel/Column/Tabs/Best results/List"
+@onready var simulators_grid: GridContainer = $Center/Panel/Column/Tabs/Training/Simulators
 
 func _ready():
 	$Center/Panel/Column/Header/CloseButton.pressed.connect(close)
@@ -48,7 +51,7 @@ func _unhandled_input(event):
 		close()
 
 func animate_tab(delay := 0.0):
-	var shown = [upgrades_grid, achievements_grid, best_list][tabs.current_tab]
+	var shown = [upgrades_grid, achievements_grid, best_list, simulators_grid][tabs.current_tab]
 	UiMotion.stagger(shown.get_children(), delay, 0.035, Vector2(0, 16), 0.5)
 
 func refresh():
@@ -65,6 +68,7 @@ func refresh():
 	fill_upgrades()
 	fill_achievements()
 	fill_best_results()
+	fill_simulators()
 
 # ---------------------------------------------------------------------------
 # The research lab
@@ -167,6 +171,76 @@ func fill_best_results():
 		stars.filled = result.get("stars", 0)
 		row.add_child(stars)
 		best_list.add_child(card)
+
+# ---------------------------------------------------------------------------
+# Training: the minigames you can fly on their own, any time
+# ---------------------------------------------------------------------------
+func fill_simulators():
+	for old in simulators_grid.get_children():
+		simulators_grid.remove_child(old)
+		old.queue_free()
+	var docking_best = GameState.career.get("docking_best", 0)
+	add_simulator_card("Docking trainer", "Fly the last meters to the Space Station's forward or zenith port through the docking camera, with real orbital mechanics pulling you off course.",
+		"Best: %d / 100" % docking_best if docking_best > 0 else "Not flown yet", open_docking)
+	var engine_tests = GameState.career.get("engine_tests", {})
+	var engine_best = 0
+	for test in engine_tests:
+		engine_best = max(engine_best, engine_tests[test])
+	add_simulator_card("Engine test lab", "Fire real rocket engines on a test stand: throttle, mixture ratio, thrust, Isp and chamber heat.",
+		"%d tests passed · best %d / 100" % [engine_tests.size(), engine_best] if engine_tests.size() > 0 else "Not tested yet", open_engine_lab)
+	var rover_bests = GameState.career.get("rover_best", {})
+	var rover_text = "Not driven yet"
+	if not rover_bests.is_empty():
+		var parts = []
+		for world in rover_bests:
+			parts.append("%s %d" % [SolarSystemData.BODIES.get(world, {}).get("label", world), rover_bests[world]])
+		rover_text = "Best traverse: " + ", ".join(parts)
+	add_simulator_card("Rover traverse", "Every rover you land gets a traverse rating: science targets reached, wheels kept healthy, battery kept in reserve and an efficient route. Fly a mission with a rover to drive.",
+		rover_text, Callable())
+
+func add_simulator_card(title, text, best_text, action):
+	var card = make_card(Color(1.0, 0.82, 0.35, 0.45))
+	var column = VBoxContainer.new()
+	column.add_theme_constant_override("separation", 6)
+	card.add_child(column)
+	column.add_child(make_label(title, 18, Color.WHITE, "TitleLabel"))
+	var description = make_label(text, 13, Color(0.75, 0.8, 0.88))
+	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	description.custom_minimum_size.x = 300
+	column.add_child(description)
+	column.add_child(make_label(best_text, 12, Color(1.0, 0.82, 0.35), "DataLabel"))
+	if not action.is_valid():
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		simulators_grid.add_child(card)
+		return
+	var start_button = Button.new()
+	start_button.text = "Start"
+	start_button.custom_minimum_size = Vector2(120, 34)
+	start_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	start_button.pressed.connect(action)
+	column.add_child(start_button)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	simulators_grid.add_child(card)
+
+# A simulator opens on its own layer above the menus; the career screen refreshes when it closes
+func show_simulator(simulator):
+	var simulator_layer = CanvasLayer.new()
+	simulator_layer.name = "SimulatorLayer"
+	simulator_layer.layer = 110
+	get_tree().root.add_child(simulator_layer)
+	simulator_layer.add_child(simulator)
+	simulator.tree_exited.connect(func():
+		simulator_layer.queue_free()
+		if is_inside_tree():
+			refresh())
+
+func open_docking():
+	show_simulator(DOCKING_SCENE.instantiate())
+
+func open_engine_lab():
+	var lab = ENGINE_LAB_SCENE.instantiate()
+	show_simulator(lab)
+	lab.open_lab(GameState.rocket.get("bottom_engine", "merlin"))
 
 func make_card(edge_color):
 	var card = PanelContainer.new()

@@ -68,6 +68,7 @@ func _ready():
 	continue_button.pressed.connect(_on_continue_pressed)
 
 func start(new_target_name):
+	get_viewport().gui_release_focus()
 	target_name = new_target_name
 	var world = GameState.destination
 	var choices_here = GeologySamples.samples_for(world)

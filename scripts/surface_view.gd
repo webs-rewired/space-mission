@@ -12,6 +12,8 @@ signal driving_finished(summary)
 
 const RocketModel = preload("res://scripts/rocket_model.gd")
 const SAMPLE_LAB_SCENE = preload("res://scenes/sample_lab.tscn")
+const Career = preload("res://scripts/career.gd")
+const TRAVERSE_MEDALS = [[85, "GOLD", 15], [65, "SILVER", 8], [40, "BRONZE", 4]]
 const BeltBuilder = preload("res://scripts/belt_builder.gd")
 const SpaceTextures = preload("res://scripts/space_textures.gd")
 const SpacecraftLookalike = preload("res://scripts/spacecraft_lookalike.gd")
@@ -161,6 +163,8 @@ var cold = 0.0
 var radiation_dose = 0.0
 var wheel_damage = 0.0
 var odometer = 0.0
+var traverse_result = {}
+var lowest_battery = 100.0     # the lowest the battery got on this drive (for the traverse rating)
 var mission_minutes = 0.0
 var targets = []                # {"node", "name", "place", "studied"}
 var studying = null
@@ -1417,6 +1421,7 @@ func aim_study_laser(target):
 func update_drive_screen():
 	var column = $DriveScreen/DrivePanel/Column
 	column.get_node("BatteryBar").value = battery
+	lowest_battery = min(lowest_battery, battery)
 	column.get_node("BatteryLabel").text = "Battery: %d %%" % int(battery)
 	column.get_node("HeatBar").value = max(heat, cold)
 	column.get_node("RadiationBar").value = radiation_dose
@@ -1427,6 +1432,18 @@ func update_drive_screen():
 		if target["studied"]:
 			studied += 1
 	column.get_node("StatusLabel").text = "Driven: %d m   Mission clock: %s\nScience targets studied: %d of %d (+%d science)" % [int(odometer), time_text(mission_minutes), studied, targets.size(), science_found]
+	update_terrain_map()
+
+# The terrain map in the corner (scripts/rover_map.gd)
+func update_terrain_map():
+	var map = $DriveScreen/TerrainMap
+	map.area_radius = DRIVE_AREA_RADIUS
+	map.rover_place = Vector2(vehicle.position.x, vehicle.position.z)
+	map.rover_heading = rover_heading
+	map.sand_patches = sand_patches
+	map.targets = targets.map(func(target): return [target["place"], target["studied"], target["name"]])
+	if map.track.is_empty() or map.track[map.track.size() - 1].distance_to(map.rover_place) > 2.0:
+		map.track.append(map.rover_place)
 
 func time_text(minutes):
 	if minutes < 60.0:
@@ -1749,6 +1766,61 @@ func update_tracks():
 			travelled = next_travelled
 	track_mesh.surface_end()
 
+# The traverse rating (the Rover Terrain challenge): science targets reached 50, the rover's condition 20, energy
+# kept in reserve 15, and an efficient route 15 (the distance driven against the shortest hop from target to
+# target). Medals, a personal best on each world and research points like the other minigames. Returns a sentence.
+func rate_traverse(reason):
+	var studied_places = []
+	for target in targets:
+		if target["studied"]:
+			studied_places.append(target["place"])
+	# The route a careful driver would take: from the lander to the nearest target, then the next nearest...
+	var shortest = 0.0
+	var here = Vector2.ZERO
+	var left = studied_places.duplicate()
+	while not left.is_empty():
+		var nearest = left[0]
+		for place in left:
+			if here.distance_to(place) < here.distance_to(nearest):
+				nearest = place
+		shortest += here.distance_to(nearest)
+		here = nearest
+		left.erase(nearest)
+	var parts = {
+		"targets": int(round(50.0 * studied_places.size() / max(targets.size(), 1))),
+		"condition": 0 if reason != "" else int(round(20.0 * clamp(1.0 - wheel_damage / 100.0, 0.0, 1.0))),
+		"energy": int(round(15.0 * clamp(lowest_battery / 60.0, 0.0, 1.0))),
+		"route": int(round(15.0 * clamp(shortest / max(odometer, 1.0), 0.0, 1.0))) if studied_places.size() > 0 else 0,
+	}
+	var score = parts["targets"] + parts["condition"] + parts["energy"] + parts["route"]
+	var medal = []
+	for entry in TRAVERSE_MEDALS:
+		if score >= entry[0]:
+			medal = entry
+			break
+	# Personal best on this world, and research points for beating your best medal
+	var bests = GameState.career.get("rover_best", {})
+	var previous_best = bests.get(destination, 0)
+	var research = 0
+	if not medal.is_empty() and score > previous_best:
+		var previous_points = 0
+		for entry in TRAVERSE_MEDALS:
+			if previous_best >= entry[0]:
+				previous_points = entry[2]
+				break
+		research = max(medal[2] - previous_points, 0)
+	bests[destination] = max(previous_best, score)
+	GameState.career["rover_best"] = bests
+	GameState.career["research"] = GameState.career.get("research", 0) + research
+	Career.save_data(GameState.career)
+	traverse_result = {"score": score, "parts": parts, "medal": "" if medal.is_empty() else medal[1], "research": research}
+	if research > 0:
+		GameState.show_toast("%s traverse" % medal[1].capitalize(), "Rover drive rated %d/100. +%d research points." % [score, research], "research")
+	print("TRAVERSE %s" % [traverse_result])
+	return "Traverse rating: %s%d/100 (targets %d/50, rover %d/20, energy %d/15, route %d/15)%s." % [
+		(medal[1] + " ") if not medal.is_empty() else "", score, parts["targets"], parts["condition"], parts["energy"], parts["route"],
+		(", +%d research points" % research) if research > 0 else ""]
+
 func _on_done_driving():
 	end_driving("")
 
@@ -1770,6 +1842,7 @@ func end_driving(reason):
 	var summary = "Drove %d m in %s and studied %d science target%s (+%d science)." % [int(odometer), time_text(mission_minutes), findings.size(), "" if findings.size() == 1 else "s", science_found]
 	if findings.size() > 0:
 		summary += " Found: " + ", ".join(findings) + "."
+	summary += " " + rate_traverse(reason)
 	if reason != "":
 		summary = reason + " " + summary
 	landed = true

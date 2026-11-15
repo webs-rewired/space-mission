@@ -89,6 +89,7 @@ func _ready():
 		graph.window_seconds = 20.0
 
 func open_lab(engine_id := ""):
+	get_viewport().gui_release_focus()
 	if engine_id == "" or not RocketData.ENGINES.has(engine_id):
 		engine_id = engine_ids[0]
 	engine_picker.selected = engine_ids.find(engine_id)
@@ -104,7 +105,8 @@ func close():
 	closed.emit()
 	queue_free()
 
-func _unhandled_input(event):
+# (_input, not _unhandled_input: a button left focused underneath would otherwise take Space first)
+func _input(event):
 	if not (event is InputEventKey) or not event.pressed:
 		return
 	match event.keycode:

@@ -75,6 +75,7 @@ func _ready():
 	result_box.visible = false
 
 func open_planner():
+	get_viewport().gui_release_focus()
 	destination = GameState.destination
 	target_radius = GameState.DESTINATIONS.get(destination, {}).get("distance_from_sun_au", 5.2) * AU_KM
 	going_inward = target_radius < 0.7 * AU_KM
