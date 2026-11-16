@@ -136,6 +136,7 @@ var status_lines = DEFAULT_LINES
 var shown_progress = 0.0
 var scene_name = ""
 var transition: Tween = null
+var warming = false           # the web version is getting its graphics ready (scripts/shader_warmup.gd)
 
 func _ready():
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -143,7 +144,7 @@ func _ready():
 	wipe.visible = false
 
 func is_busy():
-	return loading
+	return loading or warming
 
 func destination():
 	var place = str(GameState.destination) if "destination" in GameState else ""
@@ -155,6 +156,7 @@ func with_destination(text):
 func go_to(scene_path):
 	if loading:
 		return
+	warming = false   # (a scene change stops the graphics warm-up; this screen carries on as a normal loading screen)
 	if not ResourceLoader.exists(scene_path):
 		push_error("Scene not found: " + scene_path)
 		return
@@ -215,6 +217,13 @@ func pick_fact():
 		fact_label.text = fact
 
 func _process(delta):
+	if warming and not loading:
+		seconds_shown += delta
+		seconds_on_fact += delta
+		if seconds_on_fact > NEXT_FACT_SECONDS:
+			pick_fact()
+			UiMotion.slide_in(fact_label, 0.0, Vector2(0, 14), 0.6)
+		return
 	if not loading or covering:
 		return
 	seconds_shown += delta
@@ -257,5 +266,52 @@ func finish():
 	transition.tween_property(cover, "position:y", -screen_height, 0.7)
 	await transition.finished
 	if not loading:
+		cover.visible = false
+		cover.position = Vector2.ZERO
+
+# When the web version starts: this screen covers the main menu while scripts/shader_warmup.gd gets the graphics
+# ready, so the steps of the first mission don't stutter while the browser compiles shaders
+func begin_warmup():
+	if loading:
+		return
+	warming = true
+	scene_name = ""
+	seconds_shown = 0.0
+	title_label.text = "ORBIT LAB"
+	subtitle_label.text = "Getting the graphics ready for your browser. This happens once, so every step after it loads faster."
+	kicker_label.text = "NASA SPACE APPS CHALLENGE 2026   |   ASTRA VANGUARD"
+	pick_fact()
+	status_label.text = "Loading the launch site, spacecraft and worlds..."
+	progress_bar.value = 0.0
+	if transition:
+		transition.kill()
+	for label in [kicker_label, title_label, subtitle_label]:
+		label.material = null
+	wipe.visible = false
+	cover.modulate.a = 1.0
+	cover.position = Vector2.ZERO
+	cover.visible = true
+
+func warmup_progress(fraction, status):
+	if not warming or loading:
+		return
+	progress_bar.value = max(progress_bar.value, fraction * 100.0)
+	status_label.text = status + ".".repeat(1 + int(seconds_shown * 3.0) % 3)
+
+func end_warmup():
+	if not warming:
+		return
+	warming = false
+	if loading:
+		return
+	progress_bar.value = 100.0
+	status_label.text = "GO"
+	# Lifts away like after any other load, and the main menu's panels glide in
+	UiMotion.enter_scene(get_tree().current_scene)
+	var screen_height = cover.get_viewport_rect().size.y
+	transition = create_tween().set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_IN_OUT)
+	transition.tween_property(cover, "position:y", -screen_height, 0.7)
+	await transition.finished
+	if not loading and not warming:
 		cover.visible = false
 		cover.position = Vector2.ZERO

@@ -5,6 +5,7 @@ const LOADING_SCREEN_SCENE = "res://scenes/loading_screen.tscn"
 const GAME_SETTINGS_SCRIPT = "res://scripts/game_settings.gd"
 const REQUIRED_FILES_SCRIPT = "res://scripts/required_files.gd"
 const PAUSE_MENU_SCENE = "res://scenes/pause_menu.tscn"
+const SHADER_WARMUP_SCRIPT = "res://scripts/shader_warmup.gd"
 
 const Career = preload("res://scripts/career.gd")
 const TOAST_LAYER_SCENE = "res://scenes/toast_layer.tscn"
@@ -37,6 +38,11 @@ func _ready():
 		toasts = load(TOAST_LAYER_SCENE).instantiate()
 		toasts.name = "Toasts"
 		get_tree().root.add_child.call_deferred(toasts)
+	# In the web version: get the graphics ready behind the loading screen (scripts/shader_warmup.gd)
+	if ResourceLoader.exists(SHADER_WARMUP_SCRIPT) and get_tree().root.get_node_or_null("ShaderWarmup") == null:
+		var warmup = load(SHADER_WARMUP_SCRIPT).new()
+		warmup.name = "ShaderWarmup"
+		get_tree().root.add_child.call_deferred(warmup)
 	career = Career.load_data()
 	check_game_files()
 

@@ -16,6 +16,12 @@ Built in **Godot 4.7.2**.
 
 To share the game without Godot, use **Project › Export** for Windows, macOS, Linux or Web.
 
+### Web version
+
+The repository includes a **Web** export preset (`export_presets.cfg`) that builds with threads, which keeps sound and loading smoother in a browser. A threaded build needs the page to be "cross-origin isolated": on itch.io, tick **SharedArrayBuffer support** in the embed options. Exports go in the `build/` folder. Open the game from a web server, not by double-clicking `index.html`.
+
+The first time the web version starts, it spends a few seconds "getting the graphics ready" (`scripts/shader_warmup.gd`): it draws the game's materials once in a hidden view so the browser compiles their shaders before the mission, instead of freezing at each new step. The rest carries on quietly in the background on the menu screens. The web version also starts on Medium graphics; players can change this in Settings.
+
 ## How a mission goes
 
 | Stage | What you do | What's real about it |

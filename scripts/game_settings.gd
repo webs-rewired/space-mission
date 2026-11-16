@@ -24,6 +24,7 @@ const SLOW_FRAMES_PER_SECOND = 24.0      # slower than this at the start means t
 const SPEED_CHECK_SECONDS = 4.0
 
 var quality = 2                          # 0 = Low, 1 = Medium, 2 = High
+const WEB_STARTING_QUALITY = 1           # the web version starts at Medium: browsers have less memory and graphics power to work with
 var fullscreen = false
 var volumes = {"Master": 1.0, "Music": 1.0, "Effects": 1.0, "Voice": 1.0}   # 0 to 1
 var quality_chosen_by_player = false
@@ -57,6 +58,8 @@ func load_settings():
 	var file = ConfigFile.new()
 	if file.load(SAVE_FILE) != OK:
 		return
+	if OS.has_feature("web"):
+		quality = WEB_STARTING_QUALITY
 	quality = clamp(int(file.get_value("graphics", "quality", quality)), 0, 2)
 	quality_chosen_by_player = file.get_value("graphics", "chosen_by_player", false)
 	fullscreen = file.get_value("graphics", "fullscreen", false)
@@ -238,6 +241,10 @@ func _process(delta):
 		return
 	if Engine.get_process_frames() < 30:
 		return   # (the first frames are always slow: things are still loading)
+	# Frames while the web version's graphics warm-up is drawing are slow on purpose, so they don't count
+	var warmup = get_tree().root.get_node_or_null("ShaderWarmup")
+	if warmup and (not warmup.ready_to_play or warmup.drawing_now):
+		return
 	speed_check_seconds += delta
 	speed_check_frames += 1
 	if speed_check_seconds >= SPEED_CHECK_SECONDS:
