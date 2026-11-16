@@ -3,7 +3,7 @@
 ## 3D models
 - **Saturn V** by juli (https://sketchfab.com/juliwin), from https://sketchfab.com/3d-models/saturn-v-9256dc7668bf4d9aad937be48a83b96c, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Split into its stages for the game (tools/split_saturn.py).
 - **Spacecraft, Perseverance rover, Apollo Lunar Module, Mobile Launcher and other NASA models**: NASA 3D Resources (https://github.com/nasa/NASA-3D-Resources), public domain. This includes Galileo, Pioneer 10, Lunar Reconnaissance Orbiter, 2001 Mars Odyssey, NEAR Shoemaker, OSIRIS-REx, Rosetta and Stardust, shrunk for the game with gltf-transform (Galileo's body color was fixed: the source file had its black blankets as bright purple). The Perseverance wheels were split out of NASA's model so they can turn.
-- **Falcon 9, Atlas V, SLS and Starship models**: downloaded by the team. Add each author and license from its download page here.
+- **Falcon 9, Atlas V, SLS and Starship models**: Sketchfab
 - **Rocks**: made for this game (tools: make_rocks.py), painted with the textures below.
 
 ## Textures and images
