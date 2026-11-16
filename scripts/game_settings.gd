@@ -5,9 +5,9 @@ extends Node
 # changes it. The settings are saved in user://settings.cfg, so they're still there next time.
 #
 # Graphics quality is what to change when a computer runs the game slowly:
-#   Low     for laptops without a gaming graphics card: draws the 3D picture at 60 % size, no shadows,
+#   Low     for laptops without a gaming graphics card: draws the 3D picture at 75 % size, no shadows,
 #           no glow / reflections / fog effects, a third of the rocks, fewer particles
-#   Medium  draws at 80 % size, simple shadows, glow, two thirds of the rocks
+#   Medium  full size, lighter anti-aliasing, simple shadows, glow, two thirds of the rocks
 #   High    everything
 # The first time the game runs, it watches its own speed for a few seconds and turns the quality down by itself
 # if the computer can't keep up.
@@ -24,6 +24,10 @@ const SLOW_FRAMES_PER_SECOND = 24.0      # slower than this at the start means t
 const SPEED_CHECK_SECONDS = 4.0
 
 var quality = 2                          # 0 = Low, 1 = Medium, 2 = High
+# How much of the screen's resolution the 3D view is drawn at, for Low, Medium and High. Drawing smaller saves work but
+# looks pixelated once it's stretched to fill the screen (worst in the browser version), so only Low draws smaller;
+# Medium saves its work with lighter anti-aliasing and smaller shadows instead.
+const RENDER_SCALE = [0.75, 1.0, 1.0]
 const WEB_STARTING_QUALITY = 1           # the web version starts at Medium: browsers have less memory and graphics power to work with
 var fullscreen = false
 var volumes = {"Master": 1.0, "Music": 1.0, "Effects": 1.0, "Voice": 1.0}   # 0 to 1
@@ -172,7 +176,7 @@ func make_sound_channels():
 
 func apply_graphics():
 	var window = get_tree().root
-	window.scaling_3d_scale = [0.6, 0.8, 1.0][quality]
+	window.scaling_3d_scale = RENDER_SCALE[quality]
 	window.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][quality]
 	RenderingServer.directional_shadow_atlas_set_size([1024, 2048, 4096][quality], true)
 	RenderingServer.directional_soft_shadow_filter_set_quality([RenderingServer.SHADOW_QUALITY_HARD, RenderingServer.SHADOW_QUALITY_SOFT_LOW, RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM][quality])
@@ -230,7 +234,7 @@ func tune_node(node):
 		node.amount_ratio = particle_share()
 	elif node is SubViewport:
 		# (the main menu draws its launch scene in one of these)
-		node.scaling_3d_scale = [0.6, 0.8, 1.0][quality]
+		node.scaling_3d_scale = RENDER_SCALE[quality]
 		node.msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X][quality]
 
 # ---------------------------------------------------------------------------
