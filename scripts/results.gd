@@ -236,7 +236,11 @@ func add_stat(title, value):
 	var number = Label.new()
 	number.text = value
 	number.theme_type_variation = "TitleLabel"
-	number.add_theme_font_size_override("font_size", 20)
+	# (a long single word, like "Perseverance", gets a smaller size instead of being split across two lines)
+	var longest_word = 0
+	for word in str(value).split(" "):
+		longest_word = max(longest_word, word.length())
+	number.add_theme_font_size_override("font_size", 20 if longest_word <= 10 else 16)
 	number.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(number)
 	stats_grid.add_child(tile)
@@ -274,7 +278,7 @@ func build_view():
 	SpaceTextures.add_star_sky($View/Viewport/WorldEnvironment)
 	if GameState.lost:
 		return   # no spacecraft left to show
-	probe_model = SpacecraftLookalike.load_model(SpacecraftLookalike.closest(), 1.6)
+	probe_model = SpacecraftLookalike.load_model(SpacecraftLookalike.closest(), 1.3)
 	if probe_model:
 		probe_holder.add_child(probe_model)
 
@@ -284,7 +288,7 @@ func segments_review():
 	var rate = GameState.data_rate_kilobits()
 	var rate_text = "%.1f megabits per second" % (rate / 1000.0) if rate >= 1000.0 else ("%d kilobits per second" % int(rate) if rate >= 10.0 else "%.2f kilobits per second" % rate)
 	var delay = GameState.radio_delay_minutes()
-	var delay_text = "%.1f hours" % (delay / 60.0) if delay >= 90.0 else ("%d minutes" % int(round(delay)) if delay >= 1.5 else "%d seconds" % int(round(delay * 60.0)))
+	var delay_text = "%.1f hours" % (delay / 60.0) if delay >= 90.0 else ("%d minutes" % int(round(delay)) if delay >= 1.5 else "%.1f seconds" % (delay * 60.0))
 	var review = "[color=#8fd4ff][b]YOUR MISSION IN NASA'S FOUR SEGMENTS[/b][/color]"
 	review += "\n[b]Launch segment[/b] (the rocket): a rocket like the %s. Mission cost: %s." % [rocket_stack.get("name", "one you designed"), GameState.money_text(GameState.total_cost())]
 	review += "\n[b]Space segment[/b] (the spacecraft): %d instrument%s on a spacecraft most like %s." % [GameState.instruments.size(), "" if GameState.instruments.size() == 1 else "s", lookalike.get("name", "your own design")]

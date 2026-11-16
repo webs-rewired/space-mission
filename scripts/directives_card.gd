@@ -38,6 +38,14 @@ func build_rows():
 	footer.text = "+%d XP each   ·   %s" % [int(MissionDirectives.BONUS_XP * GameState.DIFFICULTY_XP[GameState.difficulty]), GameState.DIFFICULTY_NAMES[GameState.difficulty]]
 	check(true)
 
+# A shorter card (titles and progress only) for when the screen is crowded, like during an orbiter's mapping
+func set_compact(compact):
+	show_descriptions = not compact
+	for row in rows.values():
+		row.get_node("Words/Detail").visible = show_descriptions
+	footer.visible = not compact
+	reset_size()
+
 func _process(delta):
 	seconds_until_check -= delta
 	if seconds_until_check <= 0.0:

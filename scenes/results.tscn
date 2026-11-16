@@ -115,7 +115,7 @@ mesh = SubResource("planet_mesh")
 surface_material_override/0 = SubResource("planet_material")
 
 [node name="ProbeHolder" type="Node3D" parent="View/Viewport"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 0.4, 3)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.0, -0.9, 3)
 
 [node name="Layout" type="HBoxContainer" parent="."]
 layout_mode = 1
