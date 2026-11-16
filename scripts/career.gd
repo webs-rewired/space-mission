@@ -91,6 +91,8 @@ const ACHIEVEMENTS = {
 	"astrobiologist": {"title": "Astrobiologist", "text": "Report a potential biosignature honestly, with contamination ruled out and the place shown habitable."},
 	"seismologist": {"title": "Seismologist", "text": "Locate a quake within 10% of its real distance."},
 	"rock_hound": {"title": "Rock hound", "text": "Earn gold in the sample lab."},
+	"air_surfer": {"title": "Air surfer", "text": "Aerobrake down to a mapping orbit without a single overheat."},
+	"radio_lock": {"title": "Locked on", "text": "Stay locked on the signal for 90% of a radio science pass."},
 }
 
 static func load_data():

@@ -14,6 +14,8 @@ const DOCKING_SCENE = preload("res://scenes/docking.tscn")
 const ENGINE_LAB_SCENE = preload("res://scenes/engine_test_lab.tscn")
 const LIFE_SEARCH_SCENE = preload("res://scenes/life_search.tscn")
 const SEISMOMETER_SCENE = preload("res://scenes/seismometer.tscn")
+const AEROBRAKING_SCENE = preload("res://scenes/aerobraking.tscn")
+const RADIO_SCIENCE_SCENE = preload("res://scenes/radio_science.tscn")
 const MinigameLayer = preload("res://scripts/minigame_layer.gd")
 
 @onready var panel: PanelContainer = $Center/Panel
@@ -212,6 +214,17 @@ func fill_simulators():
 	var seismic_text = "Not tried yet" if seismic_bests.is_empty() else "Best: " + ", ".join(seismic_bests.keys().map(func(world): return "%s %d" % [world, seismic_bests[world]]))
 	add_simulator_card("Seismic station", "Level a seismometer, catch a quake's P and S waves, and work out how far away it was, like InSight on Mars and the Apollo astronauts on the Moon.",
 		seismic_text, Callable(), [["Mars", open_seismometer.bind("Mars")], ["Moon", open_seismometer.bind("Moon")]])
+	var aero_bests = GameState.career.get("aerobraking_best", {})
+	var aero_text = "Not flown yet" if aero_bests.is_empty() else "Best: " + ", ".join(aero_bests.keys().map(func(world): return "%s %d" % [world, aero_bests[world]]))
+	add_simulator_card("Aerobraking", "Shrink a long capture orbit into a mapping orbit by dipping into the top of the air on every pass, like Magellan at Venus and Mars Reconnaissance Orbiter at Mars, without overheating the solar panels.",
+		aero_text, Callable(), [["Mars", open_aerobraking.bind("Mars")], ["Venus", open_aerobraking.bind("Venus")]])
+	var radio_bests = GameState.career.get("radio_best", {})
+	var radio_text = "Not tracked yet" if radio_bests.is_empty() else "Best: " + ", ".join(radio_bests.keys().map(func(world): return "%s %d" % [world, radio_bests[world]]))
+	var radio_buttons = []
+	for world in ["Mars", "Venus", "Titan", "Pluto", "Jupiter", "Moon", "Mercury", "Europa", "Enceladus", "Io"]:
+		radio_buttons.append([world, open_radio_science.bind(world)])
+	add_simulator_card("Radio science", "Keep a receiver locked on a spacecraft's signal as it passes through a world's air (a radio occultation) or skims over its heavy and light patches (gravity science), then read what the data shows.",
+		radio_text, Callable(), radio_buttons)
 	add_simulator_card("Rover traverse", "Every rover you land gets a traverse rating: science targets reached, wheels kept healthy, battery kept in reserve and an efficient route. Fly a mission with a rover to drive.",
 		rover_text, Callable())
 
@@ -273,6 +286,18 @@ func open_seismometer(world):
 	show_simulator(station)
 	station.training = true
 	station.start("Training site", world)
+
+func open_aerobraking(world):
+	var game = AEROBRAKING_SCENE.instantiate()
+	show_simulator(game)
+	game.training = true
+	game.start(world)
+
+func open_radio_science(world):
+	var game = RADIO_SCIENCE_SCENE.instantiate()
+	show_simulator(game)
+	game.training = true
+	game.start(world)
 
 func open_engine_lab():
 	var lab = ENGINE_LAB_SCENE.instantiate()

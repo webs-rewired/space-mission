@@ -125,11 +125,18 @@ const ORBIT_LAP_SECONDS = 14.0     # one trip around the target
 const ORBIT_TILT_DEGREES = 12.0
 const MAPPING_ORBIT_TILT_DEGREES = 86.0   # orbiters fly over the poles, so the world turns under them and every part gets mapped
 const ORBIT_SCIENCE_SCENE = preload("res://scenes/orbit_science.tscn")
+const AEROBRAKING_SCENE = preload("res://scenes/aerobraking.tscn")
+const RADIO_SCIENCE_SCENE = preload("res://scenes/radio_science.tscn")
+const AerobrakingGame = preload("res://scripts/aerobraking.gd")
+const RadioScienceData = preload("res://scripts/radio_science_data.gd")
 const FIRST_ORBIT_EVENT_SECONDS = 12.0
 const ORBIT_EVENT_SPACING_SECONDS = 25.0
 var orbit_tilt_degrees = ORBIT_TILT_DEGREES
 var orbit_science: Node3D = null    # science from orbit, for probes with no lander
 var next_orbit_event_seconds = FIRST_ORBIT_EVENT_SECONDS
+var orbit_activity_open = false   # an orbiter's hands-on minigame is on screen (aerobraking, radio science)
+var aerobraking_done = false
+var radio_science_done = false
 var orbit_wide_view = false
 var arrival_camera_offset = Vector3.ZERO   # where the camera sits compared with the spacecraft, kept from frame to frame
 const DESCENT_SECONDS = 5.0
@@ -196,6 +203,10 @@ func _ready():
 	continue_button.pressed.connect(_on_continue_pressed)
 	set_up_target_planet()
 	GameState.build_mission()
+	# With minigames on, an orbiter at Mars or Venus flies its aerobraking itself (the Aerobraking minigame), so the
+	# quick "aerobrake or use the engine?" decision with its random outcome comes out of the list
+	if not GameState.skip_minigames and not has_lander() and AerobrakingGame.WORLDS.has(GameState.destination):
+		GameState.events = GameState.events.filter(func(event): return event.get("title", "") != "Aerobraking")
 	total_flight_days = max(GameState.trip_years() * 365.25, 0.5)
 	set_up_cruise_extras()
 	set_up_spacecraft_model()
@@ -368,6 +379,11 @@ func _process(delta):
 
 		if arrival_mode == "" and flight_progress >= 0.999:
 			begin_orbit()
+
+		# An orbiter's hands-on work (aerobraking down to its mapping orbit at Mars or Venus, then radio science):
+		# each opens once, between decisions
+		if orbit_activity_ready():
+			play_orbit_activity()
 
 		# Each event waits for its moment (see next_event_ready). It plays its animation first, then its panel opens.
 		if event_index < GameState.events.size() and next_event_ready(GameState.events[event_index]):
@@ -1498,11 +1514,62 @@ func start_orbit_science():
 	orbit_science.start(self)
 	orbit_science.finished.connect(_on_orbit_science_finished)
 	next_orbit_event_seconds = FIRST_ORBIT_EVENT_SECONDS
+	move_directives_card(true)   # (the orbiter's own panel takes the top left corner)
 
 func _on_orbit_science_finished(summary, points):
+	move_directives_card(false)
 	GameState.science += points
 	GameState.mission_log.append({"title": "Science from orbit", "text": summary, "ok": true})
 	show_caption(summary, 7.0)
+
+# ---------------------------------------------------------------------------
+# An orbiter's hands-on minigames (they come after the arrival decisions, between the mapping decisions):
+#   aerobraking (res://scenes/aerobraking.tscn) at Mars and Venus, right after the braking burn: dip into the top
+#     of the air to shrink the long capture orbit into a mapping orbit, like Magellan and Mars Reconnaissance Orbiter
+#   radio science (res://scenes/radio_science.tscn) a lap into mapping: a radio occultation of the air, or gravity
+#     mapping of an airless world (scripts/radio_science_data.gd lists the worlds)
+# They pause the mapping and hold the decisions until they're done. Skipped when minigames are turned off.
+# ---------------------------------------------------------------------------
+func orbit_activity_ready():
+	if orbit_activity_open or GameState.skip_minigames or arrival_mode != "orbiting" or not orbit_science_running() or next_event_has_phase("arrival"):
+		return false
+	if not aerobraking_done and AerobrakingGame.WORLDS.has(GameState.destination):
+		return orbit_science.science_seconds >= 1.0
+	if not radio_science_done and RadioScienceData.has_world(GameState.destination):
+		return orbit_science.science_seconds >= 18.0
+	return false
+
+func play_orbit_activity():
+	orbit_activity_open = true
+	orbit_science.paused = true
+	var aerobraking = not aerobraking_done and AerobrakingGame.WORLDS.has(GameState.destination)
+	if aerobraking:
+		show_title_card("AEROBRAKING", "Surf the top of %s's air down to a mapping orbit" % world_name(), Color(1.0, 0.7, 0.4))
+	else:
+		var gravity = RadioScienceData.WORLDS[GameState.destination]["mode"] == "gravity"
+		show_title_card("GRAVITY SCIENCE" if gravity else "RADIO OCCULTATION",
+			("Map the inside of %s with your radio signal" if gravity else "Your radio signal is about to pass through the air of %s") % world_name(), Color(0.55, 0.85, 1.0))
+	await get_tree().create_timer(2.6).timeout
+	var game = (AEROBRAKING_SCENE if aerobraking else RADIO_SCIENCE_SCENE).instantiate()
+	MinigameLayer.show_minigame(self, game)
+	game.start(GameState.destination)
+	var result = await game.finished
+	GameState.science += result["science"]
+	if aerobraking:
+		aerobraking_done = true
+		GameState.mission_stats["aerobraked"] = result["done"]
+		var text = ("Aerobraked down to the mapping orbit in %d days. +%d science." % [int(result["days"]), result["science"]]) if result["done"] else ("Aerobraking stopped early; the engine finished the job. +%d science." % result["science"])
+		GameState.mission_log.append({"title": "Aerobraking", "text": text, "ok": result["done"]})
+		show_caption(text, 6.0)
+	else:
+		radio_science_done = true
+		GameState.mission_stats["radio_coverage"] = result["coverage"]
+		var text = "Radio science: %d%% of the pass measured. +%d science." % [int(round(result["coverage"] * 100.0)), result["science"]]
+		GameState.mission_log.append({"title": "Radio science", "text": text, "ok": result["coverage"] >= 0.5})
+		show_caption(text, 6.0)
+	if orbit_science_running():
+		orbit_science.paused = false
+	orbit_activity_open = false
 
 # Photos from orbit, targets studied on the ground and the landing, for the directives and achievements
 func update_live_stats():
@@ -1552,6 +1619,18 @@ func start_rover():
 	surface_view.start_driving()
 	show_caption("Your rover is down! Drive it to the glowing science targets.", 5.0)
 	set_directives_card_shown(false)   # (the rover's own panel goes in that corner)
+
+# Moves the directives card down to the bottom left corner (above the Abort button) while another panel needs the
+# top left, so the two never overlap, and back up again
+func move_directives_card(to_bottom):
+	var card = get_node_or_null("CanvasLayer/DirectivesCard")
+	if card == null:
+		return
+	card.set_compact(to_bottom)   # (titles and progress only, so it fits under the orbiter's panel)
+	await get_tree().process_frame
+	var height = card.get_combined_minimum_size().y
+	var wanted = Vector2(16, get_viewport().get_visible_rect().size.y - height - 64.0) if to_bottom else Vector2(16, 16)
+	create_tween().tween_property(card, "position", wanted, 0.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 func set_directives_card_shown(shown):
 	var card = get_node_or_null("CanvasLayer/DirectivesCard")
@@ -1608,6 +1687,8 @@ func play_sample_return():
 # arrival, landing events for the landing itself (decisions on the way down, checks at touchdown), and surface events
 # for time on the ground: every so often while you drive, or one after another if there's no rover.
 func next_event_ready(event):
+	if orbit_activity_open:
+		return false   # (events wait while an orbit minigame is on screen)
 	var phase = event.get("phase", "cruise")
 	if arrival_mode == "":
 		# (never inside an asteroid or Kuiper belt, or just before one: you're flying there, so the event waits)
