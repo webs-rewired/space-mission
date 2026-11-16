@@ -14,3 +14,7 @@ export_credentials.cfg
 .mono/
 data_*/
 mono_crash.*.json
+
+# Web and desktop exports go in build/ (kept, with a .gdignore so Godot doesn't import what's exported there)
+build/*
+!build/.gdignore

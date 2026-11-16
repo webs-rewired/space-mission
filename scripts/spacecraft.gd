@@ -257,12 +257,14 @@ static func make_model(data):
 		part.layers = part.layers | 2
 	return holder
 
-# Where a model file is: res://assets/models/ first, otherwise anywhere in the project (in case it landed in another folder)
+# Where a model file is: res://assets/models/ or res://assets/ first, otherwise anywhere in the project (in case it
+# landed in another folder)
 static func find_model(file_name):
 	if file_name == "":
 		return ""
-	if ResourceLoader.exists(MODEL_FOLDER + file_name):
-		return MODEL_FOLDER + file_name
+	for folder in [MODEL_FOLDER, "res://assets/"]:
+		if ResourceLoader.exists(folder + file_name):
+			return folder + file_name
 	if model_paths.is_empty():
 		collect_models("res://")
 	var path = model_paths.get(file_name.to_lower(), "")
@@ -275,6 +277,9 @@ static func collect_models(folder):
 	if directory == null:
 		return
 	for file_name in directory.get_files():
+		# In an exported game the model files themselves aren't listed, only "name.glb.import" (or ".remap"), so
+		# those count too. Without this every spacecraft in an exported game was drawn as the simple box and dish.
+		file_name = file_name.trim_suffix(".import").trim_suffix(".remap")
 		if file_name.get_extension().to_lower() in ["glb", "gltf"]:
 			model_paths[file_name.to_lower()] = folder.path_join(file_name)
 	for sub_folder in directory.get_directories():
