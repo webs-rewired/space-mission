@@ -13,7 +13,7 @@ Built in **Godot 4.7.2**.
 1. Install [Godot 4.7.2](https://godotengine.org/download) (the standard version; C# isn't needed).
 2. Clone this repository and open `project.godot` in Godot.
 3. Press **F5** (or the Play button) to start at the main menu.
-4. Go to Itch.io and search up the game or paste this website ()
+4. Go to Itch.io and search up the game or paste this website (https://astravanguard.itch.io/orbit-lab) You can then choose to run on the web or download (download is reccomended for better performance-if it shows a "windows protected your computer" just click more info and run anyway) 
 
 To share the game without Godot, use **Project › Export** for Windows, macOS, Linux or Web.
 
