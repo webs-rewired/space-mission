@@ -401,6 +401,8 @@ func find_file(folder, file_name):
 	if directory == null:
 		return ""
 	for found in directory.get_files():
+		# (an exported game only lists "name.import" or "name.remap" for imported files)
+		found = found.trim_suffix(".import").trim_suffix(".remap")
 		if found.to_lower() == file_name.to_lower():
 			return folder.path_join(found)
 	for sub_folder in directory.get_directories():
